@@ -1,0 +1,27 @@
+{
+  "name": "maxtown",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev:miniapp": "npm run dev -w @maxtown/miniapp",
+    "dev:admin": "npm run dev -w @maxtown/admin",
+    "dev:api": "npm run dev -w @maxtown/api",
+    "dev:bot": "npm run dev -w @maxtown/bot",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  }
+}

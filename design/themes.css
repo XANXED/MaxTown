@@ -1,0 +1,839 @@
+/* MAX Mini App Kit — девять тем оформления MAX поверх базовой «Космос».
+   Подключать ПОСЛЕ tokens.css. Переключение: data-color-theme на <html>.
+
+   Блоки содержат только то, что тема РЕАЛЬНО меняет (9–38 токенов из 72);
+   остальное наследуется из tokens.css.
+
+   Тема «Космос» (space) отдельного блока не имеет — она и есть база в tokens.css,
+   поэтому data-color-theme="space" корректно отдаёт значения по умолчанию.
+
+   Роли акцента здесь заданы литералами, а не var(--accent): в MAX они
+   не всегда равны акценту (в «Неоне» тёмной accent #6a4dff, а chips-active #5d3dff). */
+
+/* ── Уверенная · feb23 ── светлая 37 токенов, тёмная 28 ── */
+[data-color-theme="feb23"] {
+  --accent: #148a8e;
+  --accent-fade: #148a8e29;
+  --bubble-in-text: #060808;
+  --bubble-in-time: #06080885;
+  --bubble-link: #0d7f85;
+  --bubble-out-gradient-1: #e0fff9;
+  --bubble-out-gradient-2: #e0fff9;
+  --bubble-out-gradient-3: #e0fff9;
+  --bubble-out-text: #01191f;
+  --bubble-out-time: #0d7f85;
+  --background-surface: #edf2f2;
+  --background-secondary: #f5f8f8;
+  --text-primary: #060808;
+  --text-secondary: #060808ad;
+  --text-tertiary: #06080885;
+  --text-mute: #06080866;
+  --text-themed: #148a8e;
+  --text-primary-static: #060808;
+  --icon-primary: #060808d6;
+  --icon-secondary: #060808a3;
+  --icon-tertiary: #0608087a;
+  --icon-mute: #06080847;
+  --icon-themed: #148a8e;
+  --stroke-themed: #148a8e;
+  --button-primary: #148a8e;
+  --button-secondary: #e9f0f1;
+  --button-secondary-contrast: #1b676b1a;
+  --controls-active: #148a8e;
+  --chips-active: #148a8e;
+  --counter-themed: #148a8e;
+  --counter-default: #141312;
+  --counter-mirage: #141312;
+  --counter-mute: #0608081f;
+  --counter-menu: #797c7c;
+  --tabbar-active: #148a8e;
+  --chat-ground: #71c2d8;
+  --chat-pattern-icon: #20889d2e;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-color-theme="feb23"]:not([data-color-scheme="light"]) {
+    --accent: #2e86a3;
+    --accent-fade: #2e86a329;
+    --bubble-in-background: #212a2b;
+    --bubble-link: #148a8e;
+    --bubble-out-gradient-1: #429696;
+    --bubble-out-gradient-2: #428896;
+    --bubble-out-gradient-3: #5498ba;
+    --background-surface: #141517;
+    --background-primary: #121314;
+    --background-secondary: #202225;
+    --background-card: #202225;
+    --text-themed: #2e86a3;
+    --text-primary-inverse: #060808;
+    --text-primary-static: #060808;
+    --icon-themed: #2e86a3;
+    --stroke-themed: #2e86a3;
+    --button-primary: #2e86a3;
+    --button-secondary: #3d4649;
+    --button-overlay: #38312e73;
+    --button-secondary-contrast: #b8d8e042;
+    --controls-active: #2e86a3;
+    --writebar-input-flat: #1e2324;
+    --chips-default: #1d2020;
+    --chips-active: #2e86a3;
+    --counter-themed: #2e86a3;
+    --counter-default: #141312;
+    --tabbar-active: #2e86a3;
+    --chat-pattern-icon: #7ab4c038;
+  }
+}
+
+[data-color-theme="feb23"][data-color-scheme="dark"] {
+  --accent: #2e86a3;
+  --accent-fade: #2e86a329;
+  --bubble-in-background: #212a2b;
+  --bubble-link: #148a8e;
+  --bubble-out-gradient-1: #429696;
+  --bubble-out-gradient-2: #428896;
+  --bubble-out-gradient-3: #5498ba;
+  --background-surface: #141517;
+  --background-primary: #121314;
+  --background-secondary: #202225;
+  --background-card: #202225;
+  --text-themed: #2e86a3;
+  --text-primary-inverse: #060808;
+  --text-primary-static: #060808;
+  --icon-themed: #2e86a3;
+  --stroke-themed: #2e86a3;
+  --button-primary: #2e86a3;
+  --button-secondary: #3d4649;
+  --button-overlay: #38312e73;
+  --button-secondary-contrast: #b8d8e042;
+  --controls-active: #2e86a3;
+  --writebar-input-flat: #1e2324;
+  --chips-default: #1d2020;
+  --chips-active: #2e86a3;
+  --counter-themed: #2e86a3;
+  --counter-default: #141312;
+  --tabbar-active: #2e86a3;
+  --chat-pattern-icon: #7ab4c038;
+}
+
+/* ── Изящная · mar8 ── светлая 38 токенов, тёмная 31 ── */
+[data-color-theme="mar8"] {
+  --accent: #d0538f;
+  --accent-fade: #d0538f29;
+  --bubble-in-text: #080607;
+  --bubble-in-time: #08060785;
+  --bubble-link: #c74883;
+  --bubble-out-gradient-1: #f6e0ff;
+  --bubble-out-gradient-2: #f6e0ff;
+  --bubble-out-gradient-3: #f6e0ff;
+  --bubble-out-text: #1f011e;
+  --bubble-out-time: #c74883;
+  --background-surface: #f2f0f2;
+  --background-secondary: #f9f7f8;
+  --text-primary: #080607;
+  --text-secondary: #080607ad;
+  --text-tertiary: #08060785;
+  --text-mute: #08060766;
+  --text-themed: #d0538f;
+  --text-primary-static: #080607;
+  --icon-primary: #080607d6;
+  --icon-secondary: #080607a3;
+  --icon-tertiary: #0806077a;
+  --icon-mute: #08060747;
+  --icon-themed: #d0538f;
+  --stroke-themed: #d0538f;
+  --button-primary: #d0538f;
+  --button-secondary: #f4ecf0;
+  --button-secondary-contrast: #8d3e631a;
+  --controls-active: #d0538f;
+  --chips-active: #d0538f;
+  --counter-themed: #d0538f;
+  --counter-default: #141312;
+  --counter-mirage: #141312;
+  --counter-mute: #0806071f;
+  --counter-menu: #7c797c;
+  --tabbar-active: #d0538f;
+  --tabbar-inactive: #999699;
+  --chat-ground: #f3a2c3;
+  --chat-pattern-icon: #9d209d2e;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-color-theme="mar8"]:not([data-color-scheme="light"]) {
+    --accent: #cd3782;
+    --accent-fade: #cd378229;
+    --bubble-in-background: #352533;
+    --bubble-link: #c74883;
+    --bubble-out-gradient-1: #dc655e;
+    --bubble-out-gradient-2: #d2606c;
+    --bubble-out-gradient-3: #c05386;
+    --background-surface: #171417;
+    --background-primary: #141214;
+    --background-secondary: #252025;
+    --background-card: #252025;
+    --text-themed: #cd3782;
+    --text-primary-inverse: #080607;
+    --text-primary-static: #080607;
+    --icon-themed: #cd3782;
+    --stroke-themed: #cd3782;
+    --button-primary: #cd3782;
+    --button-secondary: #4b3f47;
+    --button-overlay: #38312e73;
+    --button-secondary-contrast: #e8c0d842;
+    --controls-active: #cd3782;
+    --writebar-input-flat: #241e24;
+    --chips-default: #201e1d;
+    --chips-active: #cd3782;
+    --counter-themed: #cd3782;
+    --counter-default: #141312;
+    --counter-menu: #7c797c;
+    --tabbar-active: #cd3782;
+    --tabbar-inactive: #7f7d7f;
+    --chat-ground: #000000;
+    --chat-pattern-icon: #c07ac038;
+  }
+}
+
+[data-color-theme="mar8"][data-color-scheme="dark"] {
+  --accent: #cd3782;
+  --accent-fade: #cd378229;
+  --bubble-in-background: #352533;
+  --bubble-link: #c74883;
+  --bubble-out-gradient-1: #dc655e;
+  --bubble-out-gradient-2: #d2606c;
+  --bubble-out-gradient-3: #c05386;
+  --background-surface: #171417;
+  --background-primary: #141214;
+  --background-secondary: #252025;
+  --background-card: #252025;
+  --text-themed: #cd3782;
+  --text-primary-inverse: #080607;
+  --text-primary-static: #080607;
+  --icon-themed: #cd3782;
+  --stroke-themed: #cd3782;
+  --button-primary: #cd3782;
+  --button-secondary: #4b3f47;
+  --button-overlay: #38312e73;
+  --button-secondary-contrast: #e8c0d842;
+  --controls-active: #cd3782;
+  --writebar-input-flat: #241e24;
+  --chips-default: #201e1d;
+  --chips-active: #cd3782;
+  --counter-themed: #cd3782;
+  --counter-default: #141312;
+  --counter-menu: #7c797c;
+  --tabbar-active: #cd3782;
+  --tabbar-inactive: #7f7d7f;
+  --chat-ground: #000000;
+  --chat-pattern-icon: #c07ac038;
+}
+
+/* ── Летний лес · nature ── светлая 37 токенов, тёмная 28 ── */
+[data-color-theme="nature"] {
+  --accent: #2da334;
+  --accent-fade: #2da33429;
+  --bubble-in-text: #060806;
+  --bubble-in-time: #06080685;
+  --bubble-link: #25992e;
+  --bubble-out-gradient-1: #e2ffc9;
+  --bubble-out-gradient-2: #e2ffc9;
+  --bubble-out-gradient-3: #e2ffc9;
+  --bubble-out-text: #011f09;
+  --bubble-out-time: #008c08;
+  --background-surface: #f0f2f0;
+  --background-secondary: #f5faf5;
+  --text-primary: #060806;
+  --text-secondary: #060806ad;
+  --text-tertiary: #06080685;
+  --text-mute: #06080666;
+  --text-themed: #2da334;
+  --text-primary-static: #060806;
+  --icon-primary: #060806d6;
+  --icon-secondary: #060806a3;
+  --icon-tertiary: #0608067a;
+  --icon-mute: #06080647;
+  --icon-themed: #2da334;
+  --stroke-themed: #2da334;
+  --button-primary: #2da334;
+  --button-secondary: #e9f1ea;
+  --button-secondary-contrast: #1c6b251a;
+  --controls-active: #2da334;
+  --chips-active: #2da334;
+  --counter-themed: #2da334;
+  --counter-default: #171c17;
+  --counter-mirage: #171c17;
+  --counter-mute: #0608061f;
+  --counter-menu: #797c7c;
+  --tabbar-active: #2da334;
+  --chat-ground: #afdbb3;
+  --chat-pattern-icon: #2da3342e;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-color-theme="nature"]:not([data-color-scheme="light"]) {
+    --accent: #2da334;
+    --accent-fade: #2da33429;
+    --bubble-in-background: #1f2d20;
+    --bubble-link: #ffffff;
+    --bubble-out-gradient-1: #195939;
+    --bubble-out-gradient-2: #175033;
+    --bubble-out-gradient-3: #14472e;
+    --background-surface: #0f120f;
+    --background-primary: #171c17;
+    --background-secondary: #222925;
+    --background-card: #222925;
+    --text-themed: #2da334;
+    --text-primary-inverse: #060806;
+    --text-primary-static: #060806;
+    --icon-themed: #2da334;
+    --stroke-themed: #2da334;
+    --button-primary: #2da334;
+    --button-secondary: #414f44;
+    --button-overlay: #00000073;
+    --button-secondary-contrast: #b8e0c442;
+    --controls-active: #2da334;
+    --writebar-input-flat: #1e241e;
+    --chips-default: #222925;
+    --chips-active: #2da334;
+    --counter-themed: #2da334;
+    --counter-default: #171c17;
+    --tabbar-active: #2da334;
+    --chat-pattern-icon: #2da33438;
+  }
+}
+
+[data-color-theme="nature"][data-color-scheme="dark"] {
+  --accent: #2da334;
+  --accent-fade: #2da33429;
+  --bubble-in-background: #1f2d20;
+  --bubble-link: #ffffff;
+  --bubble-out-gradient-1: #195939;
+  --bubble-out-gradient-2: #175033;
+  --bubble-out-gradient-3: #14472e;
+  --background-surface: #0f120f;
+  --background-primary: #171c17;
+  --background-secondary: #222925;
+  --background-card: #222925;
+  --text-themed: #2da334;
+  --text-primary-inverse: #060806;
+  --text-primary-static: #060806;
+  --icon-themed: #2da334;
+  --stroke-themed: #2da334;
+  --button-primary: #2da334;
+  --button-secondary: #414f44;
+  --button-overlay: #00000073;
+  --button-secondary-contrast: #b8e0c442;
+  --controls-active: #2da334;
+  --writebar-input-flat: #1e241e;
+  --chips-default: #222925;
+  --chips-active: #2da334;
+  --counter-themed: #2da334;
+  --counter-default: #171c17;
+  --tabbar-active: #2da334;
+  --chat-pattern-icon: #2da33438;
+}
+
+/* ── Неон · neon ── светлая 37 токенов, тёмная 28 ── */
+[data-color-theme="neon"] {
+  --accent: #5d3dff;
+  --accent-fade: #5d3dff29;
+  --bubble-in-text: #060608;
+  --bubble-in-time: #06060885;
+  --bubble-link: #6140f5;
+  --bubble-out-gradient-1: #dae0ff;
+  --bubble-out-gradient-2: #dae0ff;
+  --bubble-out-gradient-3: #dae0ff;
+  --bubble-out-text: #07011f;
+  --bubble-out-time: #4930c7;
+  --background-surface: #f0f0f2;
+  --background-secondary: #f6f5fa;
+  --text-primary: #060608;
+  --text-secondary: #060608ad;
+  --text-tertiary: #06060885;
+  --text-mute: #06060866;
+  --text-themed: #5d3dff;
+  --text-primary-static: #060608;
+  --icon-primary: #060608d6;
+  --icon-secondary: #060608a3;
+  --icon-tertiary: #0606087a;
+  --icon-mute: #06060847;
+  --icon-themed: #5d3dff;
+  --stroke-themed: #5d3dff;
+  --button-primary: #5d3dff;
+  --button-secondary: #edecf4;
+  --button-secondary-contrast: #46398f1a;
+  --controls-active: #5d3dff;
+  --chips-active: #5d3dff;
+  --counter-themed: #5d3dff;
+  --counter-default: #19171c;
+  --counter-mirage: #19171c;
+  --counter-mute: #0606081f;
+  --counter-menu: #797c7c;
+  --tabbar-active: #5d3dff;
+  --chat-ground: #c387ed;
+  --chat-pattern-icon: #4930c72e;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-color-theme="neon"]:not([data-color-scheme="light"]) {
+    --accent: #6a4dff;
+    --accent-fade: #6a4dff29;
+    --bubble-in-background: #39323d;
+    --bubble-link: #ffffff;
+    --bubble-out-gradient-1: #e56b53;
+    --bubble-out-gradient-2: #8d33cc;
+    --bubble-out-gradient-3: #394ae5;
+    --background-surface: #100f12;
+    --background-primary: #19171c;
+    --background-secondary: #28252d;
+    --background-card: #28252d;
+    --text-themed: #6a4dff;
+    --text-primary-inverse: #060608;
+    --text-primary-static: #060608;
+    --icon-themed: #6a4dff;
+    --stroke-themed: #6a4dff;
+    --button-primary: #6a4dff;
+    --button-secondary: #464357;
+    --button-secondary-contrast: #c4c0ff42;
+    --controls-active: #6a4dff;
+    --writebar-input-flat: #201e24;
+    --chips-default: #28252d;
+    --chips-active: #5d3dff;
+    --counter-themed: #5d3dff;
+    --counter-default: #19171c;
+    --tabbar-active: #6a4dff;
+    --chat-ground: #100e11;
+    --chat-pattern-icon: #6a4dff38;
+  }
+}
+
+[data-color-theme="neon"][data-color-scheme="dark"] {
+  --accent: #6a4dff;
+  --accent-fade: #6a4dff29;
+  --bubble-in-background: #39323d;
+  --bubble-link: #ffffff;
+  --bubble-out-gradient-1: #e56b53;
+  --bubble-out-gradient-2: #8d33cc;
+  --bubble-out-gradient-3: #394ae5;
+  --background-surface: #100f12;
+  --background-primary: #19171c;
+  --background-secondary: #28252d;
+  --background-card: #28252d;
+  --text-themed: #6a4dff;
+  --text-primary-inverse: #060608;
+  --text-primary-static: #060608;
+  --icon-themed: #6a4dff;
+  --stroke-themed: #6a4dff;
+  --button-primary: #6a4dff;
+  --button-secondary: #464357;
+  --button-secondary-contrast: #c4c0ff42;
+  --controls-active: #6a4dff;
+  --writebar-input-flat: #201e24;
+  --chips-default: #28252d;
+  --chips-active: #5d3dff;
+  --counter-themed: #5d3dff;
+  --counter-default: #19171c;
+  --tabbar-active: #6a4dff;
+  --chat-ground: #100e11;
+  --chat-pattern-icon: #6a4dff38;
+}
+
+/* ── Москва · moscow ── светлая 37 токенов, тёмная 29 ── */
+[data-color-theme="moscow"] {
+  --accent: #d93636;
+  --accent-fade: #d9363629;
+  --bubble-in-text: #080606;
+  --bubble-in-time: #08060685;
+  --bubble-link: #cf2e2b;
+  --bubble-out-gradient-1: #bf3f3f;
+  --bubble-out-gradient-2: #bf3f3f;
+  --bubble-out-gradient-3: #bf3f3f;
+  --bubble-out-text: #ffffff;
+  --bubble-out-time: #ffffffa3;
+  --background-surface: #f2f0f0;
+  --background-secondary: #faf8f7;
+  --text-primary: #080606;
+  --text-secondary: #080606ad;
+  --text-tertiary: #08060685;
+  --text-mute: #08060666;
+  --text-themed: #d93636;
+  --text-primary-static: #080606;
+  --icon-primary: #080606d6;
+  --icon-secondary: #080606a3;
+  --icon-tertiary: #0806067a;
+  --icon-mute: #08060647;
+  --icon-themed: #d93636;
+  --stroke-themed: #d93636;
+  --button-primary: #d93636;
+  --button-secondary: #f3ebeb;
+  --button-secondary-contrast: #8734341a;
+  --controls-active: #d93636;
+  --chips-active: #d93636;
+  --counter-themed: #d93636;
+  --counter-default: #0b101a;
+  --counter-mirage: #0b101a;
+  --counter-mute: #0806061f;
+  --counter-menu: #797c7c;
+  --tabbar-active: #d93636;
+  --chat-ground: #e0efff;
+  --chat-pattern-icon: #d936362e;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-color-theme="moscow"]:not([data-color-scheme="light"]) {
+    --accent: #a63a3a;
+    --accent-fade: #a63a3a29;
+    --bubble-in-background: #1c2840;
+    --bubble-link: #cf2e2b;
+    --bubble-out-gradient-1: #9d2f40;
+    --bubble-out-gradient-2: #9d2f40;
+    --bubble-out-gradient-3: #c63b3b;
+    --background-surface: #06090f;
+    --background-primary: #0b101a;
+    --background-secondary: #111a29;
+    --background-card: #111a29;
+    --text-themed: #a63a3a;
+    --text-primary-inverse: #080606;
+    --text-primary-static: #080606;
+    --icon-themed: #a63a3a;
+    --stroke-themed: #a63a3a;
+    --button-primary: #a63a3a;
+    --button-secondary: #382e35;
+    --button-overlay: #382e2e73;
+    --button-secondary-contrast: #b8838342;
+    --controls-active: #a63a3a;
+    --writebar-input-flat: #0f1624;
+    --chips-default: #111a29;
+    --chips-active: #a63a3a;
+    --counter-themed: #a63a3a;
+    --counter-default: #0b101a;
+    --tabbar-active: #a63a3a;
+    --chat-ground: #0f1733;
+    --chat-pattern-icon: #bf434338;
+  }
+}
+
+[data-color-theme="moscow"][data-color-scheme="dark"] {
+  --accent: #a63a3a;
+  --accent-fade: #a63a3a29;
+  --bubble-in-background: #1c2840;
+  --bubble-link: #cf2e2b;
+  --bubble-out-gradient-1: #9d2f40;
+  --bubble-out-gradient-2: #9d2f40;
+  --bubble-out-gradient-3: #c63b3b;
+  --background-surface: #06090f;
+  --background-primary: #0b101a;
+  --background-secondary: #111a29;
+  --background-card: #111a29;
+  --text-themed: #a63a3a;
+  --text-primary-inverse: #080606;
+  --text-primary-static: #080606;
+  --icon-themed: #a63a3a;
+  --stroke-themed: #a63a3a;
+  --button-primary: #a63a3a;
+  --button-secondary: #382e35;
+  --button-overlay: #382e2e73;
+  --button-secondary-contrast: #b8838342;
+  --controls-active: #a63a3a;
+  --writebar-input-flat: #0f1624;
+  --chips-default: #111a29;
+  --chips-active: #a63a3a;
+  --counter-themed: #a63a3a;
+  --counter-default: #0b101a;
+  --tabbar-active: #a63a3a;
+  --chat-ground: #0f1733;
+  --chat-pattern-icon: #bf434338;
+}
+
+/* ── Тема Студии Лебедева · lebedev ── светлая 37 токенов, тёмная 29 ── */
+[data-color-theme="lebedev"] {
+  --accent: #de675a;
+  --accent-fade: #de675a29;
+  --bubble-in-text: #080606;
+  --bubble-in-time: #08060685;
+  --bubble-link: #d45e4e;
+  --bubble-out-gradient-1: #fbe1d7;
+  --bubble-out-gradient-2: #fbe1d7;
+  --bubble-out-gradient-3: #fbe1d7;
+  --bubble-out-text: #1f0401;
+  --bubble-out-time: #e88c80;
+  --background-surface: #f2f1f0;
+  --background-secondary: #faf8f5;
+  --text-primary: #080606;
+  --text-secondary: #080606ad;
+  --text-tertiary: #08060685;
+  --text-mute: #08060666;
+  --text-themed: #de675a;
+  --text-primary-static: #080606;
+  --icon-primary: #080606d6;
+  --icon-secondary: #080606a3;
+  --icon-tertiary: #0806067a;
+  --icon-mute: #08060647;
+  --icon-themed: #de675a;
+  --stroke-themed: #de675a;
+  --button-primary: #de675a;
+  --button-secondary: #f6eeed;
+  --button-secondary-contrast: #9e52491a;
+  --controls-active: #de675a;
+  --chips-active: #de675a;
+  --counter-themed: #de675a;
+  --counter-default: #1c1817;
+  --counter-mirage: #1c1817;
+  --counter-mute: #0806061f;
+  --counter-menu: #797c7c;
+  --tabbar-active: #de675a;
+  --chat-ground: #e39b95;
+  --chat-pattern-icon: #de675a2e;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-color-theme="lebedev"]:not([data-color-scheme="light"]) {
+    --accent: #bb483f;
+    --accent-fade: #bb483f29;
+    --bubble-in-background: #302c2c;
+    --bubble-link: #d45e4e;
+    --bubble-out-gradient-1: #d19379;
+    --bubble-out-gradient-2: #b87466;
+    --bubble-out-gradient-3: #9f5452;
+    --background-surface: #120f0f;
+    --background-primary: #1c1817;
+    --background-secondary: #292422;
+    --background-card: #292422;
+    --text-themed: #bb483f;
+    --text-primary-inverse: #080606;
+    --text-primary-static: #080606;
+    --icon-themed: #bb483f;
+    --stroke-themed: #bb483f;
+    --button-primary: #bb483f;
+    --button-secondary: #514542;
+    --button-overlay: #382f2e73;
+    --button-secondary-contrast: #e8c4bc42;
+    --controls-active: #bb483f;
+    --writebar-input-flat: #241f1e;
+    --chips-default: #292422;
+    --chips-active: #bb483f;
+    --counter-themed: #bb483f;
+    --counter-default: #1c1817;
+    --tabbar-active: #bb483f;
+    --chat-ground: #110f0e;
+    --chat-pattern-icon: #bb483f38;
+  }
+}
+
+[data-color-theme="lebedev"][data-color-scheme="dark"] {
+  --accent: #bb483f;
+  --accent-fade: #bb483f29;
+  --bubble-in-background: #302c2c;
+  --bubble-link: #d45e4e;
+  --bubble-out-gradient-1: #d19379;
+  --bubble-out-gradient-2: #b87466;
+  --bubble-out-gradient-3: #9f5452;
+  --background-surface: #120f0f;
+  --background-primary: #1c1817;
+  --background-secondary: #292422;
+  --background-card: #292422;
+  --text-themed: #bb483f;
+  --text-primary-inverse: #080606;
+  --text-primary-static: #080606;
+  --icon-themed: #bb483f;
+  --stroke-themed: #bb483f;
+  --button-primary: #bb483f;
+  --button-secondary: #514542;
+  --button-overlay: #382f2e73;
+  --button-secondary-contrast: #e8c4bc42;
+  --controls-active: #bb483f;
+  --writebar-input-flat: #241f1e;
+  --chips-default: #292422;
+  --chips-active: #bb483f;
+  --counter-themed: #bb483f;
+  --counter-default: #1c1817;
+  --tabbar-active: #bb483f;
+  --chat-ground: #110f0e;
+  --chat-pattern-icon: #bb483f38;
+}
+
+/* ── Простая · simple ── светлая 9 токенов, тёмная 8 ── */
+[data-color-theme="simple"] {
+  --bubble-in-background: #f2f2f2;
+  --bubble-link: #0072f5;
+  --bubble-out-gradient-1: #17a8e5;
+  --bubble-out-gradient-2: #0b8ce8;
+  --bubble-out-gradient-3: #0070eb;
+  --bubble-out-text: #ffffff;
+  --bubble-out-time: #ffffffa3;
+  --counter-menu: #797c7c;
+  --chat-ground: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-color-theme="simple"]:not([data-color-scheme="light"]) {
+    --bubble-in-background: #202022;
+    --bubble-link: #0072f5;
+    --bubble-out-gradient-1: #4429cc;
+    --bubble-out-gradient-2: #2251e5;
+    --bubble-out-gradient-3: #0088cc;
+    --button-secondary: #323234;
+    --button-overlay: #3d434a73;
+    --chat-ground: #0e0e11;
+  }
+}
+
+[data-color-theme="simple"][data-color-scheme="dark"] {
+  --bubble-in-background: #202022;
+  --bubble-link: #0072f5;
+  --bubble-out-gradient-1: #4429cc;
+  --bubble-out-gradient-2: #2251e5;
+  --bubble-out-gradient-3: #0088cc;
+  --button-secondary: #323234;
+  --button-overlay: #3d434a73;
+  --chat-ground: #0e0e11;
+}
+
+/* ── Аквамарин · aquamarine ── светлая 28 токенов, тёмная 27 ── */
+[data-color-theme="aquamarine"] {
+  --accent: #027feb;
+  --accent-fade: #027feb29;
+  --bubble-in-text: #080706;
+  --bubble-in-time: #08070685;
+  --bubble-link: #027feb;
+  --bubble-out-gradient-1: #ddf4ff;
+  --bubble-out-gradient-2: #ddf4ff;
+  --bubble-out-gradient-3: #ddf4ff;
+  --bubble-out-text: #052433;
+  --bubble-out-time: #027feb;
+  --background-surface: #f0f1f2;
+  --background-secondary: #f5f8fa;
+  --text-themed: #027feb;
+  --icon-themed: #027feb;
+  --stroke-themed: #027feb;
+  --button-primary: #027feb;
+  --button-secondary: #e9edf1;
+  --button-secondary-contrast: #204a6e1a;
+  --controls-active: #027feb;
+  --chips-active: #027feb;
+  --counter-themed: #027feb;
+  --counter-default: #141312;
+  --counter-mirage: #141312;
+  --counter-mute: #0807061f;
+  --counter-menu: #797c7c;
+  --tabbar-active: #027feb;
+  --chat-ground: #3db8ce;
+  --chat-pattern-icon: #20639d2e;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-color-theme="aquamarine"]:not([data-color-scheme="light"]) {
+    --accent: #027feb;
+    --accent-fade: #027feb29;
+    --bubble-in-background: #1e272b;
+    --bubble-link: #027feb;
+    --bubble-out-gradient-1: #29acd0;
+    --bubble-out-gradient-2: #1282bc;
+    --bubble-out-gradient-3: #266da8;
+    --background-surface: #171c1b;
+    --background-primary: #171c1b;
+    --background-secondary: #252d2b;
+    --background-card: #252d2b;
+    --text-themed: #027feb;
+    --icon-themed: #027feb;
+    --stroke-themed: #027feb;
+    --button-primary: #027feb;
+    --button-secondary: #434d55;
+    --button-overlay: #38312e73;
+    --button-secondary-contrast: #bfdcf642;
+    --controls-active: #027feb;
+    --writebar-input-flat: #1e2124;
+    --chips-default: #1d1f20;
+    --chips-active: #027feb;
+    --counter-themed: #027feb;
+    --counter-default: #141312;
+    --tabbar-active: #027feb;
+    --chat-ground: #0e0e11;
+    --chat-pattern-icon: #7a9fc038;
+  }
+}
+
+[data-color-theme="aquamarine"][data-color-scheme="dark"] {
+  --accent: #027feb;
+  --accent-fade: #027feb29;
+  --bubble-in-background: #1e272b;
+  --bubble-link: #027feb;
+  --bubble-out-gradient-1: #29acd0;
+  --bubble-out-gradient-2: #1282bc;
+  --bubble-out-gradient-3: #266da8;
+  --background-surface: #171c1b;
+  --background-primary: #171c1b;
+  --background-secondary: #252d2b;
+  --background-card: #252d2b;
+  --text-themed: #027feb;
+  --icon-themed: #027feb;
+  --stroke-themed: #027feb;
+  --button-primary: #027feb;
+  --button-secondary: #434d55;
+  --button-overlay: #38312e73;
+  --button-secondary-contrast: #bfdcf642;
+  --controls-active: #027feb;
+  --writebar-input-flat: #1e2124;
+  --chips-default: #1d1f20;
+  --chips-active: #027feb;
+  --counter-themed: #027feb;
+  --counter-default: #141312;
+  --tabbar-active: #027feb;
+  --chat-ground: #0e0e11;
+  --chat-pattern-icon: #7a9fc038;
+}
+
+/* ── Тадам · tadam ── светлая 16 токенов, тёмная 14 ── */
+[data-color-theme="tadam"] {
+  --accent: #016fe7;
+  --accent-fade: #016fe729;
+  --bubble-link: #016fe7;
+  --bubble-out-gradient-1: #d9f3ff;
+  --bubble-out-gradient-2: #e2f6ff;
+  --bubble-out-gradient-3: #d9f3ff;
+  --bubble-out-time: #016fe7;
+  --text-themed: #016fe7;
+  --icon-themed: #016fe7;
+  --stroke-themed: #016fe7;
+  --button-primary: #016fe7;
+  --controls-active: #016fe7;
+  --chips-active: #016fe7;
+  --counter-themed: #016fe7;
+  --tabbar-active: #016fe7;
+  --chat-ground: #a0ceff;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-color-theme="tadam"]:not([data-color-scheme="light"]) {
+    --accent: #016fe7;
+    --accent-fade: #016fe729;
+    --bubble-link: #016fe7;
+    --bubble-out-gradient-1: #23b0d6;
+    --bubble-out-gradient-2: #016fe7;
+    --bubble-out-gradient-3: #2672b2;
+    --text-themed: #016fe7;
+    --icon-themed: #016fe7;
+    --stroke-themed: #016fe7;
+    --button-primary: #016fe7;
+    --controls-active: #016fe7;
+    --chips-active: #016fe7;
+    --counter-themed: #016fe7;
+    --tabbar-active: #016fe7;
+  }
+}
+
+[data-color-theme="tadam"][data-color-scheme="dark"] {
+  --accent: #016fe7;
+  --accent-fade: #016fe729;
+  --bubble-link: #016fe7;
+  --bubble-out-gradient-1: #23b0d6;
+  --bubble-out-gradient-2: #016fe7;
+  --bubble-out-gradient-3: #2672b2;
+  --text-themed: #016fe7;
+  --icon-themed: #016fe7;
+  --stroke-themed: #016fe7;
+  --button-primary: #016fe7;
+  --controls-active: #016fe7;
+  --chips-active: #016fe7;
+  --counter-themed: #016fe7;
+  --tabbar-active: #016fe7;
+}
