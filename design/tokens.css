@@ -1,0 +1,314 @@
+/* MAX Mini App Kit — базовые токены (тема «Космос», по умолчанию в MAX).
+   Имена совпадают с @maxhub/max-ui. Подключать ПЕРВЫМ, до themes.css.
+
+   Специфичность держится намеренно: :root(0,1,0) < :root[data-color-scheme](0,2,0).
+   themes.css надстраивается сверху теми же уровнями — не меняй селекторы. */
+
+:root {
+  /* ---- Акцент: одна строка под свой бренд ---- */
+  --accent: #007aff;
+  --accent-fade: #007aff29;
+
+  /* роли акцента — не присваивай им литералы */
+  --text-themed: var(--accent);
+  --icon-themed: var(--accent);
+  --stroke-themed: var(--accent);
+  --button-primary: var(--accent);
+  --controls-active: var(--accent);
+  --counter-themed: var(--accent);
+  --chips-active: var(--accent);
+  --tabbar-active: var(--accent);
+
+  /* ---- Цвета, светлая схема ---- */
+  --background-surface: #edeef2;
+  --background-primary: #ffffff;
+  --background-secondary: #f5f7fa;
+  --background-card: #ffffff;
+  --background-tertiary: #0909090d;
+  --background-overlay: #0c0d0e52;
+  --background-overlay-hard: #0c0d0ecc;
+  --on-accent: #ffffff;
+  --text-primary: #060708;
+  --text-secondary: #060708ad;
+  --text-tertiary: #06070885;
+  --text-mute: #06070866;
+  --text-primary-inverse: #ffffff;
+  --text-positive: #1abe43;
+  --text-negative: #ff303c;
+  --text-attention: #ffcc00;
+  --icon-primary: #060708d6;
+  --icon-secondary: #060708a3;
+  --icon-tertiary: #0607087a;
+  --icon-mute: #06070847;
+  --divider-primary: #0c0d0e29;
+  --divider-secondary: #0c0d0e0f;
+  --stroke-tertiary: #9da4ac4d;
+  --stroke-negative: #ff303c;
+  --button-primary-contrast: #ffffff;
+  --button-secondary: #e9ebf1;
+  --button-negative: #ff303c;
+  --button-negative-fade: #ff303c29;
+  --button-positive: #1abe43;
+  --controls-inactive: #09090914;
+  --input-background: #09090914;
+  --writebar-input-flat: #ffffff;
+  --writebar-input-stroke: #0c0d0e0f;
+  --chips-default: #f6f6f6;
+  --counter-attention: #ff303c;
+  --counter-contrast: #ffffff;
+  --warning: #ff9315;
+  --tabbar-inactive: #969699;
+  --bubble-in-background: #ffffff;
+  --bubble-in-text: #060708;
+  --bubble-in-time: #06070885;
+  --bubble-out-gradient-1: #e9fdff;
+  --bubble-out-gradient-2: #e9fdff;
+  --bubble-out-gradient-3: #e9fdff;
+  --bubble-out-text: #011c29;
+  --bubble-out-time: #0784b8;
+  --bubble-link: #0784b8;
+  --chat-ground: #7ab7e4;
+  --chat-pattern-icon: #20509d2e;
+  --text-primary-static: #060708;
+  --text-primary-inverse-static: #ffffff;
+  --icon-primary-inverse-static: #ffffff;
+  --icon-positive: #1abe43;
+  --button-ghost: #00000000;
+  --button-overlay: #0c0d0e52;
+  --button-secondary-contrast: #20366e1a;
+  --background-overlay-secondary: #000000cc;
+  --counter-default: #17181c;
+  --counter-mirage: #17181c;
+  --counter-mute: #0607081f;
+  --counter-menu: #898c8c;
+  --promo-text: #6813ff;
+
+  /* ---- Типографика ---- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Roboto", system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --font-size-hero: 28px;
+  --line-height-hero: 32px;
+  --font-weight-hero: 600;
+  --font-size-header: 24px;
+  --line-height-header: 28px;
+  --font-weight-header: 600;
+  --font-size-subheader: 20px;
+  --line-height-subheader: 24px;
+  --font-weight-subheader: 600;
+  --font-size-title: 17px;
+  --line-height-title: 24px;
+  --font-weight-title: 600;
+  --font-size-body: 16px;
+  --line-height-body: 20px;
+  --font-weight-body: 400;
+  --letter-spacing-body: 0.15px;
+  --font-size-body-strong: 16px;
+  --line-height-body-strong: 20px;
+  --font-weight-body-strong: 500;
+  --letter-spacing-body-strong: 0.15px;
+  --font-size-detail: 15px;
+  --line-height-detail: 20px;
+  --font-weight-detail: 400;
+  --letter-spacing-detail: 0.15px;
+  --font-size-detail-strong: 15px;
+  --line-height-detail-strong: 20px;
+  --font-weight-detail-strong: 500;
+  --letter-spacing-detail-strong: 0.15px;
+  --font-size-description: 13px;
+  --line-height-description: 16px;
+  --font-weight-description: 400;
+  --letter-spacing-description: 0.2px;
+  --font-size-label: 12px;
+  --line-height-label: 16px;
+  --font-weight-label: 400;
+  --letter-spacing-label: 0.3px;
+  --font-size-label-caps: 12px;
+  --line-height-label-caps: 16px;
+  --font-weight-label-caps: 500;
+  --letter-spacing-label-caps: 0.5px;
+  --font-size-note: 10px;
+  --line-height-note: 12px;
+  --font-weight-note: 400;
+  --letter-spacing-note: 0.3px;
+  --font-size-action-large: 17px;
+  --line-height-action-large: 20px;
+  --font-weight-action-large: 500;
+  --letter-spacing-action-large: 0.15px;
+  --font-size-action-medium: 16px;
+  --line-height-action-medium: 20px;
+  --font-weight-action-medium: 500;
+  --letter-spacing-action-medium: 0.15px;
+  --font-size-action-small: 14px;
+  --line-height-action-small: 20px;
+  --font-weight-action-small: 500;
+  --letter-spacing-action-small: 0.15px;
+  --font-size-action-xsmall: 13px;
+  --line-height-action-xsmall: 16px;
+  --font-weight-action-xsmall: 500;
+  --letter-spacing-action-xsmall: 0.15px;
+  --font-size-message: 16px;
+  --line-height-message: 20px;
+  --font-weight-message: 400;
+  --font-size-bubble-description: 14px;
+  --line-height-bubble-description: 18px;
+  --font-weight-bubble-description: 400;
+  --letter-spacing-bubble-description: 0.15px;
+  --font-size-bubble-label: 12px;
+  --line-height-bubble-label: 16px;
+  --font-weight-bubble-label: 400;
+  --letter-spacing-bubble-label: 0.2px;
+  --font-size-bubble-tag: 11px;
+  --line-height-bubble-tag: 14px;
+  --font-weight-bubble-tag: 400;
+  --letter-spacing-bubble-tag: 0.3px;
+
+  /* ---- Отступы ---- */
+  --space-0: 0;
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+
+  /* ---- Радиусы ---- */
+  --radius-2: 2px;
+  --radius-4: 4px;
+  --radius-6: 6px;
+  --radius-8: 8px;
+  --radius-10: 10px;
+  --radius-12: 12px;
+  --radius-16: 16px;
+  --radius-20: 20px;
+  --radius-48: 48px;
+
+  /* ---- Тень (единственная в системе) ---- */
+  --elevation-float: 0 4px 16px #0000004d, 0 0 2px #0000004d;
+}
+
+/* Тёмная схема по настройке ОС. :not() пропускает принудительно светлую. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-color-scheme="light"]) {
+    --background-surface: #0f0f12;
+    --background-primary: #17181c;
+    --background-secondary: #25262d;
+    --background-card: #25262d;
+    --background-tertiary: #ffffff17;
+    --background-overlay: #0d0d0da3;
+    --text-primary: #ffffff;
+    --text-secondary: #ffffffcc;
+    --text-tertiary: #ffffffa3;
+    --text-mute: #ffffff66;
+    --text-primary-inverse: #060708;
+    --text-positive: #2bc644;
+    --text-negative: #ce4257;
+    --text-attention: #ffd60a;
+    --icon-primary: #ffffff;
+    --icon-secondary: #ffffffad;
+    --icon-tertiary: #ffffff85;
+    --icon-mute: #ffffff5c;
+    --divider-primary: #ffffff1f;
+    --divider-secondary: #ffffff0f;
+    --stroke-tertiary: #ffffff29;
+    --stroke-negative: #ff444f;
+    --button-secondary: #434455;
+    --button-negative: #ce4257;
+    --button-negative-fade: #ce425729;
+    --button-positive: #2bc644;
+    --controls-inactive: #ffffff17;
+    --input-background: #ffffff17;
+    --writebar-input-flat: #1e1f24;
+    --writebar-input-stroke: #e7e7e700;
+    --chips-default: #25262d;
+    --counter-attention: #ce4257;
+    --warning: #ff9f0a;
+    --tabbar-inactive: #7d7d7f;
+    --bubble-in-background: #232e3a;
+    --bubble-in-text: #ffffff;
+    --bubble-in-time: #ffffffa3;
+    --bubble-out-gradient-1: #8849b4;
+    --bubble-out-gradient-2: #735acd;
+    --bubble-out-gradient-3: #5d6ae5;
+    --bubble-out-text: #ffffff;
+    --bubble-out-time: #ffffffa3;
+    --bubble-link: #409cff;
+    --chat-ground: #141414;
+    --chat-pattern-icon: #7a95c038;
+    --icon-positive: #2bc644;
+    --button-overlay: #2e333873;
+    --button-secondary-contrast: #bfc2f642;
+    --counter-mirage: #ffffff;
+    --counter-mute: #ffffff47;
+    --counter-menu: #797c7c;
+    --promo-text: #a473ff;
+  }
+}
+
+/* Принудительно тёмная схема внутри приложения. */
+:root[data-color-scheme="dark"] {
+  --background-surface: #0f0f12;
+  --background-primary: #17181c;
+  --background-secondary: #25262d;
+  --background-card: #25262d;
+  --background-tertiary: #ffffff17;
+  --background-overlay: #0d0d0da3;
+  --text-primary: #ffffff;
+  --text-secondary: #ffffffcc;
+  --text-tertiary: #ffffffa3;
+  --text-mute: #ffffff66;
+  --text-primary-inverse: #060708;
+  --text-positive: #2bc644;
+  --text-negative: #ce4257;
+  --text-attention: #ffd60a;
+  --icon-primary: #ffffff;
+  --icon-secondary: #ffffffad;
+  --icon-tertiary: #ffffff85;
+  --icon-mute: #ffffff5c;
+  --divider-primary: #ffffff1f;
+  --divider-secondary: #ffffff0f;
+  --stroke-tertiary: #ffffff29;
+  --stroke-negative: #ff444f;
+  --button-secondary: #434455;
+  --button-negative: #ce4257;
+  --button-negative-fade: #ce425729;
+  --button-positive: #2bc644;
+  --controls-inactive: #ffffff17;
+  --input-background: #ffffff17;
+  --writebar-input-flat: #1e1f24;
+  --writebar-input-stroke: #e7e7e700;
+  --chips-default: #25262d;
+  --counter-attention: #ce4257;
+  --warning: #ff9f0a;
+  --tabbar-inactive: #7d7d7f;
+  --bubble-in-background: #232e3a;
+  --bubble-in-text: #ffffff;
+  --bubble-in-time: #ffffffa3;
+  --bubble-out-gradient-1: #8849b4;
+  --bubble-out-gradient-2: #735acd;
+  --bubble-out-gradient-3: #5d6ae5;
+  --bubble-out-text: #ffffff;
+  --bubble-out-time: #ffffffa3;
+  --bubble-link: #409cff;
+  --chat-ground: #141414;
+  --chat-pattern-icon: #7a95c038;
+  --icon-positive: #2bc644;
+  --button-overlay: #2e333873;
+  --button-secondary-contrast: #bfc2f642;
+  --counter-mirage: #ffffff;
+  --counter-mute: #ffffff47;
+  --counter-menu: #797c7c;
+  --promo-text: #a473ff;
+}
+
+body {
+  margin: 0;
+  background: var(--background-surface);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  letter-spacing: var(--letter-spacing-body);
+}
