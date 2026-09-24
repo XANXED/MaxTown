@@ -7,20 +7,23 @@
 
 Что именно входит в продукт, ещё решается: термины фиксируются в
 `CONTEXT.md`, решения — в `docs/adr/`. Прочитай их перед работой, если они
-уже есть.
+уже есть. Исследования — в `docs/research/`; официальные источники, с которых
+начинать поиск (законы, ГИС ЖКХ, ФИАС, MAX в ЖКХ), — в
+[docs/research/sources.md](docs/research/sources.md).
 
 ## Структура
 
 ```
 apps/
   miniapp/    мини-апп жильцов внутри MAX: React + Vite + @maxhub/max-ui
-  admin/      панель УК: React + Vite
+  admin/      панель Модератора: React + Vite
   api/        бэкенд: Fastify (Node исполняет TypeScript напрямую, без сборки)
   bot/        бот MAX: @maxhub/max-bot-api
 packages/
   shared/     типы и контракты, общие для фронтендов и бэкенда
 design/       токены оформления, темы MAX, материалы для Stitch
-docs/         agents/ — настройка скиллов, adr/ — архитектурные решения
+docs/         agents/ — настройка скиллов, adr/ — архитектурные решения,
+              research/ — исследования и источники
 ```
 
 ## Команды

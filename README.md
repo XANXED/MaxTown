@@ -13,7 +13,7 @@ npm install
 cp .env.example .env     # впишите BOT_TOKEN, если нужен бот
 
 npm run dev:miniapp      # мини-апп жильцов, http://localhost:5173
-npm run dev:admin        # панель УК, http://localhost:5174
+npm run dev:admin        # панель Модератора, http://localhost:5174
 npm run dev:api          # API, http://localhost:3000/health
 npm run dev:bot          # бот MAX
 ```
@@ -25,6 +25,7 @@ npm run dev:bot          # бот MAX
 - `apps/` — приложения: `miniapp`, `admin`, `api`, `bot`.
 - `packages/shared/` — общие типы.
 - `design/` — токены оформления MAX, темы и материалы для Stitch.
-- `docs/` — архитектурные решения и настройка агентов.
+- `docs/` — архитектурные решения, исследования и настройка агентов.
+  Официальные источники по теме — в [docs/research/sources.md](docs/research/sources.md).
 
 Как работать с ИИ-агентами в этом репозитории — в [AGENTS.md](AGENTS.md).

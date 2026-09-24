@@ -4,7 +4,7 @@ export function App() {
   return (
     <main className="page">
       <section className="card">
-        <h1 className="title">MaxTown — панель УК</h1>
+        <h1 className="title">MaxTown — модерация</h1>
         <p className="description">Каркас. Экраны появятся по тикетам.</p>
       </section>
     </main>
