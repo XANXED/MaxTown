@@ -65,6 +65,30 @@ Claude Code — симлинки в `.claude/skills/`. Обновление: `np
 Основной поток: `/grill-with-docs` → `/to-spec` → `/to-tickets` →
 `/implement`. Не знаешь, какой скилл нужен, — `/ask-matt`.
 
+### Taste skill (дизайн интерфейса)
+
+Скиллы Leonxlnx/taste-skill (https://github.com/Leonxlnx/taste-skill) лежат
+там же, в `.agents/skills/` с симлинками в `.claude/skills/`, и записаны в
+`skills-lock.json`. Они про вкус и качество вёрстки: как уйти от шаблонного
+«ИИ-интерфейса».
+
+- `/design-taste-frontend` — основной: читает задачу, выбирает направление,
+  проверяет результат перед сдачей. `-v1` — старая версия, не нужна.
+- `/redesign-existing-projects` — аудит и доводка уже свёрстанного экрана.
+- `/minimalist-ui` — плоский сдержанный стиль без градиентов и тяжёлых теней.
+- `/imagegen-frontend-mobile` — концепты мобильных экранов картинками, без кода.
+- `/stitch-design-taste` — генерирует DESIGN.md для Stitch.
+- `/image-to-code`, `/imagegen-frontend-web` — под Codex и лендинги, здесь
+  почти не нужны. `/full-output-enforcement` — не про дизайн: запрещает
+  обрезать код заглушками.
+
+**Приоритет: [design/AGENTS.md](design/AGENTS.md) выше Taste skill.** Мини-апп
+живёт внутри MAX и должен выглядеть как его часть. Если скилл предлагает свою
+палитру, шрифты, градиенты, асимметричную раскладку, постоянную анимацию или
+тени на карточках, побеждают токены MAX и запреты из `design/AGENTS.md`.
+Наш DESIGN.md — `design/stitch/DESIGN.md`; `/stitch-design-taste` его не
+перезаписывает, только дополняет по отдельной просьбе.
+
 ### Issue tracker
 
 Задачи и спеки — в GitHub Issues репозитория XANXED/MaxTown, через `gh`. See `docs/agents/issue-tracker.md`.
