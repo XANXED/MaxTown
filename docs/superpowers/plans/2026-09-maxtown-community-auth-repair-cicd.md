@@ -91,8 +91,9 @@
 - Modify: `apps/api/src/index.ts`
 - Modify: `packages/shared/src/*` (auth/me contracts in the existing shared entrypoint)
 - Modify: `apps/miniapp/src/max-bridge.d.ts`
-- Modify: `apps/miniapp/src/network.ts`
+- Modify: `apps/miniapp/src/App.tsx`
 - Create: `apps/miniapp/src/auth/session.ts`
+- Create: `apps/miniapp/src/auth/session.test.ts`
 
 **Interfaces:**
 - Produces: `validateMaxInitData(initData: string, botToken: string, now?: Date): MaxIdentity`; routes `POST /api/auth/max`, `POST /api/auth/logout`, `GET /api/me`; client `getSession(): string | null`, `setSession(token: string): void`, `clearSession(): void`.

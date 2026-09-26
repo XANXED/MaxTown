@@ -13,6 +13,7 @@ interface MaxUser {
 }
 
 interface MaxWebApp {
+  /** Исходная строка запуска; передаётся API для проверки подписи MAX. */
   initData: string;
   initDataUnsafe?: {
     user?: MaxUser;

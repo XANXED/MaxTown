@@ -260,3 +260,37 @@ export type HouseRegistration = {
   /** Причина отказа — её увидит Староста. */
   rejectionReason?: string;
 };
+
+/** Роль человека в конкретном Доме. */
+export type HouseRole = 'headman' | 'responsible' | 'concierge' | 'resident';
+
+/** Активная связь Жильца с Домом, которую возвращает авторизованная сессия. */
+export type HouseMembershipSummary = {
+  id: string;
+  houseId: string;
+  apartmentId: string | null;
+  apartmentNumber: string | null;
+  address: string;
+  locality: string;
+  role: HouseRole;
+};
+
+/** Проверенные данные человека из текущей серверной сессии. */
+export type AuthResident = {
+  id: string;
+  maxUserId: string;
+  displayName: string;
+  username: string | null;
+  phone: string | null;
+  phoneVerified: boolean;
+};
+
+export type AuthSessionResponse = {
+  token: string;
+  expiresAt: string;
+};
+
+export type MeResponse = {
+  resident: AuthResident;
+  memberships: HouseMembershipSummary[];
+};

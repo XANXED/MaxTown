@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Button, Typography } from '@maxhub/max-ui';
 import { CaretLeft, WifiSlash } from '@phosphor-icons/react';
 import { ContactsScreen } from './screens/ContactsScreen.tsx';
 import { EventScreen } from './screens/EventScreen.tsx';
@@ -28,11 +29,13 @@ import {
 import { launchInviteCode } from './data/join.ts';
 import { useOnline } from './network.ts';
 import { hasSeenWelcome, markWelcomeSeen } from './welcome.ts';
+import { authenticateWithMax } from './auth/session.ts';
 import './app.css';
 
 const NOTICE_DURATION_MS = 3200;
 /** Столько длится анимация исчезновения уведомления в app.css (--motion-base). */
 const NOTICE_EXIT_MS = 240;
+const REQUIRE_SERVER_AUTH = !import.meta.env.DEV || Boolean(window.WebApp?.initData);
 
 function initialRoute(): AppRoute {
   // Открыли по ссылке-приглашению — сразу к вступлению, приветствие не нужно.
@@ -60,8 +63,26 @@ export function App() {
   const [notice, setNotice] = useState<{ message: string; leaving: boolean } | null>(null);
   const noticeTimers = useRef<number[]>([]);
   const online = useOnline();
+  const [authState, setAuthState] = useState<'loading' | 'ready' | 'error'>(REQUIRE_SERVER_AUTH ? 'loading' : 'ready');
+  const [authAttempt, setAuthAttempt] = useState(0);
   /** Куда прокрутить после смены экрана: наверх или туда, где Жилец был до перехода. */
   const pendingScroll = useRef(0);
+
+  useEffect(() => {
+    if (!REQUIRE_SERVER_AUTH) return;
+    let active = true;
+    const initData = window.WebApp?.initData;
+    if (!initData) {
+      setAuthState('error');
+      return () => { active = false; };
+    }
+
+    setAuthState('loading');
+    authenticateWithMax(initData)
+      .then(() => { if (active) setAuthState('ready'); })
+      .catch(() => { if (active) setAuthState('error'); });
+    return () => { active = false; };
+  }, [authAttempt]);
 
   const navigate = useCallback((nextRoute: AppRoute) => {
     const nextHash = hashForRoute(nextRoute);
@@ -148,6 +169,28 @@ export function App() {
   );
 
   let screen;
+
+  if (authState !== 'ready') {
+    return (
+      <div className="screen screen--with-panel">
+        <main className="inner-content" id="main-content">
+          <div className="screen-heading">
+            <Typography.Text asChild variant="header"><h1>Вход через MAX</h1></Typography.Text>
+            <Typography.Text asChild variant="body" color="secondary">
+              <p>{authState === 'loading' ? 'Проверяем учётную запись…' : 'Не удалось подтвердить вход. Проверьте подключение и попробуйте ещё раз.'}</p>
+            </Typography.Text>
+          </div>
+        </main>
+        {authState === 'error' ? (
+          <footer className="bottom-panel">
+            <Button size="medium" variant="primary" stretched onClick={() => setAuthAttempt((attempt) => attempt + 1)}>
+              Повторить вход
+            </Button>
+          </footer>
+        ) : null}
+      </div>
+    );
+  }
 
   switch (route) {
     case ROUTES.welcome:
