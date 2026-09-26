@@ -14,6 +14,7 @@
     "dev:admin": "npm run dev -w @maxtown/admin",
     "dev:api": "npm run dev -w @maxtown/api",
     "dev:bot": "npm run dev -w @maxtown/bot",
+    "mcp:project": "npm run start -w @maxtown/project-mcp",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run --passWithNoTests",
