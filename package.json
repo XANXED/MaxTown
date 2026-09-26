@@ -15,6 +15,7 @@
     "dev:api": "npm run dev -w @maxtown/api",
     "dev:bot": "npm run dev -w @maxtown/bot",
     "mcp:project": "npm run start -w @maxtown/project-mcp",
+    "smoke:mcp": "vitest run packages/project-mcp/src/stdio-smoke.test.ts",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run --passWithNoTests",

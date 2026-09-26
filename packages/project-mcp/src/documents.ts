@@ -47,7 +47,7 @@ function isWithinRoot(rootDir: string, targetPath: string): boolean {
     && !isAbsolute(relativePath));
 }
 
-async function findProjectRoot(startDir: string): Promise<string> {
+export async function findProjectRoot(startDir: string): Promise<string> {
   let currentDir = await realpath(resolve(startDir));
 
   try {
