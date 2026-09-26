@@ -15,6 +15,20 @@ jobs:
   checks:
     name: install, typecheck, test, build, Docker
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: maxtown
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: maxtown
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U maxtown -d maxtown"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout source
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -32,8 +46,15 @@ jobs:
       - name: Typecheck workspaces
         run: npm run typecheck
 
+      - name: Apply database migrations
+        run: npm run db:migrate --workspace=@maxtown/api
+        env:
+          DATABASE_URL: postgres://maxtown:ci-only-password@localhost:5432/maxtown
+
       - name: Run tests
         run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://maxtown:ci-only-password@localhost:5432/maxtown
 
       - name: Build production workspaces
         run: npm run build

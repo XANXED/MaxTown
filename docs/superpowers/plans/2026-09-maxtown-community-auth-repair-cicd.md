@@ -59,11 +59,13 @@
 **Files:**
 - Create: `apps/api/src/db/pool.ts`
 - Create: `apps/api/src/db/migrate.ts`
+- Create: `apps/api/src/app.ts`
 - Create: `apps/api/src/db/migrations/0001_core.sql`
 - Create: `apps/api/src/db/migrations.test.ts`
 - Create: `apps/api/src/db/pool.test.ts`
 - Modify: `apps/api/package.json`
 - Modify: `apps/api/src/index.ts`
+- Modify: `.env.example`
 - Modify: `.github/workflows/ci.yml`
 
 **Interfaces:**
