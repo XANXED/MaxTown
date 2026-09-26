@@ -28,7 +28,16 @@ export async function buildApp({ pool, env }: BuildAppOptions): Promise<FastifyI
   });
 
   app.get('/health', async (): Promise<HealthResponse> => ({ status: 'ok' }));
+  app.get('/api/health', async (): Promise<HealthResponse> => ({ status: 'ok' }));
   app.get('/ready', async (_request, reply) => {
+    try {
+      await pool.query('SELECT 1');
+      return { status: 'ok' };
+    } catch {
+      return reply.code(503).send({ status: 'error' });
+    }
+  });
+  app.get('/api/ready', async (_request, reply) => {
     try {
       await pool.query('SELECT 1');
       return { status: 'ok' };

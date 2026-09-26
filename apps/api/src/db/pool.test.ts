@@ -15,11 +15,17 @@ it.skipIf(!databaseUrl)('serves liveness and readiness then closes its pool', as
   try {
     const health = await app.inject({ method: 'GET', url: '/health' });
     const ready = await app.inject({ method: 'GET', url: '/ready' });
+    const publicHealth = await app.inject({ method: 'GET', url: '/api/health' });
+    const publicReady = await app.inject({ method: 'GET', url: '/api/ready' });
 
     expect(health.statusCode).toBe(200);
     expect(health.json()).toEqual({ status: 'ok' });
     expect(ready.statusCode).toBe(200);
     expect(ready.json()).toEqual({ status: 'ok' });
+    expect(publicHealth.statusCode).toBe(200);
+    expect(publicHealth.json()).toEqual({ status: 'ok' });
+    expect(publicReady.statusCode).toBe(200);
+    expect(publicReady.json()).toEqual({ status: 'ok' });
   } finally {
     await app.close();
   }

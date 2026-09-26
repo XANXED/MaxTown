@@ -1,7 +1,4 @@
-{$DOMAIN} {
-	@admin_bare path /admin
-	redir @admin_bare /admin/ 308
-
+:80 {
 	@moderator_api path /api/moderator/*
 	handle @moderator_api {
 		route {

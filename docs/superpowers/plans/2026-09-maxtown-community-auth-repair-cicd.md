@@ -200,29 +200,35 @@
 
 **Files:**
 - Create: `compose.yml`
-- Create: `deploy/Caddyfile`
+- Modify: `Caddyfile`
+- Create: `deploy/compose.smoke.yml`
+- Create: `deploy/Caddyfile.smoke`
+- Create: `deploy/compose-smoke.sh`
+- Create: `deploy/deployment.test.ts`
 - Create: `deploy/deploy.sh`
 - Create: `deploy/smoke.sh`
 - Create: `.github/workflows/deploy.yml`
 - Create: `.env.production.example`
 - Create: `docs/deployment.md`
-- Modify: `.github/workflows/ci.yml`
-- Modify: `apps/api/Dockerfile`
-- Modify: `apps/miniapp/Dockerfile`
 - Create: `apps/admin/Dockerfile`
+- Create: `apps/bot/Dockerfile`
+- Modify: `.gitignore`
+- Modify: `.github/workflows/ci.yml`
+- Modify: `apps/api/src/app.ts`
+- Modify: `apps/api/src/db/pool.test.ts`
 
 **Interfaces:**
-- Produces: Compose services for PostgreSQL, one-shot migrations, API, Mini App, protected admin, Caddy, and optional bot; deploy accepts immutable image digests and deploys a release directory over SSH; smoke checks API health, MAX auth rejection without valid initData, and authenticated domain paths when a fixture account is configured.
+- Produces: Compose services for PostgreSQL, one-shot migrations, API, Mini App, protected admin, Caddy, and optional bot; deploy accepts immutable image digests and deploys a release directory over SSH; smoke checks API health, MAX auth rejection without valid initData, and protected admin paths.
 - Consumes: Tasks 1-6 images, migration runner, health/readiness endpoints, API contracts, and Caddy admin protection.
 
-- [ ] **Step 1: Write deployment contract/smoke tests** for required services, persistent database volume, non-public API port, digest-only image references, secret requirements, backup of current release, and rollback on unhealthy candidate.
-- [ ] **Step 2: Run deployment checks**; expected: FAIL because Compose and deploy workflow are absent.
-- [ ] **Step 3: Implement Compose and Caddy topology** with PostgreSQL healthcheck/persistent volume, migration gate, internal API networking, TLS proxy, Mini App static serving, protected admin, optional bot profile, and environment-only secrets.
-- [ ] **Step 4: Implement guarded deploy and rollback scripts**: pull exact GHCR digest, run compatible migrations, start candidate, verify readiness and smoke checks, then retain or restore the previous digest on failure. Fetch current Docker Compose and Caddy docs via Context7 for any version-sensitive syntax.
-- [ ] **Step 5: Add restricted GHCR publish and production Environment deploy workflows** using pinned actions and SSH secrets; publish digest artifacts only after all CI checks pass.
-- [ ] **Step 6: Run clean-volume `docker compose up`, migration replay, health/smoke checks, and `docker compose down -v` only for the disposable test stack; run full CI locally.** Expected: all required core services become healthy without optional bot secrets.
-- [ ] **Step 7: Document secrets, DNS/TLS, backup/recovery, release and rollback.** Record unavailable GitHub/VPS prerequisites without fabricating a successful public deployment.
-- [ ] **Step 8: Commit** as `ci: deploy digest-pinned release to compose VPS`.
+- [x] **Step 1: Write deployment contract/smoke tests** for required services, persistent database volume, non-public API port, digest-only image references, secret requirements, backup of current release, and rollback on unhealthy candidate.
+- [x] **Step 2: Run deployment checks**; the smoke initially found API health routes were not reachable under the public `/api` prefix; API aliases and regression tests now cover this.
+- [x] **Step 3: Implement Compose and Caddy topology** with PostgreSQL healthcheck/persistent volume, migration gate, internal API networking, TLS proxy, Mini App static serving, protected admin, optional bot profile, and environment-only secrets.
+- [x] **Step 4: Implement guarded deploy and rollback scripts**: pull exact GHCR digest, back up the database, run migrations, start candidate, verify readiness and smoke checks, then retain or restore the previous digest on failure. Fetch current Docker Compose, GitHub Actions and Caddy docs via Context7 for version-sensitive syntax.
+- [x] **Step 5: Add restricted GHCR publish and production Environment deploy workflows** using pinned actions and SSH secrets; publish digest references only after CI passes.
+- [x] **Step 6: Run clean-volume `docker compose up`, migration replay, health/smoke checks, and `docker compose down -v` only for the disposable test stack; run full CI locally.** Expected: all required core services become healthy without optional bot secrets.
+- [x] **Step 7: Document secrets, DNS/TLS, backup/recovery, release and rollback.** Record unavailable GitHub/VPS prerequisites without fabricating a successful public deployment.
+- [x] **Step 8: Commit** as `ci: deploy digest-pinned release to compose VPS`.
 
 ### Task 8: Final release review and publication readiness
 

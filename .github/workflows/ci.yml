@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   checks:
-    name: install, typecheck, test, build, Docker
+    name: install, typecheck, test, build, deployment model, Docker
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -64,3 +64,29 @@ jobs:
 
       - name: Build Mini App image
         run: docker build --file apps/miniapp/Dockerfile --tag maxtown-miniapp:${{ github.sha }} .
+
+      - name: Build Moderator panel image
+        run: docker build --file apps/admin/Dockerfile --tag maxtown-admin:${{ github.sha }} .
+
+      - name: Build optional Bot image
+        run: docker build --file apps/bot/Dockerfile --tag maxtown-bot:${{ github.sha }} .
+
+      - name: Validate deployment scripts
+        run: bash -n deploy/deploy.sh deploy/smoke.sh
+
+      - name: Clean-volume Compose deployment smoke
+        run: ./deploy/compose-smoke.sh "maxtown-api:${{ github.sha }}" "maxtown-miniapp:${{ github.sha }}" "maxtown-admin:${{ github.sha }}" "maxtown-bot:${{ github.sha }}"
+
+      - name: Validate production Compose model
+        shell: bash
+        run: |
+          digest=$(printf '%064d' 0)
+          API_IMAGE="ghcr.io/example/maxtown-api@sha256:$digest" \
+          MINIAPP_IMAGE="ghcr.io/example/maxtown-miniapp@sha256:$digest" \
+          ADMIN_IMAGE="ghcr.io/example/maxtown-admin@sha256:$digest" \
+          BOT_IMAGE="ghcr.io/example/maxtown-bot@sha256:$digest" \
+          POSTGRES_DB=maxtown POSTGRES_USER=maxtown POSTGRES_PASSWORD=ci-only-password \
+          DATABASE_URL=postgres://maxtown:ci-only-password@postgres:5432/maxtown \
+          BOT_TOKEN=ci-only-token DOMAIN=maxtown.example.com MODERATOR_USERNAME=ci \
+          MODERATOR_PASSWORD_HASH='$2a$14$ci-only-not-a-usable-password-hash' \
+          docker compose --file compose.yml config --quiet
