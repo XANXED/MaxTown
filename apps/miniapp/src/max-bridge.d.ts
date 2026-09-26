@@ -16,9 +16,23 @@ interface MaxWebApp {
   initData: string;
   initDataUnsafe?: {
     user?: MaxUser;
+    /**
+     * payload из ссылки `https://max.ru/<бот>?startapp=<payload>`. Документация
+     * называет его «объектом WebAppStartParam» — проверяем тип при чтении.
+     */
+    start_param?: unknown;
   };
   platform: string;
   version: string;
+  /** Открыть ссылку во внешнем браузере; MAX проверяет, что её открыли по нажатию. */
+  openLink?(url: string): void;
+  /** Сканер QR-кода; fileSelect — можно выбрать картинку из галереи. Отдаёт содержимое кода. */
+  openCodeReader?(fileSelect?: boolean): Promise<string>;
+  HapticFeedback?: {
+    impactOccurred(style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft', disableVibrationFallback?: boolean): void;
+    notificationOccurred(type: 'error' | 'success' | 'warning', disableVibrationFallback?: boolean): void;
+    selectionChanged(disableVibrationFallback?: boolean): void;
+  };
   BackButton: {
     show(): void;
     hide(): void;

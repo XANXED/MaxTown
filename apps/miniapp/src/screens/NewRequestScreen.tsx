@@ -1,9 +1,13 @@
-import { Camera, Info, X } from '@phosphor-icons/react';
+import { Camera, House, Info, Warning, X } from '@phosphor-icons/react';
 import { Button, Textarea, Typography } from '@maxhub/max-ui';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { ScreenHeading } from '../components/ui.tsx';
+import { categoryVisual } from '../components/categoryVisuals.ts';
+import { MiniTile, ScreenHeading, Segmented } from '../components/ui.tsx';
 import { requestCategories, requestPlaces, type RequestPlace } from '../data/categories.ts';
-import type { Notify } from './types.ts';
+import { useHomeData } from '../data/home.ts';
+import { knownProblem, useHouseState } from '../data/houseState.ts';
+import { eventRoute, ROUTES } from '../routes.ts';
+import type { Navigate, Notify } from './types.ts';
 
 const DESCRIPTION_LIMIT = 500;
 const MINIMUM_DESCRIPTION_LENGTH = 10;
@@ -27,7 +31,7 @@ function todayIso(): string {
   return local.toISOString().slice(0, 10);
 }
 
-export function NewRequestScreen({ notify }: { notify: Notify }) {
+export function NewRequestScreen({ navigate, notify }: { navigate: Navigate; notify: Notify }) {
   const [place, setPlace] = useState<RequestPlace>('apartment');
   const [category, setCategory] = useState<string | null>(null);
   const [description, setDescription] = useState('');
@@ -36,6 +40,10 @@ export function NewRequestScreen({ notify }: { notify: Notify }) {
   const [visitDate, setVisitDate] = useState('');
   const [errors, setErrors] = useState<Errors>({});
   const photoInput = useRef<HTMLInputElement>(null);
+  const { status: homeStatus, isResident } = useHomeData();
+  const guest = homeStatus === 'ready' && !isResident;
+  const { data: house } = useHouseState();
+  const problem = knownProblem(house, category);
 
   // Превью живут как object URL — освобождаем их, когда экран закрывается.
   const photosRef = useRef(photos);
@@ -68,34 +76,55 @@ export function NewRequestScreen({ notify }: { notify: Notify }) {
     setErrors(nextErrors);
     if (nextErrors.category || nextErrors.description) return;
 
-    notify('Заявки начнут уходить Ответственным, когда вы станете Жильцом');
+    if (guest) {
+      notify('Сначала станьте Жильцом: Заявки уходят Ответственным от Жильцов');
+      return;
+    }
+    // API ещё нет: Заявка никуда не уходит.
+    notify('Заявка отправлена Ответственному');
+    navigate(ROUTES.requests);
   };
 
   return (
     <main className="screen screen--inner screen--with-panel" id="main-content">
       <form className="request-form" onSubmit={submit} noValidate>
         <div className="inner-content stagger">
-          <ScreenHeading description="Опишите, что сломалось, — Заявка уйдёт Ответственному за эту Категорию">
+          <ScreenHeading description="Опишите, что сломалось. Заявка уйдёт Ответственному за эту Категорию">
             Новая заявка
           </ScreenHeading>
+
+          {guest ? (
+            <aside className="outcome">
+              <House className="icon" weight="fill" aria-hidden />
+              <span className="request-note__copy">
+                <Typography.Text asChild variant="description" color="secondary">
+                  <p>Заявки уходят Ответственным от Жильцов. Станьте Жильцом своей Квартиры, это пара минут.</p>
+                </Typography.Text>
+                <button className="text-action pressable request-note__join" type="button" onClick={() => navigate(ROUTES.join)}>
+                  Стать Жильцом
+                </button>
+              </span>
+            </aside>
+          ) : null}
+
+          {/* Опасное — первым: при прорыве или газе заполнять форму не нужно. */}
+          <aside className="request-note">
+            <Warning className="icon" weight="fill" aria-hidden />
+            <span className="request-note__copy">
+              <Typography.Text asChild variant="description" color="secondary">
+                <p>Прорвало трубу, пахнет газом или искрит проводка? Звоните в аварийную службу, не ждите.</p>
+              </Typography.Text>
+              <button className="text-action pressable request-note__action" type="button" onClick={() => navigate(ROUTES.contacts)}>
+                Номера служб
+              </button>
+            </span>
+          </aside>
 
           <fieldset className="form-section">
             <Typography.Text asChild variant="title">
               <legend>Где неисправность?</legend>
             </Typography.Text>
-            <div className="chips">
-              {requestPlaces.map(({ value, label }) => (
-                <button
-                  className={`chip pressable${place === value ? ' chip--selected' : ''}`}
-                  type="button"
-                  aria-pressed={place === value}
-                  key={value}
-                  onClick={() => setPlace(value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <Segmented label="Где неисправность" options={requestPlaces} value={place} onChange={setPlace} />
             <Typography.Text asChild variant="description" color="tertiary">
               <p>{requestPlaces.find(({ value }) => value === place)?.hint}</p>
             </Typography.Text>
@@ -108,7 +137,7 @@ export function NewRequestScreen({ notify }: { notify: Notify }) {
             <div className="chips">
               {requestCategories.map((item) => (
                 <button
-                  className={`chip pressable${category === item ? ' chip--selected' : ''}`}
+                  className={`chip chip--with-icon pressable${category === item ? ' chip--selected' : ''}`}
                   type="button"
                   aria-pressed={category === item}
                   key={item}
@@ -117,6 +146,7 @@ export function NewRequestScreen({ notify }: { notify: Notify }) {
                     setErrors((current) => ({ ...current, category: undefined }));
                   }}
                 >
+                  <MiniTile icon={categoryVisual(item).icon} tone={categoryVisual(item).tone} />
                   {item}
                 </button>
               ))}
@@ -127,6 +157,37 @@ export function NewRequestScreen({ notify }: { notify: Notify }) {
                   {errors.category}
                 </span>
               </Typography.Text>
+            ) : null}
+            {/* Об этой Системе уже известно — говорим до того, как Жилец опишет то же самое. */}
+            {problem ? (
+              <aside className="outcome reveal" aria-live="polite">
+                <Info className="icon" weight="fill" aria-hidden />
+                <span className="request-note__copy">
+                  <Typography.Text asChild variant="body-strong">
+                    <p>
+                      {problem.status === 'accident'
+                        ? `Сейчас открыта Авария: ${problem.name}`
+                        : `Сейчас Плановое отключение: ${problem.name}`}
+                    </p>
+                  </Typography.Text>
+                  <Typography.Text asChild variant="description" color="secondary">
+                    <p>
+                      {problem.status === 'accident'
+                        ? 'Ответственные уже знают. Заявку можно не подавать, а если подадите, она привяжется к Аварии и закроется вместе с ней.'
+                        : 'Это не поломка: Система не работает по плану. Если после окончания не заработает, подайте Заявку.'}
+                    </p>
+                  </Typography.Text>
+                  {problem.eventId ? (
+                    <button
+                      className="text-action pressable request-note__join"
+                      type="button"
+                      onClick={() => problem.eventId && navigate(eventRoute(problem.eventId))}
+                    >
+                      Подробнее
+                    </button>
+                  ) : null}
+                </span>
+              </aside>
             ) : null}
           </fieldset>
 
@@ -242,12 +303,6 @@ export function NewRequestScreen({ notify }: { notify: Notify }) {
             </section>
           ) : null}
 
-          <aside className="request-note">
-            <Info className="icon" aria-hidden />
-            <Typography.Text asChild variant="description" color="secondary">
-              <p>Если прорвало трубу, пахнет газом или искрит проводка — звоните в аварийную службу, не ждите.</p>
-            </Typography.Text>
-          </aside>
         </div>
 
         <footer className="bottom-panel">

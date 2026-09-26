@@ -1,15 +1,16 @@
 import type { ReactNode } from 'react';
-import { BellRinging, BookOpen, ChatCircleText, House, ShieldCheck, User } from '@phosphor-icons/react';
+import { BellRinging, BookOpen, ChatCircleText, CloudSlash, House, ShieldCheck, User } from '@phosphor-icons/react';
 import { Avatar, Typography } from '@maxhub/max-ui';
 import {
   BottomNavigation,
   IconTile,
+  InlineEmpty,
   ListCard,
   RowShell,
   type IconComponent,
   type TileColor,
 } from '../components/ui.tsx';
-import { JOIN_HINT } from '../data/home.ts';
+import { useHouseState } from '../data/houseState.ts';
 import { currentProfileUser } from '../maxUser.ts';
 import { ROUTES } from '../routes.ts';
 import type { Navigate, Notify } from './types.ts';
@@ -23,6 +24,7 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
   const user = currentProfileUser();
   const platform = window.WebApp?.platform;
   const soon = (title: string) => () => notify(`«${title}» появится позже`);
+  const { status: houseStatus, data: house, retry: retryHouse } = useHouseState();
 
   return (
     <div className="screen screen--home">
@@ -63,13 +65,40 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
         </section>
 
         <ProfileGroup id="house" title="Мой дом">
-          <ProfileRow
-            icon={House}
-            color="green"
-            title="Стать Жильцом"
-            description="По Приглашению в свою Квартиру: QR-код или ссылка"
-            onOpen={() => notify(JOIN_HINT)}
-          />
+          {houseStatus === 'loading' ? (
+            <div className="list-row list-row--skeleton" aria-busy="true" aria-label="Загрузка">
+              <span className="skeleton skeleton--tile" />
+              <span className="list-row__copy">
+                <span className="skeleton skeleton--line" />
+                <span className="skeleton skeleton--line skeleton--short" />
+              </span>
+            </div>
+          ) : houseStatus === 'error' ? (
+            <InlineEmpty
+              icon={CloudSlash}
+              tone="neutral"
+              title="Не удалось загрузить"
+              description="Проверьте интернет и попробуйте ещё раз"
+              actionLabel="Повторить"
+              onAction={retryHouse}
+            />
+          ) : house ? (
+            <ProfileRow
+              icon={House}
+              color="green"
+              title={house.address}
+              description={`Квартира ${house.apartment}. Вы Жилец`}
+              onOpen={() => navigate(ROUTES.house)}
+            />
+          ) : (
+            <ProfileRow
+              icon={House}
+              color="green"
+              title="Стать Жильцом"
+              description="По Приглашению или Запросом на вступление"
+              onOpen={() => navigate(ROUTES.join)}
+            />
+          )}
         </ProfileGroup>
 
         <ProfileGroup id="settings" title="Настройки">
@@ -78,8 +107,7 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
             color="pink"
             title="Уведомления"
             description="Что изменилось в ваших Заявках и Запросе на вступление"
-            trailing={<span className="status-badge">Скоро</span>}
-            onOpen={soon('Уведомления')}
+            onOpen={() => navigate(ROUTES.notifications)}
           />
         </ProfileGroup>
 
