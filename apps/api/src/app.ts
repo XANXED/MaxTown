@@ -2,6 +2,8 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { HealthResponse } from '@maxtown/shared';
 import { registerAuthRoutes } from './routes/auth.ts';
+import { registerHouseRoutes } from './routes/houses.ts';
+import { registerModeratorRoutes } from './routes/moderator.ts';
 
 export type BuildAppOptions = {
   pool: Pool;
@@ -34,6 +36,8 @@ export async function buildApp({ pool, env }: BuildAppOptions): Promise<FastifyI
   });
 
   registerAuthRoutes(app, pool, env);
+  registerHouseRoutes(app, pool);
+  registerModeratorRoutes(app, pool);
 
   return app;
 }

@@ -18,7 +18,7 @@
     "smoke:mcp": "vitest run packages/project-mcp/src/stdio-smoke.test.ts",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run --passWithNoTests --no-file-parallelism",
     "test:watch": "vitest"
   },
   "devDependencies": {

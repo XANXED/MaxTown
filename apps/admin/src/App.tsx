@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import type { HouseRegistration, HouseRegistrationStatus } from '@maxtown/shared';
 import {
-  approve,
   countByStatus,
+  decideRegistration,
   registrationChecks,
-  reject,
   rejectionError,
   useRegistrations,
   visibleRegistrations,
@@ -58,10 +57,15 @@ export function App() {
   const visible = visibleRegistrations(items, tab);
   const selected = visible.find(({ id }) => id === selectedId) ?? visible[0] ?? null;
 
-  const decide = (next: HouseRegistration, message: string) => {
-    setChanged(items.map((item) => (item.id === next.id ? next : item)));
-    setSelectedId(null);
-    setNotice(message);
+  const decide = async (selectedItem: HouseRegistration, decision: 'approve' | 'reject', reason?: string) => {
+    try {
+      const next = await decideRegistration(selectedItem.id, decision, reason);
+      setChanged((current) => (current ?? items).map((item) => (item.id === next.id ? next : item)));
+      setSelectedId(null);
+      setNotice(decision === 'approve' ? `${selectedItem.address}: Дом одобрен` : `${selectedItem.address}: регистрация отклонена`);
+    } catch {
+      setNotice('Не удалось сохранить решение. Проверьте подключение и повторите попытку.');
+    }
   };
 
   return (
@@ -159,8 +163,8 @@ export function App() {
               key={selected.id}
               item={selected}
               all={items}
-              onApprove={() => decide(approve(selected, new Date()), `${selected.address}: Дом одобрен, Староста узнает в MAX`)}
-              onReject={(reason) => decide(reject(selected, new Date(), reason), `${selected.address}: регистрация отклонена`)}
+              onApprove={() => void decide(selected, 'approve')}
+              onReject={(reason) => void decide(selected, 'reject', reason)}
             />
           ) : status === 'ready' ? (
             <div className="review__placeholder">

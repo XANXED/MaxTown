@@ -115,23 +115,26 @@
 - Create: `apps/api/src/auth/house-access.ts`
 - Create: `apps/api/src/routes/houses.test.ts`
 - Create: `apps/api/src/routes/moderator.test.ts`
-- Modify: `apps/api/src/index.ts`
+- Modify: `apps/api/src/app.ts`
 - Modify: `apps/miniapp/src/screens/JoinScreen.tsx`
+- Modify: `apps/miniapp/src/data/join.ts`
 - Modify: `apps/admin/src/App.tsx`
 - Modify: `apps/admin/src/data/registrations.ts`
-- Create: `Caddyfile`
+- Modify: `apps/admin/vite.config.ts`
+- Modify: `package.json` (serialize integration test files sharing PostgreSQL)
+- Create: `Caddyfile` (proxy to separate Mini App and admin services; Task 7 provides their Compose network)
 
 **Interfaces:**
 - Produces: authenticated registration, invite issue/reissue/redeem, join-request creation/decision, and moderator registration queue/approve/reject endpoints; moderator audit principal is accepted only from the Caddy-overwritten `X-MaxTown-Moderator` header after Basic Auth.
 - Consumes: Task 3 identity/session middleware and Task 2 registration, membership, invitation, and join-request schema.
 
-- [ ] **Step 1: Write transactional route tests** for invite hash storage/reissue/redeem races, pending join request approvals by apartment resident or headman for an empty apartment, duplicate membership prevention, moderator decisions, and rejection without moderator principal.
-- [ ] **Step 2: Run house and moderator tests**; expected: FAIL because routes are absent.
-- [ ] **Step 3: Implement house authorization and transactional endpoints** with per-route Fastify schemas and membership/role checks; include invitation regeneration and atomic approval creating the House and headman membership.
-- [ ] **Step 4: Add Caddy Basic Auth protection** for admin UI and `/api/moderator/*`, strip incoming moderator identity, set a trusted principal only after authentication, and verify syntax against current official Caddy documentation via Context7.
-- [ ] **Step 5: Connect existing JoinScreen and moderator registration queue** to these endpoints, preserving Russian copy and existing loading/error states; no credentials go into Vite variables.
-- [ ] **Step 6: Run PostgreSQL route tests, typecheck, and workspace tests.** Expected: races leave one valid membership/invitation and moderator routes deny unauthenticated access.
-- [ ] **Step 7: Commit** as `feat(houses): persist onboarding and moderator review`.
+- [x] **Step 1: Write transactional route tests** for invite hash storage/reissue/redeem races, pending join request approvals by apartment resident or headman for an empty apartment, duplicate membership prevention, moderator decisions, and rejection without moderator principal.
+- [x] **Step 2: Run house and moderator tests**; expected: FAIL because routes are absent.
+- [x] **Step 3: Implement house authorization and transactional endpoints** with per-route Fastify schemas and membership/role checks; include invitation regeneration and atomic approval creating the House and headman membership.
+- [x] **Step 4: Add Caddy Basic Auth protection** for admin UI and `/api/moderator/*`, strip incoming moderator identity, set a trusted principal only after authentication, and verify syntax against current official Caddy documentation via Context7.
+- [x] **Step 5: Connect existing JoinScreen and moderator registration queue** to these endpoints, preserving Russian copy and existing loading/error states; no credentials go into Vite variables.
+- [x] **Step 6: Run PostgreSQL route tests, typecheck, and workspace tests.** Expected: races leave one valid membership/invitation and moderator routes deny unauthenticated access.
+- [x] **Step 7: Commit** as `feat(houses): persist onboarding and moderator review`.
 
 ### Task 5: Deliver house community messages and informal polls
 
@@ -196,6 +199,7 @@
 - Modify: `.github/workflows/ci.yml`
 - Modify: `apps/api/Dockerfile`
 - Modify: `apps/miniapp/Dockerfile`
+- Create: `apps/admin/Dockerfile`
 
 **Interfaces:**
 - Produces: Compose services for PostgreSQL, one-shot migrations, API, Mini App, protected admin, Caddy, and optional bot; deploy accepts immutable image digests and deploys a release directory over SSH; smoke checks API health, MAX auth rejection without valid initData, and authenticated domain paths when a fixture account is configured.

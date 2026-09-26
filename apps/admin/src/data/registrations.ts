@@ -1,5 +1,6 @@
 import type { HouseRegistration, HouseRegistrationStatus } from '@maxtown/shared';
-import { useLoadable } from './loadable.ts';
+import { useEffect, useState } from 'react';
+import { parseDemoMode, useLoadable } from './loadable.ts';
 
 // Проверка регистрации Дома Модератором. Решение одно на регистрацию:
 // одобрить или отклонить с причиной, которую увидит Староста.
@@ -91,5 +92,42 @@ export function visibleRegistrations(items: HouseRegistration[], status: HouseRe
 
 /** Регистрации Домов. Без API — пусто; примеры для dev — см. loadable.ts. */
 export function useRegistrations() {
-  return useLoadable<HouseRegistration[]>([], ({ sampleRegistrations }) => sampleRegistrations());
+  const demo = import.meta.env.DEV && parseDemoMode(window.location.search) !== null;
+  const fixtures = useLoadable<HouseRegistration[]>([], ({ sampleRegistrations }) => sampleRegistrations());
+  const [attempt, setAttempt] = useState(0);
+  const [remote, setRemote] = useState<{ status: 'loading' | 'ready' | 'error'; data: HouseRegistration[] }>({ status: 'loading', data: [] });
+
+  useEffect(() => {
+    if (demo) return;
+    const controller = new AbortController();
+    setRemote((current) => ({ ...current, status: 'loading' }));
+    void fetch('/api/moderator/registrations', { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Не удалось загрузить регистрации');
+        const result = await response.json() as { registrations: HouseRegistration[] };
+        if (!controller.signal.aborted) setRemote({ status: 'ready', data: result.registrations });
+      })
+      .catch(() => { if (!controller.signal.aborted) setRemote({ status: 'error', data: [] }); });
+    return () => controller.abort();
+  }, [attempt, demo]);
+
+  return demo ? fixtures : {
+    status: remote.status,
+    data: remote.data,
+    retry: () => setAttempt((value) => value + 1),
+  };
+}
+
+export async function decideRegistration(id: string, decision: 'approve' | 'reject', reason?: string): Promise<HouseRegistration> {
+  if (import.meta.env.DEV && parseDemoMode(window.location.search) !== null) {
+    const fixture = await import('./fixtures.ts');
+    const sample = fixture.sampleRegistrations().find((item) => item.id === id);
+    if (!sample) throw new Error('Регистрация не найдена');
+    return decision === 'approve' ? approve(sample, new Date()) : reject(sample, new Date(), reason ?? '');
+  }
+  const response = await fetch(`/api/moderator/registrations/${encodeURIComponent(id)}/decision`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, ...(reason ? { reason } : {}) }),
+  });
+  if (!response.ok) throw new Error('Не удалось сохранить решение Модератора');
+  return (await response.json() as { registration: HouseRegistration }).registration;
 }

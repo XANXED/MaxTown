@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
-import type { HouseSearchResult, InviteCheck } from '@maxtown/shared';
+import { useEffect, useMemo, useState } from 'react';
+import type { HouseRegistration, HouseSearchResult, InviteCheck } from '@maxtown/shared';
+import { apiFetch } from '../auth/session.ts';
 import { demoMode, loadFixtures, useLoadable, type LoadStatus } from './loadable.ts';
 
 // Как стать Жильцом (CONTEXT.md): по Приглашению — QR-код или ссылка на
@@ -63,8 +64,50 @@ export type InviteResult = InviteCheck | { status: 'unavailable' };
  */
 export async function checkInvite(code: string): Promise<InviteResult> {
   const fixtures = demoMode() ? loadFixtures() : null;
-  if (!fixtures) return { status: 'unavailable' };
-  return (await fixtures).sampleInviteCheck(code);
+  if (fixtures) return (await fixtures).sampleInviteCheck(code);
+  try {
+    const response = await apiFetch(`/api/invitations/${encodeURIComponent(code)}`);
+    if (!response.ok) return { status: 'unavailable' };
+    return (await response.json() as { invitation: InviteResult }).invitation;
+  } catch {
+    return { status: 'unavailable' };
+  }
+}
+
+export async function redeemInvite(code: string): Promise<void> {
+  if (demoMode()) return;
+  const response = await apiFetch(`/api/invitations/${encodeURIComponent(code)}/redeem`, { method: 'POST' });
+  if (!response.ok) throw new Error('Не удалось вступить по Приглашению');
+}
+
+export async function requestHouseMembership(houseId: string, apartmentNumber: string): Promise<string> {
+  if (demoMode()) return `demo-${houseId}-${apartmentNumber}`;
+  const response = await apiFetch('/api/join-requests', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ houseId, apartmentNumber }),
+  });
+  if (!response.ok) throw new Error('Не удалось отправить Запрос на вступление');
+  return (await response.json() as { id: string }).id;
+}
+
+export async function cancelHouseMembershipRequest(requestId: string): Promise<void> {
+  if (demoMode()) return;
+  const response = await apiFetch(`/api/join-requests/${encodeURIComponent(requestId)}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Не удалось отозвать Запрос на вступление');
+}
+
+export async function getMyHouseRegistration(): Promise<HouseRegistration | null> {
+  if (demoMode()) return null;
+  const response = await apiFetch('/api/houses/registrations/mine');
+  if (!response.ok) throw new Error('Не удалось загрузить регистрацию Дома');
+  return (await response.json() as { registration: HouseRegistration | null }).registration;
+}
+
+export async function registerHouse(input: { address: string; locality: string; apartmentNumber: string }): Promise<void> {
+  if (demoMode()) return;
+  const response = await apiFetch('/api/houses/registrations', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error('Не удалось отправить регистрацию Дома');
 }
 
 function normalize(text: string): string {
@@ -87,6 +130,26 @@ export function matchHouses(houses: HouseSearchResult[], query: string): HouseSe
  */
 export function useHouseSearch(query: string): { status: LoadStatus; houses: HouseSearchResult[] } {
   const { status, data } = useLoadable<HouseSearchResult[]>([], ({ sampleHouses }) => sampleHouses);
-  const houses = useMemo(() => matchHouses(data, query), [data, query]);
-  return { status, houses };
+  const demo = demoMode();
+  const [remote, setRemote] = useState<{ status: LoadStatus; houses: HouseSearchResult[] }>({ status: 'ready', houses: [] });
+  useEffect(() => {
+    if (demo) return;
+    const text = query.trim();
+    if (text.length < 2) {
+      setRemote({ status: 'ready', houses: [] });
+      return;
+    }
+    const controller = new AbortController();
+    setRemote((current) => ({ ...current, status: 'loading' }));
+    void apiFetch(`/api/houses/search?query=${encodeURIComponent(text)}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('house search failed');
+        const result = await response.json() as { houses: HouseSearchResult[] };
+        if (!controller.signal.aborted) setRemote({ status: 'ready', houses: result.houses });
+      })
+      .catch(() => { if (!controller.signal.aborted) setRemote({ status: 'error', houses: [] }); });
+    return () => controller.abort();
+  }, [demo, query]);
+  const houses = useMemo(() => matchHouses(demo ? data : remote.houses, query), [data, demo, query, remote.houses]);
+  return demo ? { status, houses } : { status: remote.status, houses };
 }
