@@ -5,6 +5,7 @@ import { registerAuthRoutes } from './routes/auth.ts';
 import { registerHouseRoutes } from './routes/houses.ts';
 import { registerModeratorRoutes } from './routes/moderator.ts';
 import { registerCommunityRoutes } from './routes/community.ts';
+import { registerRepairModeRoutes } from './routes/repair-mode.ts';
 
 export type BuildAppOptions = {
   pool: Pool;
@@ -40,6 +41,7 @@ export async function buildApp({ pool, env }: BuildAppOptions): Promise<FastifyI
   registerHouseRoutes(app, pool);
   registerModeratorRoutes(app, pool);
   registerCommunityRoutes(app, pool);
+  registerRepairModeRoutes(app, pool);
 
   return app;
 }

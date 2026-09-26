@@ -318,6 +318,18 @@ export type CommunityPollResults = {
   options: CommunityPollOption[];
 };
 
+/** Текущий объявленный режим ремонта в Доме и автор последнего изменения. */
+export type RepairMode = {
+  isActive: boolean;
+  title: string | null;
+  description: string | null;
+  startsAt: string | null;
+  expectedCompletionAt: string | null;
+  instructions: string | null;
+  updatedAt: string | null;
+  updatedBy: { displayName: string; role: HouseRole } | null;
+};
+
 export type MeResponse = {
   resident: AuthResident;
   memberships: HouseMembershipSummary[];

@@ -13,6 +13,7 @@ export const ROUTES = {
   places: '/places',
   readings: '/readings',
   community: '/community',
+  repairMode: '/repair-mode',
 } as const;
 
 export type StaticRoute = (typeof ROUTES)[keyof typeof ROUTES];
@@ -62,6 +63,7 @@ const parents: Partial<Record<StaticRoute, AppRoute>> = {
   [ROUTES.newRequest]: ROUTES.requests,
   [ROUTES.contacts]: ROUTES.services,
   [ROUTES.places]: ROUTES.services,
+  [ROUTES.repairMode]: ROUTES.services,
 };
 
 /**

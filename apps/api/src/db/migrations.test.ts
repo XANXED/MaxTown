@@ -40,7 +40,7 @@ it('defines the core PostgreSQL schema migration', () => {
   expect(migration).toContain("'headman', 'responsible', 'concierge', 'resident'");
 });
 
-it.skipIf(!databaseUrl)('applies the core SQL migration once and is idempotent', async () => {
+it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent', async () => {
   expect(pool).not.toBeNull();
   if (!pool) return;
 
@@ -48,5 +48,5 @@ it.skipIf(!databaseUrl)('applies the core SQL migration once and is idempotent',
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('1');
+  expect(result.rows[0]?.count).toBe('2');
 });

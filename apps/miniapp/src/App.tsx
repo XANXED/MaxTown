@@ -38,6 +38,7 @@ const NOTICE_DURATION_MS = 3200;
 const NOTICE_EXIT_MS = 240;
 const REQUIRE_SERVER_AUTH = !import.meta.env.DEV || Boolean(window.WebApp?.initData);
 const CommunityScreen = lazy(() => import('./screens/CommunityScreen.tsx').then(({ CommunityScreen: Screen }) => ({ default: Screen })));
+const RepairModeScreen = lazy(() => import('./screens/RepairModeScreen.tsx').then(({ RepairModeScreen: Screen }) => ({ default: Screen })));
 
 function initialRoute(): AppRoute {
   // Открыли по ссылке-приглашению — сразу к вступлению, приветствие не нужно.
@@ -237,6 +238,9 @@ export function App() {
       break;
     case ROUTES.community:
       screen = <CommunityScreen houseId={activeHouseId} role={activeHouseRole} />;
+      break;
+    case ROUTES.repairMode:
+      screen = <RepairModeScreen houseId={activeHouseId} role={activeHouseRole} />;
       break;
     case ROUTES.contacts:
       screen = <ContactsScreen navigate={navigate} />;

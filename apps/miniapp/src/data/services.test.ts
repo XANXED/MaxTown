@@ -28,4 +28,8 @@ describe('filterServiceGroups', () => {
   it('makes the house community discoverable from the service directory', () => {
     expect(titles('чат дома')).toEqual(['Чат Дома']);
   });
+
+  it('makes repair mode discoverable from the service directory', () => {
+    expect(titles('режим ремонта')).toEqual(['Режим ремонта']);
+  });
 });

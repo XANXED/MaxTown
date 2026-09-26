@@ -148,7 +148,6 @@
 - Modify: `apps/miniapp/src/app.css`
 - Modify: `apps/miniapp/src/data/services.ts`
 - Modify: `apps/miniapp/src/components/serviceVisuals.ts`
-- Modify: `apps/miniapp/src/screens/HomeScreen.tsx`
 - Modify: `apps/miniapp/src/data/services.test.ts`
 - Modify: `apps/miniapp/src/routes.ts`
 - Modify: `packages/shared/src/*` (community contracts)
@@ -172,24 +171,30 @@
 **Files:**
 - Create: `apps/api/src/routes/repair-mode.ts`
 - Create: `apps/api/src/routes/repair-mode.test.ts`
+- Create: `apps/api/src/db/migrations/0002_immutable_audit_events.sql`
 - Create: `apps/miniapp/src/data/repairMode.ts`
 - Create: `apps/miniapp/src/data/repairMode.test.ts`
 - Create: `apps/miniapp/src/screens/RepairModeScreen.tsx`
 - Modify: `apps/miniapp/src/App.tsx`
+- Modify: `apps/miniapp/src/app.css`
+- Modify: `apps/miniapp/src/data/services.ts`
+- Modify: `apps/miniapp/src/data/services.test.ts`
+- Modify: `apps/miniapp/src/components/serviceVisuals.ts`
+- Modify: `apps/miniapp/src/screens/HomeScreen.tsx`
 - Modify: `apps/miniapp/src/routes.ts`
 - Modify: `packages/shared/src/*` (repair mode contracts)
-- Modify: `apps/api/src/index.ts`
+- Modify: `apps/api/src/app.ts`
 
 **Interfaces:**
 - Produces: `GET /api/houses/:houseId/repair-mode` and `PUT /api/houses/:houseId/repair-mode`; read access requires membership, writes require Headman or Responsible, and every change appends an audit event with actor/time.
 - Consumes: Task 3 session identity, Task 4 house access, Task 2 repair-mode and audit tables, and Task 5's UI navigation conventions.
 
-- [ ] **Step 1: Add tests** for inactive default, member reads, foreign-house IDs, role authorization, input validation, start/end transitions, expected completion time, and audit actor/time.
-- [ ] **Step 2: Run repair-mode tests**; expected: FAIL because route and model are absent.
-- [ ] **Step 3: Implement transactional repair mode route** ensuring one state per House and immutable audit history for activation, edit, and completion.
-- [ ] **Step 4: Add Mini App read/edit screen** with Russian content that clearly identifies the information as house-provided and uses only approved design tokens/components.
-- [ ] **Step 5: Run PostgreSQL route/UI tests, typecheck, and workspace tests.** Expected: all membership and role boundaries hold.
-- [ ] **Step 6: Commit** as `feat(repair): add per-house repair mode`.
+- [x] **Step 1: Add tests** for inactive default, member reads, foreign-house IDs, role authorization, input validation, start/end transitions, expected completion time, and audit actor/time.
+- [x] **Step 2: Run repair-mode tests**; the new datetime/service tests failed before their implementation, then passed when the data module and service route were added.
+- [x] **Step 3: Implement transactional repair mode route** ensuring one state per House and immutable audit history for activation, edit, and completion.
+- [x] **Step 4: Add Mini App read/edit screen** with Russian content that clearly identifies the information as house-provided and uses only approved design tokens/components.
+- [x] **Step 5: Run PostgreSQL route/UI tests, typecheck, and workspace tests.** Expected: all membership and role boundaries hold.
+- [x] **Step 6: Commit** as `feat(repair): add per-house repair mode`.
 
 ### Task 7: Compose deployment, immutable-image CD, rollback, and release checks
 

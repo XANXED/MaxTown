@@ -2,7 +2,7 @@ import type { AppRoute } from '../routes.ts';
 import { ROUTES } from '../routes.ts';
 
 /** Ключ иконки: сами иконки подставляет экран, чтобы данные не зависели от React. */
-export type ServiceIcon = 'new-request' | 'requests' | 'house-state' | 'events' | 'readings' | 'contacts' | 'places' | 'community';
+export type ServiceIcon = 'new-request' | 'requests' | 'house-state' | 'events' | 'readings' | 'contacts' | 'places' | 'community' | 'repair-mode';
 
 export type Service = {
   id: string;
@@ -71,6 +71,14 @@ export const serviceGroups: ServiceGroup[] = [
         icon: 'events',
         route: ROUTES.events,
         keywords: 'новости собрание отключение',
+      },
+      {
+        id: 'repair-mode',
+        title: 'Режим ремонта',
+        description: 'Работы в Доме и ожидаемый срок',
+        icon: 'repair-mode',
+        route: ROUTES.repairMode,
+        keywords: 'ремонт работы сроки',
       },
       {
         id: 'readings',
