@@ -2,8 +2,7 @@ import { House, Phone, Wrench } from '@phosphor-icons/react';
 import { Button, Typography } from '@maxhub/max-ui';
 import buildingImage from '../assets/home-building.webp';
 import { IconTile, type IconComponent, type TileColor } from '../components/ui.tsx';
-import { JOIN_HINT } from '../data/home.ts';
-import type { Notify } from './types.ts';
+import { useHomeData } from '../data/home.ts';
 
 const features: Array<{ icon: IconComponent; color: TileColor; title: string; description: string }> = [
   {
@@ -27,11 +26,15 @@ const features: Array<{ icon: IconComponent; color: TileColor; title: string; de
 ];
 
 type WelcomeScreenProps = {
-  notify: Notify;
+  onJoin: () => void;
   onContinue: () => void;
 };
 
-export function WelcomeScreen({ notify, onContinue }: WelcomeScreenProps) {
+export function WelcomeScreen({ onJoin, onContinue }: WelcomeScreenProps) {
+  // Жилец открыл приветствие из Профиля как справку — вступать ему уже не нужно.
+  const { status, isResident } = useHomeData();
+  const resident = status === 'ready' && isResident;
+
   return (
     <div className="screen screen--welcome">
       <main className="welcome" id="main-content">
@@ -71,12 +74,20 @@ export function WelcomeScreen({ notify, onContinue }: WelcomeScreenProps) {
       </main>
 
       <footer className="bottom-panel">
-        <Button size="medium" variant="primary" stretched onClick={() => notify(JOIN_HINT)}>
-          Стать Жильцом
-        </Button>
-        <Button size="medium" variant="ghost" stretched onClick={onContinue}>
-          Сначала посмотреть
-        </Button>
+        {resident ? (
+          <Button size="medium" variant="primary" stretched onClick={onContinue}>
+            Понятно
+          </Button>
+        ) : (
+          <>
+            <Button size="medium" variant="primary" stretched onClick={onJoin}>
+              Стать Жильцом
+            </Button>
+            <Button size="medium" variant="ghost" stretched onClick={onContinue}>
+              Сначала посмотреть
+            </Button>
+          </>
+        )}
       </footer>
     </div>
   );

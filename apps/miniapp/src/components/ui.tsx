@@ -1,16 +1,17 @@
-import type { ComponentType, ReactNode } from 'react';
+import type { ComponentType, KeyboardEvent, ReactNode } from 'react';
 import {
   CaretRight,
+  CloudSlash,
   FileText,
   House,
   Megaphone,
   SquaresFour,
   User,
   Warning,
-  Wrench,
   CalendarBlank,
 } from '@phosphor-icons/react';
-import { Counter, Typography } from '@maxhub/max-ui';
+import { Button, Counter, Typography } from '@maxhub/max-ui';
+import { categoryVisual } from './categoryVisuals.ts';
 import type { HouseEventKind, HouseEventSummary, RequestSummary } from '@maxtown/shared';
 import {
   formatUpdatedAt,
@@ -53,6 +54,98 @@ export function IconTile({ icon: Icon, tone = 'neutral', size = 'medium' }: Icon
     <span className={`icon-tile icon-tile--${tone} icon-tile--${size}`}>
       <Icon className="icon" weight={iconWeight(tone)} aria-hidden />
     </span>
+  );
+}
+
+/** Маленькая плитка 20px для чипов: Системы в Состоянии дома, Категории в форме. */
+export function MiniTile({ icon: Icon, tone }: { icon: IconComponent; tone: TileTone }) {
+  return (
+    <span className={`mini-tile icon-tile--${tone}`}>
+      <Icon className="icon icon--small" weight={iconWeight(tone)} aria-hidden />
+    </span>
+  );
+}
+
+type Option<T extends string> = { value: T; label: string; count?: number };
+
+type ChoiceProps<T extends string> = {
+  label: string;
+  options: Array<Option<T>>;
+  value: T;
+  onChange: (value: T) => void;
+};
+
+/** Фильтр списка: чипы в одну прокручиваемую строку, с числом элементов. */
+export function FilterChips<T extends string>({ label, options, value, onChange }: ChoiceProps<T>) {
+  return (
+    <div className="filter-chips" role="group" aria-label={label}>
+      {options.map((option) => (
+        <button
+          className={`chip pressable${option.value === value ? ' chip--selected' : ''}`}
+          type="button"
+          aria-pressed={option.value === value}
+          key={option.value}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+          {option.count !== undefined ? <span className="chip__count">{option.count}</span> : null}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Выбор одного из двух-трёх вариантов: подложка с бегунком, как в настройках MAX. */
+export function Segmented<T extends string>({ label, options, value, onChange }: ChoiceProps<T>) {
+  const index = Math.max(
+    options.findIndex((option) => option.value === value),
+    0,
+  );
+
+  // Как у группы радиокнопок: в Tab попадает только выбранный вариант, стрелки меняют выбор.
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const last = options.length - 1;
+    const next =
+      event.key === 'ArrowRight' || event.key === 'ArrowDown'
+        ? index === last ? 0 : index + 1
+        : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+          ? index === 0 ? last : index - 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : null;
+    const option = next === null ? undefined : options[next];
+    if (!option) return;
+    event.preventDefault();
+    onChange(option.value);
+    event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next ?? 0]?.focus();
+  };
+
+  return (
+    <div
+      className="segmented"
+      role="radiogroup"
+      aria-label={label}
+      data-count={options.length}
+      data-index={index}
+      onKeyDown={onKeyDown}
+    >
+      <span className="segmented__thumb" aria-hidden />
+      {options.map((option) => (
+        <button
+          className="segmented__option"
+          type="button"
+          role="radio"
+          aria-checked={option.value === value}
+          tabIndex={option.value === value ? 0 : -1}
+          key={option.value}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -119,12 +212,104 @@ export function EmptyState({ icon: Icon, tone = 'neutral', title, description, a
   );
 }
 
+type InlineEmptyProps = {
+  icon: IconComponent;
+  tone: TileTone;
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+};
+
+/** Компактное пустое состояние в одну строку — для превью разделов на главной. */
+export function InlineEmpty({ icon, tone, title, description, actionLabel, onAction }: InlineEmptyProps) {
+  const content = (
+    <>
+      <IconTile icon={icon} tone={tone} size="small" />
+      <span className="list-row__copy">
+        <Typography.Text asChild variant="body-strong">
+          <span>{title}</span>
+        </Typography.Text>
+        <Typography.Text asChild variant="description" color="secondary">
+          <span>{description}</span>
+        </Typography.Text>
+      </span>
+    </>
+  );
+
+  if (!onAction) return <div className="list-row list-row--compact">{content}</div>;
+
+  return (
+    <button className="list-row list-row--compact list-row--interactive" type="button" onClick={onAction}>
+      {content}
+      <span className="row-link">{actionLabel}</span>
+    </button>
+  );
+}
+
+const ERROR_TITLE = 'Не удалось загрузить';
+const ERROR_DESCRIPTION = 'Проверьте интернет и попробуйте ещё раз';
+
+/** Загрузка не удалась: объясняет и даёт повторить. Кнопка вторичная — акцент экрана не отнимает. */
+export function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="list-card" role="alert">
+      <EmptyState
+        icon={CloudSlash}
+        title={ERROR_TITLE}
+        description={ERROR_DESCRIPTION}
+        action={
+          <Button size="small" variant="secondary" onClick={onRetry}>
+            Повторить
+          </Button>
+        }
+      />
+    </div>
+  );
+}
+
+/** То же в одну строку — для превью разделов на главной. */
+export function InlineError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="list-card" role="alert">
+      <InlineEmpty
+        icon={CloudSlash}
+        tone="neutral"
+        title={ERROR_TITLE}
+        description={ERROR_DESCRIPTION}
+        actionLabel="Повторить"
+        onAction={onRetry}
+      />
+    </div>
+  );
+}
+
 /** Карточка-список: строки на одной плоскости с разделителями, без теней. */
 export function ListCard({ children, label }: { children: ReactNode; label?: string }) {
   return (
     <div className="list-card stagger" role="list" aria-label={label}>
       {children}
     </div>
+  );
+}
+
+type ListGroupProps = {
+  id: string;
+  title: string;
+  children: ReactNode;
+  /** Без подложки карточки: содержимое само решает, как лежать на фоне. */
+  plain?: boolean;
+};
+
+/** Группа с подписью капсом, как в настройках MAX: подпись и карточка под ней. */
+export function ListGroup({ id, title, children, plain = false }: ListGroupProps) {
+  return (
+    <section className="list-group" aria-labelledby={id}>
+      <h2 className="caps-label list-group__title" id={id}>
+        {title}
+      </h2>
+      {plain ? children : <div className="list-card">{children}</div>}
+    </section>
   );
 }
 
@@ -175,14 +360,15 @@ export function RowShell({ children, onOpen, className = '', trailing }: RowShel
 
 export function RequestRow({ request, onOpen }: { request: RequestSummary; onOpen?: () => void }) {
   const tone = requestStatusTones[request.status];
+  const category = categoryVisual(request.category);
 
   return (
     <RowShell onOpen={onOpen} className="list-row--request">
-      <IconTile icon={Wrench} size="small" tone="coral" />
+      <IconTile icon={category.icon} size="small" tone={category.tone} />
       <span className="list-row__copy">
         <Typography.Text asChild variant="description" color="tertiary">
           <span>
-            № {request.number} · {request.category}
+            <span className="tabular nowrap">№ {request.number}</span> · {request.category}
           </span>
         </Typography.Text>
         <Typography.Text asChild variant="body-strong">
@@ -190,22 +376,27 @@ export function RequestRow({ request, onOpen }: { request: RequestSummary; onOpe
         </Typography.Text>
         <span className="list-row__meta">
           <span className={`status-badge status-badge--${tone}`}>{requestStatusLabels[request.status]}</span>
-          <Typography.Text asChild variant="description" color="tertiary">
-            <time dateTime={request.updatedAt}>{formatUpdatedAt(request.updatedAt)}</time>
-          </Typography.Text>
+          {request.status === 'done' ? (
+            // Выполненная Заявка ждёт ответа Жильца — подсказываем, что от него нужно.
+            <span className="list-row__hint">Подтвердите исправление</span>
+          ) : (
+            <Typography.Text asChild variant="description" color="tertiary">
+              <time dateTime={request.updatedAt}>{formatUpdatedAt(request.updatedAt)}</time>
+            </Typography.Text>
+          )}
         </span>
       </span>
     </RowShell>
   );
 }
 
-const eventIcons: Record<HouseEventKind, IconComponent> = {
+export const eventIcons: Record<HouseEventKind, IconComponent> = {
   accident: Warning,
   'planned-outage': CalendarBlank,
   announcement: Megaphone,
 };
 
-const eventTones: Record<HouseEventKind, TileTone> = {
+export const eventTones: Record<HouseEventKind, TileTone> = {
   accident: 'danger',
   'planned-outage': 'coral',
   announcement: 'pink',
@@ -221,7 +412,7 @@ export function EventRow({ event, onOpen }: { event: HouseEventSummary; onOpen?:
         </Typography.Text>
         <Typography.Text asChild variant="description" color="secondary">
           <span>
-            {houseEventKindLabels[event.kind]} · {event.period}
+            {houseEventKindLabels[event.kind]} · <span className="tabular nowrap">{event.period}</span>
           </span>
         </Typography.Text>
       </span>

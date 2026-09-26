@@ -25,6 +25,11 @@ input {
   font: inherit;
 }
 
+/* Крестик очистки даёт Input из max-ui; системный второй не нужен. */
+input[type='search']::-webkit-search-cancel-button {
+  appearance: none;
+}
+
 button {
   color: inherit;
   cursor: pointer;
@@ -51,9 +56,23 @@ fieldset {
 }
 
 h1,
-h2,
+h2 {
+  text-wrap: balance;
+}
+
 p {
   text-wrap: pretty;
+}
+
+/* Номера, время и счётчики не прыгают по ширине. */
+time,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Период, номер, «с 08:40» не рвутся посередине: переносится целиком. */
+.nowrap {
+  white-space: nowrap;
 }
 
 .visually-hidden {
@@ -78,6 +97,20 @@ p {
   --tile-fill: 14%;
   --tile-gloss: 70%;
   --tile-lift: 0%;
+
+  /* Бегунок переключателя: в светлой — белая карточка, в тёмной — светлее подложки. */
+  --segmented-thumb: var(--background-card);
+
+  /*
+   * Сигнальный текст мелким кеглем. Чистые --text-positive, --text-negative
+   * и --text-themed на светлом дают 2.2–3.7:1; с 35% основного текста — тот же
+   * оттенок и не меньше 4.6:1 в обеих схемах. Только для текста до 17px,
+   * значки и заливки остаются на чистых токенах.
+   */
+  --signal-mix: 35%;
+  --text-positive-readable: color-mix(in srgb, var(--text-positive), var(--text-primary) var(--signal-mix));
+  --text-negative-readable: color-mix(in srgb, var(--text-negative), var(--text-primary) var(--signal-mix));
+  --text-themed-readable: color-mix(in srgb, var(--text-themed), var(--text-primary) var(--signal-mix));
 
   position: relative;
   width: 100%;
@@ -240,6 +273,11 @@ p {
   border-radius: var(--radius-20);
 }
 
+.icon-tile--large > .icon {
+  width: calc(var(--space-16) + var(--space-20));
+  height: calc(var(--space-16) + var(--space-20));
+}
+
 /*
  * Тона плиток. Цветные — палитра --tile-* из design/tokens.css (акценты тем
  * MAX): залитая иконка в цвет на подложке того же тона. Объём даёт блик
@@ -299,6 +337,20 @@ p {
   flex-direction: column;
   gap: var(--space-6);
   padding-top: var(--space-16);
+}
+
+/* Вне MAX у внутренних экранов нет системной «Назад» — показываем свою. */
+.back-bar {
+  padding: var(--space-6) var(--space-8) var(--space-0);
+}
+
+.back-bar__button {
+  min-height: calc(var(--space-20) * 2 + var(--space-4));
+  gap: var(--space-2);
+}
+
+.back-bar + .screen .screen-heading {
+  padding-top: var(--space-0);
 }
 
 .caps-label {
@@ -421,48 +473,67 @@ p {
   gap: var(--space-2);
 }
 
-.house-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-16);
+.join-card {
   overflow: hidden;
-  padding: var(--space-20);
   border-radius: var(--radius-20);
   background: var(--background-card);
-  isolation: isolate;
 }
 
-.house-card__image {
+/* Небо за домами: голубой из палитры плиток, еле заметно. */
+.join-card__media {
+  position: relative;
+  height: calc(var(--space-32) * 4 + var(--space-16));
+  overflow: hidden;
+  background: color-mix(in srgb, var(--tile-blue) 7%, transparent);
+}
+
+/* Дома на картинке сдвинуты вправо: растягиваем и прячем пустое левое поле. */
+.join-card__image {
   position: absolute;
-  z-index: -1;
-  inset-block-start: var(--space-4);
-  inset-inline-end: calc(var(--space-32) * -1);
-  width: 70%;
+  inset-block-end: calc(var(--space-12) * -1);
+  inset-inline-end: calc(var(--space-16) * -1);
+  width: 116%;
+  max-width: none;
   height: auto;
-  opacity: 0.9;
   pointer-events: none;
   animation: image-in calc(var(--motion-slow) * 1.5) var(--motion-ease) both;
   animation-delay: calc(var(--stagger-step) * 2);
 }
 
-.house-card__copy {
+.join-card__body {
   display: flex;
-  max-width: 58%;
   flex-direction: column;
   gap: var(--space-6);
+  padding: var(--space-16) var(--space-20) var(--space-20);
 }
 
-.system-chips {
+.join-card__actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+  margin-top: var(--space-10);
+}
+
+/* Системы — одной строкой с прокруткой, край растворяется, чтобы было видно продолжение. */
+.system-chips {
+  display: flex;
   gap: var(--space-6);
-  padding: var(--space-0);
+  margin: var(--space-8) calc(var(--space-20) * -1) var(--space-0);
+  padding: var(--space-0) var(--space-20);
+  overflow-x: auto;
   list-style: none;
+  scrollbar-width: none;
+  mask-image: linear-gradient(to right, var(--text-primary) 85%, transparent);
+}
+
+.system-chips::-webkit-scrollbar {
+  display: none;
 }
 
 .system-chip {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: var(--space-6);
   padding: var(--space-6) var(--space-10) var(--space-6) var(--space-6);
@@ -471,9 +542,10 @@ p {
   color: var(--text-secondary);
   font-size: var(--font-size-description);
   line-height: var(--line-height-description);
+  white-space: nowrap;
 }
 
-.system-chip__icon {
+.mini-tile {
   display: inline-flex;
   width: var(--space-20);
   height: var(--space-20);
@@ -483,13 +555,13 @@ p {
   border-radius: var(--radius-6);
 }
 
-.house-card__action {
-  align-self: flex-start;
-}
-
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /*
+   * Ширина колонки растёт вместе с текстом: обычно 4 в ряд, а на крупном
+   * шрифте MAX плитки встают 2×2 — слова не рвутся посередине.
+   */
+  grid-template-columns: repeat(auto-fit, minmax(calc(var(--font-size-description) * 5.5), 1fr));
   gap: var(--space-8);
 }
 
@@ -508,7 +580,29 @@ p {
   font-weight: var(--font-weight-body-strong);
   line-height: var(--line-height-description);
   text-align: center;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+}
+
+.quick-action__tile {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Сервис ещё не готов: честная пометка вместо тупика. */
+.quick-action__soon {
+  position: absolute;
+  inset-block-end: calc(var(--space-4) * -1);
+  inset-inline-start: 50%;
+  padding: var(--space-0) var(--space-6);
+  border-radius: var(--radius-6);
+  background: var(--background-card);
+  border: 1px solid var(--divider-primary);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-note);
+  font-weight: var(--font-weight-label-caps);
+  line-height: var(--line-height-note);
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 
 .home-section {
@@ -527,6 +621,7 @@ p {
 }
 
 .text-action {
+  position: relative;
   display: inline-flex;
   align-items: center;
   padding: var(--space-4) var(--space-8);
@@ -537,6 +632,22 @@ p {
   font-size: var(--font-size-action-small);
   font-weight: var(--font-weight-action-small);
   line-height: var(--line-height-action-small);
+}
+
+/*
+ * Тач-цель не меньше 44px, а на вид кнопка остаётся компактной: невидимое
+ * поле вокруг текстовых кнопок и чипов добирает высоту до пальца.
+ */
+.text-action::after,
+.chip::after,
+.photo-tile__remove::after {
+  position: absolute;
+  inset: calc(var(--space-8) * -1) calc(var(--space-2) * -1);
+  content: '';
+}
+
+.photo-tile__remove::after {
+  inset: calc(var(--space-10) * -1);
 }
 
 /* Списки */
@@ -585,6 +696,12 @@ p {
   background: var(--background-tertiary);
 }
 
+/* Карточка обрезает всё, что снаружи, поэтому кольцо фокуса у строки — внутри. */
+.list-card .list-row--interactive:focus-visible {
+  outline-offset: calc(var(--space-2) * -1);
+  border-radius: var(--radius-16);
+}
+
 .list-row__copy {
   display: flex;
   min-width: var(--space-0);
@@ -621,16 +738,16 @@ p {
 
 .status-badge--themed {
   background: var(--accent-fade);
-  color: var(--text-themed);
+  color: var(--text-themed-readable);
 }
 
 .status-badge--positive {
-  color: var(--text-positive);
+  color: var(--text-positive-readable);
 }
 
 .status-badge--negative {
   background: var(--button-negative-fade);
-  color: var(--text-negative);
+  color: var(--text-negative-readable);
 }
 
 .list-row--skeleton {
@@ -709,6 +826,110 @@ p {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
+.row-link {
+  color: var(--text-themed);
+  font-size: var(--font-size-action-small);
+  font-weight: var(--font-weight-action-small);
+  line-height: var(--line-height-action-small);
+  white-space: nowrap;
+}
+
+/* Что нужно от Жильца: например, подтвердить исправление Выполненной Заявки. */
+.list-row__hint {
+  color: var(--text-themed-readable);
+  font-size: var(--font-size-description);
+  font-weight: var(--font-weight-action-xsmall);
+  line-height: var(--line-height-description);
+}
+
+/* Фильтры списков: чипы в одну строку с прокруткой, число — в конце чипа. */
+.filter-chips {
+  display: flex;
+  gap: var(--space-8);
+  /* Вертикальный запас — чтобы невидимое поле чипа не обрезала прокрутка. */
+  margin: calc(var(--space-6) * -1) calc(var(--space-16) * -1);
+  padding: var(--space-6) var(--space-16);
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* Край растворяется: видно, что чипы прокручиваются дальше. */
+  mask-image: linear-gradient(to right, var(--text-primary) calc(100% - var(--space-32)), transparent);
+}
+
+.filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-chips .chip {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-6);
+  background: var(--background-card);
+}
+
+.filter-chips .chip--selected {
+  background: var(--chips-active);
+}
+
+.filter-empty {
+  padding: var(--space-8) var(--space-4);
+}
+
+.chip__count {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.chip--selected .chip__count {
+  color: var(--on-accent);
+  opacity: 0.72;
+}
+
+/* Выбор из двух-трёх вариантов: бегунок едет под выбранный вариант. */
+.segmented {
+  position: relative;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  padding: var(--space-2);
+  border-radius: var(--radius-12);
+  background: var(--background-tertiary);
+  isolation: isolate;
+}
+
+.segmented__thumb {
+  position: absolute;
+  z-index: -1;
+  inset-block: var(--space-2);
+  inset-inline-start: var(--space-2);
+  width: calc((100% - var(--space-4)) / var(--segments, 2));
+  border-radius: var(--radius-10);
+  background: var(--segmented-thumb);
+  transition: transform var(--motion-base) var(--motion-ease);
+}
+
+.segmented[data-count='3'] { --segments: 3; }
+.segmented[data-index='1'] .segmented__thumb { transform: translateX(100%); }
+.segmented[data-index='2'] .segmented__thumb { transform: translateX(200%); }
+
+.segmented__option {
+  /* 40px + подложка 2px сверху и снизу = 44px тач-цель. */
+  min-height: calc(var(--space-20) * 2);
+  padding: var(--space-6) var(--space-8);
+  border: var(--space-0);
+  border-radius: var(--radius-10);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-size-action-small);
+  font-weight: var(--font-weight-action-small);
+  line-height: var(--line-height-action-small);
+  transition: color var(--motion-base) var(--motion-ease);
+}
+
+.segmented__option[aria-checked='true'] {
+  color: var(--text-primary);
+}
+
 .services-note {
   padding-inline: var(--space-16);
   text-align: center;
@@ -740,6 +961,734 @@ p {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-48);
+}
+
+/* Карточки Заявки и События дома */
+
+.card-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-6);
+  padding-top: var(--space-16);
+}
+
+.card-head > .icon-tile {
+  margin-bottom: var(--space-6);
+}
+
+.back-bar + .screen .card-head {
+  padding-top: var(--space-0);
+}
+
+.card-head--skeleton {
+  gap: var(--space-10);
+}
+
+.skeleton--tile-medium {
+  width: calc(var(--space-24) * 2);
+  height: calc(var(--space-24) * 2);
+  border-radius: var(--radius-16);
+}
+
+.skeleton--title {
+  width: 80%;
+  height: var(--space-24);
+}
+
+/* Решение Жильца: подтвердить исправление или отменить Заявку. Одна плоскость, без тени. */
+.decision-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-16);
+  border-radius: var(--radius-20);
+  background: var(--background-card);
+}
+
+.decision-card__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  margin-top: var(--space-6);
+}
+
+.decision-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin-top: var(--space-10);
+}
+
+.decision-card__form .decision-card__actions {
+  margin-top: var(--space-0);
+}
+
+/* Итог Заявки: закрыта, отклонена, отменена. */
+.outcome {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-12);
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius-16);
+  background: var(--background-card);
+  color: var(--icon-secondary);
+}
+
+.outcome > p,
+.outcome__copy {
+  color: var(--text-primary);
+}
+
+.outcome__copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.outcome--positive {
+  color: var(--icon-positive);
+}
+
+.outcome--negative {
+  background: var(--button-negative-fade);
+  color: var(--text-negative);
+}
+
+/* Ход Заявки: вертикальные шаги, линия связывает маркеры. */
+.timeline {
+  padding: var(--space-16);
+  list-style: none;
+}
+
+.timeline__step {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--space-20) minmax(0, 1fr);
+  gap: var(--space-12);
+  padding-bottom: var(--space-16);
+}
+
+.timeline__step:last-child {
+  padding-bottom: var(--space-0);
+}
+
+.timeline__step:not(:last-child)::before {
+  position: absolute;
+  inset-block: var(--space-16) var(--space-0);
+  inset-inline-start: calc(var(--space-10) - 1px);
+  width: 2px;
+  border-radius: var(--radius-2);
+  background: var(--divider-primary);
+  content: '';
+}
+
+.timeline__marker {
+  width: var(--space-10);
+  height: var(--space-10);
+  margin: var(--space-6) auto var(--space-0);
+  border-radius: var(--radius-48);
+  background: var(--icon-tertiary);
+}
+
+.timeline__step--upcoming .timeline__marker {
+  border: 2px solid var(--stroke-tertiary);
+  background: var(--background-card);
+}
+
+.timeline__step--current .timeline__marker {
+  width: var(--space-12);
+  height: var(--space-12);
+  margin-top: var(--space-4);
+  background: var(--accent);
+  box-shadow: 0 0 0 var(--space-4) var(--accent-fade);
+}
+
+.timeline__step--current.timeline__step--closed .timeline__marker {
+  background: var(--icon-positive);
+  box-shadow: 0 0 0 var(--space-4) color-mix(in srgb, var(--icon-positive) 16%, transparent);
+}
+
+.timeline__step--current:is(.timeline__step--rejected, .timeline__step--cancelled) .timeline__marker {
+  background: var(--button-negative);
+  box-shadow: 0 0 0 var(--space-4) var(--button-negative-fade);
+}
+
+.timeline__step--current.timeline__step--cancelled .timeline__marker {
+  background: var(--icon-secondary);
+  box-shadow: 0 0 0 var(--space-4) var(--background-tertiary);
+}
+
+.timeline__copy {
+  display: flex;
+  min-width: var(--space-0);
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.timeline__step--upcoming .timeline__label {
+  color: var(--text-tertiary);
+}
+
+/* Подробности: подпись слева, значение справа, как в ячейках MAX. */
+.facts {
+  margin: var(--space-0);
+}
+
+.facts__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-16);
+  padding: var(--space-12) var(--space-16);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+.facts__row + .facts__row::before {
+  position: absolute;
+  inset-block-start: var(--space-0);
+  inset-inline: var(--space-16) var(--space-0);
+  height: 1px;
+  background: var(--divider-primary);
+  content: '';
+}
+
+.facts__row dt {
+  color: var(--text-secondary);
+}
+
+.facts__row dd {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin: var(--space-0);
+  text-align: end;
+}
+
+.facts__hint {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+}
+
+.facts__link {
+  margin: calc(var(--space-4) * -1) calc(var(--space-8) * -1);
+}
+
+.request-description {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-16);
+}
+
+.photo-grid--static {
+  padding: var(--space-0);
+  list-style: none;
+}
+
+/*
+ * Комментарии — пузыри MAX: входящие на --bubble-in-*, свои на --bubble-out-*
+ * (в светлой схеме это сплошной цвет, в тёмной — фирменный градиент пузыря).
+ */
+.comments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-0);
+  list-style: none;
+}
+
+.comment {
+  display: flex;
+  max-width: 85%;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-12) var(--space-6);
+  border-radius: var(--radius-16);
+  font-size: var(--font-size-message);
+  line-height: var(--line-height-message);
+  animation: reveal var(--motion-base) var(--motion-ease) both;
+}
+
+.comment--theirs {
+  align-self: flex-start;
+  border-end-start-radius: var(--radius-4);
+  background: var(--bubble-in-background);
+  color: var(--bubble-in-text);
+}
+
+.comment--mine {
+  align-self: flex-end;
+  border-end-end-radius: var(--radius-4);
+  background: linear-gradient(
+    135deg,
+    var(--bubble-out-gradient-1),
+    var(--bubble-out-gradient-2),
+    var(--bubble-out-gradient-3)
+  );
+  color: var(--bubble-out-text);
+}
+
+.comment__author {
+  color: var(--text-themed-readable);
+  font-size: var(--font-size-bubble-label);
+  font-weight: var(--font-weight-action-xsmall);
+  line-height: var(--line-height-bubble-label);
+}
+
+.comment__text {
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.comment__time {
+  align-self: flex-end;
+  color: var(--bubble-in-time);
+  font-size: var(--font-size-bubble-tag);
+  line-height: var(--line-height-bubble-tag);
+}
+
+.comment--mine .comment__time {
+  color: var(--bubble-out-time);
+}
+
+.comments__empty {
+  padding-inline: var(--space-16);
+}
+
+/* Поле Комментария — строка ввода MAX: плоское поле и иконка отправки в цвет акцента. */
+.comment-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-16);
+  border: 1px solid var(--writebar-input-stroke);
+  border-radius: var(--radius-20);
+  background: var(--writebar-input-flat);
+  transition: border-color var(--motion-base) var(--motion-ease);
+}
+
+.comment-form:focus-within {
+  border-color: var(--stroke-themed);
+}
+
+.comment-form__input {
+  min-height: calc(var(--space-20) * 2 + var(--space-4));
+  max-height: calc(var(--line-height-body) * 6 + var(--space-24));
+  padding: var(--space-12) var(--space-0);
+  border: var(--space-0);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  resize: none;
+  field-sizing: content;
+}
+
+.comment-form__input::placeholder {
+  color: var(--text-mute);
+}
+
+.comment-form__input:focus-visible {
+  outline: none;
+}
+
+.comment-form__send {
+  display: inline-flex;
+  width: calc(var(--space-20) * 2 + var(--space-4));
+  height: calc(var(--space-20) * 2 + var(--space-4));
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-0);
+  border: var(--space-0);
+  border-radius: var(--radius-48);
+  background: transparent;
+  color: var(--icon-themed);
+}
+
+.comment-form__send:disabled {
+  color: var(--icon-mute);
+  cursor: default;
+}
+
+/* Затронутые Системы в карточке События: чипы переносятся, без прокрутки. */
+.system-chips--wrap {
+  flex-wrap: wrap;
+  margin: var(--space-0);
+  padding: var(--space-12) var(--space-16);
+  overflow: visible;
+  mask-image: none;
+}
+
+/* Что делать Жильцу: строки с разделителями, как в списках MAX. */
+.advice {
+  padding: var(--space-0);
+  list-style: none;
+}
+
+.advice__item {
+  position: relative;
+  padding: var(--space-12) var(--space-16);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  text-wrap: pretty;
+}
+
+.advice__item + .advice__item::before {
+  position: absolute;
+  inset-block-start: var(--space-0);
+  inset-inline: var(--space-16) var(--space-0);
+  height: 1px;
+  background: var(--divider-primary);
+  content: '';
+}
+
+/* Состояние дома */
+
+.house-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-16);
+  border-radius: var(--radius-20);
+  background: var(--background-card);
+}
+
+.house-summary__copy {
+  display: flex;
+  min-width: var(--space-0);
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.system-row__trail {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+/* Значок статуса Системы — заливка сигнальным цветом, текст рядом остаётся читаемым. */
+.system-row__status {
+  width: var(--space-20);
+  height: var(--space-20);
+}
+
+.system-row__status--working {
+  color: var(--icon-positive);
+}
+
+.system-row__status--accident {
+  color: var(--button-negative);
+}
+
+.system-row__status--planned-outage {
+  color: var(--warning);
+}
+
+.system-row__line--accident {
+  color: var(--text-negative-readable);
+}
+
+.house-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding-inline: var(--space-16);
+}
+
+.house-hint > .text-action {
+  margin-inline-start: calc(var(--space-8) * -1);
+}
+
+/* Карточка дома на главной у Жильца: сводка сверху, Системы чипами. */
+.house-card__open {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-0);
+  border: var(--space-0);
+  border-radius: var(--radius-8);
+  background: transparent;
+  color: inherit;
+  text-align: start;
+}
+
+.house-card__copy {
+  display: flex;
+  min-width: var(--space-0);
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.house-card__title--negative {
+  color: var(--text-negative-readable);
+}
+
+.system-chip--accident {
+  background: var(--button-negative-fade);
+  color: var(--text-negative-readable);
+}
+
+.system-chip--planned-outage {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--text-primary);
+}
+
+/* Стать Жильцом */
+
+.join-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-16);
+  border-radius: var(--radius-20);
+  background: var(--background-card);
+}
+
+.join-option__copy {
+  display: flex;
+  min-width: var(--space-0);
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.join-option > button {
+  grid-column: 1 / -1;
+  margin-top: var(--space-4);
+}
+
+.join-checking {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding-inline: var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+}
+
+.join-request {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+.join-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-12);
+  padding-top: var(--space-32);
+  text-align: center;
+}
+
+.join-result > button {
+  margin-top: var(--space-12);
+}
+
+.timeline--inline {
+  padding: var(--space-8) var(--space-0);
+}
+
+/* Уведомления */
+
+.heading-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.heading-row > .text-action {
+  flex: 0 0 auto;
+  margin-inline-end: calc(var(--space-8) * -1);
+}
+
+/* Новое Уведомление: точка акцентом — это состояние, а не украшение. */
+.unread-mark {
+  width: var(--space-10);
+  height: var(--space-10);
+  border-radius: var(--radius-48);
+  background: var(--counter-themed);
+}
+
+.clamp-2 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Колокольчик на главной со счётчиком новых Уведомлений. */
+.bell {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.bell__counter {
+  position: absolute;
+  inset-block-start: calc(var(--space-4) * -1);
+  inset-inline-end: calc(var(--space-4) * -1);
+  pointer-events: none;
+}
+
+/* Справочник: Контакты и Места рядом */
+
+.contact-item {
+  position: relative;
+}
+
+.list-card [role='list'] > .contact-item + .contact-item::before {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: var(--space-0);
+  inset-inline-start: calc(var(--space-16) + var(--space-20) * 2 + var(--space-12));
+  inset-inline-end: var(--space-0);
+  height: 1px;
+  background: var(--divider-primary);
+  content: '';
+}
+
+.contact-row {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Экстренный номер вместо значка: 112 узнаётся быстрее любой иконки. */
+.number-tile {
+  font-size: var(--font-size-action-xsmall);
+  font-weight: var(--font-weight-title);
+  line-height: var(--line-height-action-xsmall);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Звонок: трубка в цвет акцента на его же подложке. */
+.call-mark {
+  display: inline-flex;
+  width: var(--space-32);
+  height: var(--space-32);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-48);
+  background: var(--accent-fade);
+  color: var(--icon-themed);
+}
+
+.row-distance {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+  white-space: nowrap;
+}
+
+/* Показания: карточка прибора, крупное поле с единицей измерения справа. */
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding: var(--space-16);
+  border-radius: var(--radius-20);
+  background: var(--background-card);
+}
+
+.meter__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.meter__field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: calc(var(--space-24) * 2 + var(--space-4));
+  padding: var(--space-0) var(--space-16);
+  border: 1px solid var(--stroke-tertiary);
+  border-radius: var(--radius-16);
+  background: var(--input-background);
+  transition: border-color var(--motion-base) var(--motion-ease);
+}
+
+.meter__field:focus-within {
+  border-color: var(--stroke-themed);
+}
+
+.meter__field--invalid {
+  border-color: var(--stroke-negative);
+}
+
+.meter__input {
+  min-width: var(--space-0);
+  padding: var(--space-12) var(--space-0);
+  border: var(--space-0);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-size-subheader);
+  font-weight: var(--font-weight-title);
+  line-height: var(--line-height-subheader);
+}
+
+.meter__input::placeholder {
+  color: var(--text-mute);
+  font-weight: var(--font-weight-body);
+}
+
+.meter__input:focus-visible {
+  outline: none;
+}
+
+.meter__input:disabled {
+  color: var(--text-mute);
+}
+
+.meter__unit {
+  color: var(--text-secondary);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+/* Необычный расход — не ошибка: предупреждаем, но отправить можно. */
+.meter__warning {
+  color: var(--text-primary);
+}
+
+.meter__warning::before {
+  display: inline-block;
+  width: var(--space-6);
+  height: var(--space-6);
+  margin-inline-end: var(--space-6);
+  border-radius: var(--radius-48);
+  background: var(--warning);
+  vertical-align: middle;
+  content: '';
+}
+
+/* Деструктивное действие отдельной ячейкой, как «Выйти» в настройках MAX. */
+.danger-action {
+  width: 100%;
+  min-height: calc(var(--space-24) * 2);
+  padding: var(--space-12) var(--space-16);
+  border: var(--space-0);
+  border-radius: var(--radius-16);
+  background: var(--background-card);
+  color: var(--text-negative-readable);
+  font-size: var(--font-size-action-medium);
+  font-weight: var(--font-weight-action-medium);
+  line-height: var(--line-height-action-medium);
 }
 
 /* Нижняя навигация */
@@ -825,6 +1774,7 @@ p {
 }
 
 .chip {
+  position: relative;
   padding: var(--space-6) var(--space-12);
   border: var(--space-0);
   border-radius: var(--radius-10);
@@ -838,6 +1788,23 @@ p {
 .chip--selected {
   background: var(--chips-active);
   color: var(--on-accent);
+}
+
+.chip--with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding-inline-start: var(--space-6);
+}
+
+/* На выбранном чипе иконка белая на полупрозрачной подложке. */
+.chip--selected .mini-tile {
+  background: color-mix(in srgb, var(--on-accent) 22%, transparent);
+  color: var(--on-accent);
+}
+
+.chip--selected .mini-tile > .icon {
+  filter: none;
 }
 
 /* Фон и внутренний отступ даёт сам Textarea из max-ui; здесь только рамка. */
@@ -868,7 +1835,7 @@ p {
 }
 
 .field-error {
-  color: var(--text-negative);
+  color: var(--text-negative-readable);
   animation: reveal var(--motion-base) var(--motion-ease) both;
 }
 
@@ -946,11 +1913,46 @@ p {
   display: grid;
   padding: var(--space-12) var(--space-16);
   border-radius: var(--radius-16);
-  background: var(--background-tertiary);
+  background: var(--button-negative-fade);
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   gap: var(--space-12);
-  color: var(--icon-secondary);
+  color: var(--text-negative);
+}
+
+/* Нет сети: тонкая плашка над экраном, не перекрывает содержимое. */
+.offline-bar {
+  position: sticky;
+  z-index: 6;
+  inset-block-start: var(--space-0);
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: max(var(--space-8), env(safe-area-inset-top)) var(--space-16) var(--space-8);
+  border-bottom: 1px solid var(--divider-secondary);
+  background: var(--background-primary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+  animation: reveal var(--motion-base) var(--motion-ease) both;
+}
+
+
+.request-note__copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+/* Ссылка в красной плашке — тем же красным, акцент экрана остаётся у «Отправить». */
+.request-note__action {
+  margin-inline-start: calc(var(--space-8) * -1);
+  color: var(--text-negative-readable);
+}
+
+.request-note__join {
+  margin-inline-start: calc(var(--space-8) * -1);
 }
 
 /* Уведомление */
@@ -986,6 +1988,7 @@ p {
     --tile-fill: 22%;
     --tile-gloss: 8%;
     --tile-lift: 22%;
+    --segmented-thumb: var(--button-secondary);
   }
 }
 
@@ -993,6 +1996,7 @@ p {
   --tile-fill: 22%;
   --tile-gloss: 8%;
   --tile-lift: 22%;
+  --segmented-thumb: var(--button-secondary);
 }
 
 @media (prefers-reduced-motion: reduce) {

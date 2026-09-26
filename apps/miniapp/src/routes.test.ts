@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { hashForRoute, routeFromHash, ROUTES, startRoute } from './routes.ts';
+import {
+  eventRoute,
+  hashForRoute,
+  isRootRoute,
+  matchCard,
+  parentRoute,
+  requestRoute,
+  routeFromHash,
+  ROUTES,
+  startRoute,
+} from './routes.ts';
 
 describe('miniapp routes', () => {
   it('opens the home screen for an empty hash', () => {
@@ -16,9 +26,40 @@ describe('miniapp routes', () => {
     expect(routeFromHash('#/missing')).toBe(ROUTES.home);
   });
 
-  it('falls back to home for removed demo screens', () => {
-    expect(routeFromHash('#/requests/2458')).toBe(ROUTES.home);
-    expect(routeFromHash('#/events/hot-water')).toBe(ROUTES.home);
+  it('opens request and event cards by id', () => {
+    expect(routeFromHash('#/requests/2458')).toBe('/requests/2458');
+    expect(matchCard(routeFromHash('#/requests/2458'))).toEqual({ kind: 'request', id: '2458' });
+    expect(matchCard(routeFromHash('#/events/hot-water'))).toEqual({ kind: 'event', id: 'hot-water' });
+    expect(matchCard(requestRoute('r4'))).toEqual({ kind: 'request', id: 'r4' });
+    expect(matchCard(eventRoute('e1'))).toEqual({ kind: 'event', id: 'e1' });
+  });
+
+  it('keeps the new request form a screen, not a card', () => {
+    expect(routeFromHash('#/requests/new')).toBe(ROUTES.newRequest);
+    expect(matchCard(ROUTES.newRequest)).toBeNull();
+  });
+
+  it('rejects malformed card ids', () => {
+    expect(routeFromHash('#/requests/')).toBe(ROUTES.home);
+    expect(routeFromHash('#/requests/a/b')).toBe(ROUTES.home);
+    expect(routeFromHash('#/events/%20x')).toBe(ROUTES.home);
+  });
+});
+
+describe('back navigation', () => {
+  it('treats the bottom tabs and welcome as roots', () => {
+    expect(isRootRoute(ROUTES.home)).toBe(true);
+    expect(isRootRoute(ROUTES.profile)).toBe(true);
+    expect(isRootRoute(ROUTES.events)).toBe(false);
+    expect(isRootRoute(requestRoute('r1'))).toBe(false);
+  });
+
+  it('returns a card to its list and a directory screen to Services', () => {
+    expect(parentRoute(requestRoute('r1'))).toBe(ROUTES.requests);
+    expect(parentRoute(eventRoute('e1'))).toBe(ROUTES.events);
+    expect(parentRoute(ROUTES.contacts)).toBe(ROUTES.services);
+    expect(parentRoute(ROUTES.newRequest)).toBe(ROUTES.requests);
+    expect(parentRoute(ROUTES.house)).toBe(ROUTES.home);
   });
 });
 
