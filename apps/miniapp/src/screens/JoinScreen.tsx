@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Buildings, HourglassMedium, House, LinkSimple, MagnifyingGlass, QrCode, WarningCircle } from '@phosphor-icons/react';
 import { Button, Input, Spinner, Typography } from '@maxhub/max-ui';
-import type { HouseSearchResult } from '@maxtown/shared';
+import type { HouseRegistration, HouseSearchResult } from '@maxtown/shared';
 import { IconTile, ListCard, RowShell, ScreenHeading, Segmented, SkeletonRows } from '../components/ui.tsx';
 import {
   checkInvite,
+  cancelHouseMembershipRequest,
+  getMyHouseRegistration,
   launchInviteCode,
   parseInviteCode,
+  redeemInvite,
+  requestHouseMembership,
+  registerHouse,
   useHouseSearch,
   validateApartment,
   type InviteResult,
@@ -15,11 +20,12 @@ import { hapticSuccess, hapticWarning } from '../haptics.ts';
 import { ROUTES } from '../routes.ts';
 import type { Navigate, Notify } from './types.ts';
 
-type Mode = 'invite' | 'request';
+type Mode = 'invite' | 'request' | 'register';
 
 const modes: Array<{ value: Mode; label: string }> = [
   { value: 'invite', label: 'По Приглашению' },
   { value: 'request', label: 'Без Приглашения' },
+  { value: 'register', label: 'Я Староста' },
 ];
 
 type JoinScreenProps = {
@@ -67,6 +73,8 @@ export function JoinScreen({ navigate, notify }: JoinScreenProps) {
               setJoined({ apartment, address });
             }}
           />
+        ) : mode === 'register' ? (
+          <RegistrationFlow />
         ) : (
           <RequestFlow navigate={navigate} notify={notify} />
         )}
@@ -75,12 +83,71 @@ export function JoinScreen({ navigate, notify }: JoinScreenProps) {
   );
 }
 
-type CheckState = { state: 'idle' } | { state: 'checking' } | { state: 'done'; result: InviteResult };
+function RegistrationFlow() {
+  const [address, setAddress] = useState('');
+  const [locality, setLocality] = useState('');
+  const [apartmentNumber, setApartmentNumber] = useState('');
+  const [registration, setRegistration] = useState<HouseRegistration | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void getMyHouseRegistration().then(setRegistration).catch(() => setError('Не удалось загрузить регистрацию Дома. Проверьте подключение.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (address.trim().length < 3 || locality.trim().length < 2 || validateApartment(apartmentNumber)) {
+      setError('Проверьте адрес, город или район и номер Квартиры Старосты.');
+      return;
+    }
+    setSending(true);
+    setError(null);
+    void registerHouse({ address: address.trim(), locality: locality.trim(), apartmentNumber: apartmentNumber.trim() })
+      .then(() => getMyHouseRegistration())
+      .then(setRegistration)
+      .catch(() => setError('Не удалось отправить регистрацию. Проверьте данные и попробуйте ещё раз.'))
+      .finally(() => setSending(false));
+  };
+
+  if (loading) return <div className="join-checking"><Spinner size={20} />Загружаем регистрацию Дома…</div>;
+  if (registration && registration.status !== 'rejected') {
+    return (
+      <section className="decision-card" aria-live="polite">
+        <IconTile icon={HourglassMedium} tone="coral" size="medium" />
+        <Typography.Text asChild variant="title"><h2>{registration.status === 'approved' ? 'Дом одобрен' : 'Регистрация Дома на проверке'}</h2></Typography.Text>
+        <Typography.Text asChild variant="description" color="secondary"><p>{registration.address}, {registration.locality}. Квартира {registration.headman.apartment}.</p></Typography.Text>
+        {registration.status === 'pending' ? <Typography.Text asChild variant="description" color="secondary"><p>Модератор проверит адрес. После одобрения вы станете Старостой Дома.</p></Typography.Text> : null}
+      </section>
+    );
+  }
+
+  return (
+    <form className="form-section" onSubmit={submit} noValidate>
+      <Typography.Text asChild variant="description" color="secondary"><p>Зарегистрируйте Дом, чтобы соседи могли вступить. Адрес проверит Модератор.</p></Typography.Text>
+      <Typography.Text asChild variant="title"><label htmlFor="registration-address">Адрес Дома</label></Typography.Text>
+      <Input id="registration-address" mode="contrast" size="large" autoComplete="street-address" placeholder="Улица и номер дома" value={address} onChange={(event) => setAddress(event.target.value)} />
+      <Typography.Text asChild variant="title"><label htmlFor="registration-locality">Город или район</label></Typography.Text>
+      <Input id="registration-locality" mode="contrast" size="large" autoComplete="address-level2" placeholder="Например, Казань" value={locality} onChange={(event) => setLocality(event.target.value)} />
+      <Typography.Text asChild variant="title"><label htmlFor="registration-apartment">Ваша Квартира</label></Typography.Text>
+      <Input id="registration-apartment" mode="contrast" size="large" autoComplete="off" placeholder="Например, 34" value={apartmentNumber} onChange={(event) => setApartmentNumber(event.target.value)} />
+      {registration?.rejectionReason ? <Typography.Text asChild variant="description"><p className="field-error">Предыдущая регистрация отклонена: {registration.rejectionReason}</p></Typography.Text> : null}
+      {error ? <Typography.Text asChild variant="description"><p className="field-error" role="alert">{error}</p></Typography.Text> : null}
+      <Button type="submit" size="medium" variant="primary" stretched loading={sending}>Отправить Модератору</Button>
+    </form>
+  );
+}
+
+type CheckState = { state: 'idle' } | { state: 'checking' } | { state: 'done'; code: string; result: InviteResult };
 
 function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJoined: (apartment: string, address: string) => void }) {
   const [link, setLink] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [check, setCheck] = useState<CheckState>({ state: 'idle' });
+  const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
   const scanner = window.WebApp?.initData ? window.WebApp.openCodeReader : undefined;
 
   const verify = (code: string) => {
@@ -88,7 +155,7 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
     setCheck({ state: 'checking' });
     void checkInvite(code).then((result) => {
       if (result.status !== 'valid') hapticWarning();
-      setCheck({ state: 'done', result });
+      setCheck({ state: 'done', code, result });
     });
   };
 
@@ -136,9 +203,16 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
           <p>Приглашение действует. Вступите, и Дом появится на главной.</p>
         </Typography.Text>
         <div className="decision-card__actions">
-          <Button size="medium" variant="primary" stretched onClick={() => onJoined(apartment, houseAddress)}>
+          <Button size="medium" variant="primary" stretched loading={joining} onClick={() => {
+            setJoining(true);
+            setJoinError(null);
+            void redeemInvite(check.code).then(() => onJoined(apartment, houseAddress)).catch(() => {
+              setJoinError('Не удалось вступить. Проверьте подключение и попробуйте ещё раз.');
+            }).finally(() => setJoining(false));
+          }}>
             Вступить
           </Button>
+          {joinError ? <p className="field-error" role="alert">{joinError}</p> : null}
           <Button size="medium" variant="ghost" stretched onClick={() => setCheck({ state: 'idle' })}>
             Это не моя Квартира
           </Button>
@@ -267,18 +341,21 @@ function RequestFlow({ navigate, notify }: { navigate: Navigate; notify: Notify 
   const [sent, setSent] = useState(false);
   const { status, houses } = useHouseSearch(query);
 
+  const [requestId, setRequestId] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const problem = validateApartment(apartment);
     setError(problem);
     if (problem) return;
-    // API ещё нет: Запрос никуда не уходит, экран показывает, что будет дальше.
     setSending(true);
-    window.setTimeout(() => {
-      setSending(false);
+    setRequestError(null);
+    void requestHouseMembership(house!.id, apartment.trim().toLocaleUpperCase('ru-RU')).then((id) => {
+      setRequestId(id);
       setSent(true);
       hapticSuccess();
-    }, 600);
+    }).catch(() => setRequestError('Не удалось отправить Запрос. Проверьте подключение и попробуйте ещё раз.'))
+      .finally(() => setSending(false));
   };
 
   if (house && sent) {
@@ -319,6 +396,7 @@ function RequestFlow({ navigate, notify }: { navigate: Navigate; notify: Notify 
         <Typography.Text asChild variant="description" color="secondary">
           <p>Пришлём Уведомление, когда решат.</p>
         </Typography.Text>
+        {requestError ? <Typography.Text asChild variant="description"><p className="field-error" role="alert">{requestError}</p></Typography.Text> : null}
         <div className="decision-card__actions">
           <Button size="medium" variant="secondary" stretched onClick={() => navigate(ROUTES.home)}>
             На главную
@@ -328,13 +406,21 @@ function RequestFlow({ navigate, notify }: { navigate: Navigate; notify: Notify 
             variant="ghost"
             stretched
             onClick={() => {
-              setSent(false);
-              notify('Запрос на вступление отозван');
+              if (!requestId) return;
+              setSending(true);
+              void cancelHouseMembershipRequest(requestId).then(() => {
+                setSent(false);
+                setRequestId(null);
+                notify('Запрос на вступление отозван');
+              }).catch(() => setRequestError('Не удалось отозвать Запрос. Попробуйте ещё раз.'))
+                .finally(() => setSending(false));
             }}
+            loading={sending}
           >
             Отозвать запрос
           </Button>
         </div>
+        <span className="visually-hidden">Номер Запроса: {requestId}</span>
       </section>
     );
   }
@@ -399,6 +485,7 @@ function RequestFlow({ navigate, notify }: { navigate: Navigate; notify: Notify 
           </Typography.Text>
         </section>
 
+        {requestError ? <Typography.Text asChild variant="description"><p className="field-error" role="alert">{requestError}</p></Typography.Text> : null}
         <Button type="submit" size="medium" variant="primary" stretched loading={sending}>
           Отправить запрос
         </Button>

@@ -18,7 +18,11 @@ npm run dev:api          # API, http://localhost:3000/health
 npm run dev:bot          # бот MAX
 ```
 
-Проверки: `npm run typecheck` и `npm test`.
+Проверки: `npm run typecheck`, `npm test` и `npm run smoke:mcp`.
+
+Проектный read-only MCP для Codex запускается командой `npm run mcp:project`.
+Подключение, ресурсы и инструменты описаны в
+[`docs/agents/project-mcp.md`](docs/agents/project-mcp.md).
 
 ## Где что лежит
 

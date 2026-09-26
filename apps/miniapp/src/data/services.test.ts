@@ -24,4 +24,12 @@ describe('filterServiceGroups', () => {
     expect(groups.map((group) => group.title)).toEqual(['Дом']);
     expect(titles('несуществующий сервис')).toEqual([]);
   });
+
+  it('makes the house community discoverable from the service directory', () => {
+    expect(titles('чат дома')).toEqual(['Чат Дома']);
+  });
+
+  it('makes repair mode discoverable from the service directory', () => {
+    expect(titles('режим ремонта')).toEqual(['Режим ремонта']);
+  });
 });

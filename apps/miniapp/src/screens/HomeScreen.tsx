@@ -30,6 +30,7 @@ const PREVIEW_LIMIT = 3;
 
 type HomeScreenProps = {
   navigate: Navigate;
+  houseId?: string | null;
 };
 
 type QuickAction = {
@@ -40,7 +41,7 @@ type QuickAction = {
   onClick: () => void;
 };
 
-export function HomeScreen({ navigate }: HomeScreenProps) {
+export function HomeScreen({ navigate, houseId }: HomeScreenProps) {
   const { status, isResident, requests, events, retry } = useHomeData();
   const firstName = currentProfileUser()?.name.split(' ')[0];
   const unread = unreadCount(useNotifications().data);
@@ -50,6 +51,7 @@ export function HomeScreen({ navigate }: HomeScreenProps) {
     { label: 'Мои заявки', service: 'requests', onClick: () => navigate(ROUTES.requests) },
     { label: 'События дома', service: 'events', onClick: () => navigate(ROUTES.events) },
     { label: 'Передать показания', service: 'readings', onClick: () => navigate(ROUTES.readings) },
+    { label: 'Чат Дома', service: 'community', onClick: () => navigate(ROUTES.community) },
   ];
 
   return (

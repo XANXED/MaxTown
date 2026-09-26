@@ -1,0 +1,31 @@
+{$DOMAIN} {
+	@admin_bare path /admin
+	redir @admin_bare /admin/ 308
+
+	@moderator_api path /api/moderator/*
+	handle @moderator_api {
+		route {
+			request_header -X-MaxTown-Moderator
+			basic_auth {
+				{$MODERATOR_USERNAME} {$MODERATOR_PASSWORD_HASH}
+			}
+			request_header X-MaxTown-Moderator {http.auth.user.id}
+			reverse_proxy api:3000
+		}
+	}
+
+	@admin path /admin /admin/*
+	handle @admin {
+		basic_auth {
+			{$MODERATOR_USERNAME} {$MODERATOR_PASSWORD_HASH}
+		}
+		uri strip_prefix /admin
+		reverse_proxy admin:80
+	}
+
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+
+	reverse_proxy miniapp:80
+}

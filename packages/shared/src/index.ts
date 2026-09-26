@@ -260,3 +260,77 @@ export type HouseRegistration = {
   /** Причина отказа — её увидит Староста. */
   rejectionReason?: string;
 };
+
+/** Роль человека в конкретном Доме. */
+export type HouseRole = 'headman' | 'responsible' | 'concierge' | 'resident';
+
+/** Активная связь Жильца с Домом, которую возвращает авторизованная сессия. */
+export type HouseMembershipSummary = {
+  id: string;
+  houseId: string;
+  apartmentId: string | null;
+  apartmentNumber: string | null;
+  address: string;
+  locality: string;
+  role: HouseRole;
+};
+
+/** Проверенные данные человека из текущей серверной сессии. */
+export type AuthResident = {
+  id: string;
+  maxUserId: string;
+  displayName: string;
+  username: string | null;
+  phone: string | null;
+  phoneVerified: boolean;
+};
+
+export type AuthSessionResponse = {
+  token: string;
+  expiresAt: string;
+};
+
+/** Сообщение в отдельном Домовом сообществе; это не Комментарий к Заявке. */
+export type CommunityMessage = {
+  id: string;
+  authorName: string;
+  authorRole: HouseRole;
+  body: string;
+  createdAt: string;
+};
+
+export type CommunityPollOption = { id: string; label: string; votes: number };
+
+/** Неформальный Опрос Жильцов, не заменяющий собрание собственников. */
+export type CommunityPoll = {
+  id: string;
+  question: string;
+  createdAt: string;
+  closesAt: string | null;
+  options: CommunityPollOption[];
+  myVoteOptionId: string | null;
+};
+
+export type CommunityPollResults = {
+  pollId: string;
+  question: string;
+  totalVotes: number;
+  options: CommunityPollOption[];
+};
+
+/** Текущий объявленный режим ремонта в Доме и автор последнего изменения. */
+export type RepairMode = {
+  isActive: boolean;
+  title: string | null;
+  description: string | null;
+  startsAt: string | null;
+  expectedCompletionAt: string | null;
+  instructions: string | null;
+  updatedAt: string | null;
+  updatedBy: { displayName: string; role: HouseRole } | null;
+};
+
+export type MeResponse = {
+  resident: AuthResident;
+  memberships: HouseMembershipSummary[];
+};

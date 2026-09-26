@@ -1983,6 +1983,188 @@ time,
   animation: notice-out var(--motion-base) var(--motion-ease) forwards;
 }
 
+/* Домовое сообщество */
+
+.community-screen .inner-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+.community-heading,
+.community-panel__heading,
+.community-message__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.community-heading > span {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.community-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.community-panel__heading h2,
+.community-poll h3 {
+  margin: 0;
+}
+
+.community-panel__heading p,
+.community-poll > p,
+.community-empty,
+.community-notice {
+  margin: 0;
+}
+
+.community-polls,
+.community-messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.community-poll,
+.community-message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  border: 1px solid var(--divider-secondary);
+  border-radius: var(--radius-12);
+  background: var(--background-card);
+}
+
+.community-poll__options,
+.community-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.community-message__meta {
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+}
+
+.community-message > p {
+  margin: 0;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.community-notice,
+.community-error {
+  color: var(--text-secondary);
+}
+
+.community-error {
+  color: var(--text-negative);
+}
+
+/* Режим ремонта */
+
+.repair-screen .inner-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+}
+
+.repair-heading,
+.repair-panel__heading,
+.repair-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.repair-heading > span {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.repair-heading h1,
+.repair-panel h2,
+.repair-empty h2,
+.repair-form h2 {
+  margin: 0;
+}
+
+.repair-panel,
+.repair-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-16);
+  border: 1px solid var(--divider-secondary);
+  border-radius: var(--radius-16);
+  background: var(--background-card);
+}
+
+.repair-panel > p,
+.repair-empty > p {
+  margin: 0;
+}
+
+.repair-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  margin: 0;
+}
+
+.repair-details > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.repair-details dt,
+.repair-field > span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+}
+
+.repair-details dd {
+  margin: 0;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+
+.repair-attribution {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+}
+
+.repair-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-12);
+}
+
+.repair-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-color-scheme='light']) .app-shell {
     --tile-fill: 22%;

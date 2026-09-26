@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: install, typecheck, test, build, deployment model, Docker
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: maxtown
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: maxtown
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U maxtown -d maxtown"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          package-manager-cache: false
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Typecheck workspaces
+        run: npm run typecheck
+
+      - name: Apply database migrations
+        run: npm run db:migrate --workspace=@maxtown/api
+        env:
+          DATABASE_URL: postgres://maxtown:ci-only-password@localhost:5432/maxtown
+
+      - name: Run tests
+        run: npm test
+        env:
+          TEST_DATABASE_URL: postgres://maxtown:ci-only-password@localhost:5432/maxtown
+
+      - name: Build production workspaces
+        run: npm run build
+
+      - name: Build API image
+        run: docker build --file apps/api/Dockerfile --tag maxtown-api:${{ github.sha }} .
+
+      - name: Build Mini App image
+        run: docker build --file apps/miniapp/Dockerfile --tag maxtown-miniapp:${{ github.sha }} .
+
+      - name: Build Moderator panel image
+        run: docker build --file apps/admin/Dockerfile --tag maxtown-admin:${{ github.sha }} .
+
+      - name: Build optional Bot image
+        run: docker build --file apps/bot/Dockerfile --tag maxtown-bot:${{ github.sha }} .
+
+      - name: Validate deployment scripts
+        run: bash -n deploy/deploy.sh deploy/smoke.sh
+
+      - name: Clean-volume Compose deployment smoke
+        run: ./deploy/compose-smoke.sh "maxtown-api:${{ github.sha }}" "maxtown-miniapp:${{ github.sha }}" "maxtown-admin:${{ github.sha }}" "maxtown-bot:${{ github.sha }}"
+
+      - name: Validate production Compose model
+        shell: bash
+        run: |
+          digest=$(printf '%064d' 0)
+          API_IMAGE="ghcr.io/example/maxtown-api@sha256:$digest" \
+          MINIAPP_IMAGE="ghcr.io/example/maxtown-miniapp@sha256:$digest" \
+          ADMIN_IMAGE="ghcr.io/example/maxtown-admin@sha256:$digest" \
+          BOT_IMAGE="ghcr.io/example/maxtown-bot@sha256:$digest" \
+          POSTGRES_DB=maxtown POSTGRES_USER=maxtown POSTGRES_PASSWORD=ci-only-password \
+          DATABASE_URL=postgres://maxtown:ci-only-password@postgres:5432/maxtown \
+          BOT_TOKEN=ci-only-token DOMAIN=maxtown.example.com MODERATOR_USERNAME=ci \
+          MODERATOR_PASSWORD_HASH='$2a$14$ci-only-not-a-usable-password-hash' \
+          docker compose --file compose.yml config --quiet

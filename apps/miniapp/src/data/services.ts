@@ -2,7 +2,7 @@ import type { AppRoute } from '../routes.ts';
 import { ROUTES } from '../routes.ts';
 
 /** Ключ иконки: сами иконки подставляет экран, чтобы данные не зависели от React. */
-export type ServiceIcon = 'new-request' | 'requests' | 'house-state' | 'events' | 'readings' | 'contacts' | 'places';
+export type ServiceIcon = 'new-request' | 'requests' | 'house-state' | 'events' | 'readings' | 'contacts' | 'places' | 'community' | 'repair-mode';
 
 export type Service = {
   id: string;
@@ -26,6 +26,11 @@ export type ServiceGroup = {
 };
 
 export const serviceGroups: ServiceGroup[] = [
+  {
+    id: 'community',
+    title: 'Домовое сообщество',
+    services: [{ id: 'community', title: 'Чат Дома', description: 'Сообщения соседей и неформальные Опросы', icon: 'community', route: ROUTES.community }],
+  },
   {
     id: 'requests',
     title: 'Заявки',
@@ -66,6 +71,14 @@ export const serviceGroups: ServiceGroup[] = [
         icon: 'events',
         route: ROUTES.events,
         keywords: 'новости собрание отключение',
+      },
+      {
+        id: 'repair-mode',
+        title: 'Режим ремонта',
+        description: 'Работы в Доме и ожидаемый срок',
+        icon: 'repair-mode',
+        route: ROUTES.repairMode,
+        keywords: 'ремонт работы сроки',
       },
       {
         id: 'readings',

@@ -1,0 +1,170 @@
+name: Publish and deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish digest-pinned GHCR images
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      api_digest: ${{ steps.api.outputs.digest }}
+      miniapp_digest: ${{ steps.miniapp.outputs.digest }}
+      admin_digest: ${{ steps.admin.outputs.digest }}
+      bot_digest: ${{ steps.bot.outputs.digest }}
+    steps:
+      - name: Check out the exact commit that passed CI
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Normalize the image namespace
+        id: names
+        shell: bash
+        run: echo "prefix=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish API image
+        id: api
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: ${{ steps.names.outputs.prefix }}-api:sha-${{ github.event.workflow_run.head_sha }}
+          labels: org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+
+      - name: Publish Mini App image
+        id: miniapp
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: apps/miniapp/Dockerfile
+          push: true
+          tags: ${{ steps.names.outputs.prefix }}-miniapp:sha-${{ github.event.workflow_run.head_sha }}
+          labels: org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+
+      - name: Publish Moderator panel image
+        id: admin
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: apps/admin/Dockerfile
+          push: true
+          tags: ${{ steps.names.outputs.prefix }}-admin:sha-${{ github.event.workflow_run.head_sha }}
+          labels: org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+
+      - name: Publish optional Bot image
+        id: bot
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: apps/bot/Dockerfile
+          push: true
+          tags: ${{ steps.names.outputs.prefix }}-bot:sha-${{ github.event.workflow_run.head_sha }}
+          labels: org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+
+  deploy:
+    name: Deploy on the production VPS
+    needs: publish
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    permissions:
+      contents: read
+    steps:
+      - name: Check out deployment bundle for the verified commit
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Validate target and write immutable image manifest
+        id: release
+        env:
+          API_DIGEST: ${{ needs.publish.outputs.api_digest }}
+          MINIAPP_DIGEST: ${{ needs.publish.outputs.miniapp_digest }}
+          ADMIN_DIGEST: ${{ needs.publish.outputs.admin_digest }}
+          BOT_DIGEST: ${{ needs.publish.outputs.bot_digest }}
+          IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_prefix="$(printf '%s' "$IMAGE_PREFIX" | tr '[:upper:]' '[:lower:]')"
+          for digest in "$API_DIGEST" "$MINIAPP_DIGEST" "$ADMIN_DIGEST" "$BOT_DIGEST"; do
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo 'Build returned an invalid image digest' >&2; exit 1; }
+          done
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid release commit' >&2; exit 1; }
+          {
+            printf 'API_IMAGE=%s-api@%s\n' "$image_prefix" "$API_DIGEST"
+            printf 'MINIAPP_IMAGE=%s-miniapp@%s\n' "$image_prefix" "$MINIAPP_DIGEST"
+            printf 'ADMIN_IMAGE=%s-admin@%s\n' "$image_prefix" "$ADMIN_DIGEST"
+            printf 'BOT_IMAGE=%s-bot@%s\n' "$image_prefix" "$BOT_DIGEST"
+          } > images.env
+          printf 'sha=%s\n' "$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ vars.VPS_PORT }}
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$VPS_HOST" =~ ^[A-Za-z0-9.-]+$ ]]
+          [[ "$VPS_USER" =~ ^[A-Za-z0-9._-]+$ ]]
+          [[ "$VPS_PORT" =~ ^[0-9]{1,5}$ ]]
+          [[ "$VPS_PORT" -le 65535 && "$VPS_PORT" -gt 0 ]]
+          [[ -n "$VPS_SSH_PRIVATE_KEY" && -n "$VPS_SSH_KNOWN_HOSTS" ]]
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > "$HOME/.ssh/maxtown_deploy"
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/maxtown_deploy" "$HOME/.ssh/known_hosts"
+
+      - name: Upload Compose release bundle
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ vars.VPS_PORT }}
+          MAINTOWN_ROOT: ${{ vars.MAINTOWN_ROOT }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_root="${MAINTOWN_ROOT:-/opt/maxtown}"
+          [[ "$remote_root" =~ ^/[A-Za-z0-9_./-]+$ ]]
+          release_dir="$remote_root/releases/$RELEASE_SHA"
+          archive="/tmp/maxtown-$RELEASE_SHA.tar.gz"
+          tar -czf release.tar.gz compose.yml Caddyfile deploy images.env
+          ssh -i "$HOME/.ssh/maxtown_deploy" -p "$VPS_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" "mkdir -p '$release_dir'"
+          scp -i "$HOME/.ssh/maxtown_deploy" -P "$VPS_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes release.tar.gz "$VPS_USER@$VPS_HOST:$archive"
+          ssh -i "$HOME/.ssh/maxtown_deploy" -p "$VPS_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "tar -xzf '$archive' -C '$release_dir' && rm -f '$archive' && chmod 700 '$release_dir/deploy/deploy.sh' '$release_dir/deploy/smoke.sh' && MAINTOWN_ROOT='$remote_root' '$release_dir/deploy/deploy.sh' '$release_dir/images.env'"
