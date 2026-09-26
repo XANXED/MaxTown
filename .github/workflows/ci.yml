@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: install, typecheck, test, build, Docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          package-manager-cache: false
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Typecheck workspaces
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build production workspaces
+        run: npm run build
+
+      - name: Build API image
+        run: docker build --file apps/api/Dockerfile --tag maxtown-api:${{ github.sha }} .
+
+      - name: Build Mini App image
+        run: docker build --file apps/miniapp/Dockerfile --tag maxtown-miniapp:${{ github.sha }} .
