@@ -145,22 +145,27 @@
 - Create: `apps/miniapp/src/data/community.test.ts`
 - Create: `apps/miniapp/src/screens/CommunityScreen.tsx`
 - Modify: `apps/miniapp/src/App.tsx`
+- Modify: `apps/miniapp/src/app.css`
+- Modify: `apps/miniapp/src/data/services.ts`
+- Modify: `apps/miniapp/src/components/serviceVisuals.ts`
+- Modify: `apps/miniapp/src/screens/HomeScreen.tsx`
+- Modify: `apps/miniapp/src/data/services.test.ts`
 - Modify: `apps/miniapp/src/routes.ts`
 - Modify: `packages/shared/src/*` (community contracts)
-- Modify: `apps/api/src/index.ts`
+- Modify: `apps/api/src/app.ts`
 - Modify: `CONTEXT.md`
 
 **Interfaces:**
 - Produces: `GET/POST /api/houses/:houseId/community/messages?before=&limit=`, `GET/POST /api/houses/:houseId/polls`, `POST /api/houses/:houseId/polls/:pollId/votes`, and `GET /api/houses/:houseId/polls/:pollId/results`; API derives authorized house from membership and cursor pages newest-first.
 - Consumes: Task 3 session identity, Task 4 house-access policy, Task 2 community/poll tables.
 
-- [ ] **Step 1: Add tests** for member-only access, foreign-house IDs, text-only message persistence, page bounds/cursors, creator role restrictions, duplicate/concurrent vote rejection, poll close time, and aggregate result counts.
-- [ ] **Step 2: Run community tests**; expected: FAIL because routes are absent.
-- [ ] **Step 3: Implement community and poll routes** with parameterized SQL, bounded schemas, one immutable vote per membership, and plain-text message responses.
-- [ ] **Step 4: Add CommunityScreen and navigation** using existing MAX UI components and token-based styles; poll UI states explicitly label results informal and disallow edits after voting.
-- [ ] **Step 5: Update `CONTEXT.md`** with the approved domain terms for the separate house community, community message, poll, and repair mode, preserving the distinction between poll and legally significant owner meetings.
-- [ ] **Step 6: Run route and UI tests, typecheck, and workspace tests.** Expected: unauthorized cross-house requests and duplicate/late votes fail; UI renders messages as escaped text.
-- [ ] **Step 7: Commit** as `feat(community): add house messages and polls`.
+- [x] **Step 1: Add tests** for member-only access, foreign-house IDs, text-only message persistence, page bounds/cursors, creator role restrictions, duplicate/concurrent vote rejection, poll close time, and aggregate result counts.
+- [x] **Step 2: Run community tests**; expected: FAIL because routes are absent.
+- [x] **Step 3: Implement community and poll routes** with parameterized SQL, bounded schemas, one immutable vote per membership, and plain-text message responses.
+- [x] **Step 4: Add CommunityScreen and navigation** using existing MAX UI components and token-based styles; poll UI states explicitly label results informal and disallow edits after voting.
+- [x] **Step 5: Update `CONTEXT.md`** with the approved domain terms for the separate house community, community message, poll, and repair mode, preserving the distinction between poll and legally significant owner meetings.
+- [x] **Step 6: Run route and UI tests, typecheck, workspace tests, and API/Mini App Docker builds.** Expected: unauthorized cross-house requests and duplicate/late votes fail; UI renders messages as escaped text.
+- [x] **Step 7: Commit** as `feat(community): add house messages and polls`.
 
 ### Task 6: Deliver persistent repair mode
 

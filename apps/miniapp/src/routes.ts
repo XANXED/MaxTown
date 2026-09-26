@@ -12,6 +12,7 @@ export const ROUTES = {
   contacts: '/contacts',
   places: '/places',
   readings: '/readings',
+  community: '/community',
 } as const;
 
 export type StaticRoute = (typeof ROUTES)[keyof typeof ROUTES];

@@ -290,6 +290,34 @@ export type AuthSessionResponse = {
   expiresAt: string;
 };
 
+/** Сообщение в отдельном Домовом сообществе; это не Комментарий к Заявке. */
+export type CommunityMessage = {
+  id: string;
+  authorName: string;
+  authorRole: HouseRole;
+  body: string;
+  createdAt: string;
+};
+
+export type CommunityPollOption = { id: string; label: string; votes: number };
+
+/** Неформальный Опрос Жильцов, не заменяющий собрание собственников. */
+export type CommunityPoll = {
+  id: string;
+  question: string;
+  createdAt: string;
+  closesAt: string | null;
+  options: CommunityPollOption[];
+  myVoteOptionId: string | null;
+};
+
+export type CommunityPollResults = {
+  pollId: string;
+  question: string;
+  totalVotes: number;
+  options: CommunityPollOption[];
+};
+
 export type MeResponse = {
   resident: AuthResident;
   memberships: HouseMembershipSummary[];
