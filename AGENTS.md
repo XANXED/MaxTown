@@ -96,3 +96,13 @@ Claude Code — симлинки в `.claude/skills/`. Обновление: `np
 ### Domain docs
 
 Single-context: `CONTEXT.md` и `docs/adr/` в корне. See `docs/agents/domain.md`.
+
+### Project knowledge MCP
+
+Перед ответом о терминах и архитектурных решениях используй ресурсы
+`maxtown://context/glossary`, `maxtown://project/rules`,
+`maxtown://decisions`, а для поиска и проверки формулировок — инструменты
+`search_project_knowledge` и `check_domain_language`. MCP read-only и ограничен
+документацией. Если сервер недоступен или не подключён, прочитай исходные
+файлы напрямую; они остаются источниками истины. Подробнее —
+[`docs/agents/project-mcp.md`](docs/agents/project-mcp.md).
