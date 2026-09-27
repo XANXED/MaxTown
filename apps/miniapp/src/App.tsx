@@ -29,14 +29,15 @@ import {
 import { launchInviteCode } from './data/join.ts';
 import { useOnline } from './network.ts';
 import { hasSeenWelcome, markWelcomeSeen } from './welcome.ts';
-import { authenticateWithMax, getCurrentResident } from './auth/session.ts';
+import { authenticateWithVk, getCurrentResident } from './auth/session.ts';
 import type { HouseRole } from '@maxtown/shared';
 import './app.css';
 
 const NOTICE_DURATION_MS = 3200;
 /** Столько длится анимация исчезновения уведомления в app.css (--motion-base). */
 const NOTICE_EXIT_MS = 240;
-const REQUIRE_SERVER_AUTH = !import.meta.env.DEV || Boolean(window.WebApp?.initData);
+const launchParams = new URLSearchParams(window.location.search).toString();
+const REQUIRE_SERVER_AUTH = !import.meta.env.DEV || Boolean(launchParams);
 const CommunityScreen = lazy(() => import('./screens/CommunityScreen.tsx').then(({ CommunityScreen: Screen }) => ({ default: Screen })));
 const RepairModeScreen = lazy(() => import('./screens/RepairModeScreen.tsx').then(({ RepairModeScreen: Screen }) => ({ default: Screen })));
 
@@ -58,8 +59,8 @@ function currentEntry(): HistoryEntry {
   return { step: typeof state?.step === 'number' ? state.step : 0, scrollY: state?.scrollY };
 }
 
-/** В MAX «Назад» — системная кнопка; в браузере её нет, и внутренним экранам нужна своя. */
-const insideMax = Boolean(window.WebApp?.initData);
+/** В VK «Назад» — системная кнопка; в браузере её нет, и внутренним экранам нужна своя. */
+const insideVk = Boolean(launchParams);
 
 export function App() {
   const [route, setRoute] = useState<AppRoute>(initialRoute);
@@ -76,14 +77,13 @@ export function App() {
   useEffect(() => {
     if (!REQUIRE_SERVER_AUTH) return;
     let active = true;
-    const initData = window.WebApp?.initData;
-    if (!initData) {
+    if (!launchParams) {
       setAuthState('error');
       return () => { active = false; };
     }
 
     setAuthState('loading');
-    authenticateWithMax(initData)
+    authenticateWithVk(launchParams)
       .then(() => getCurrentResident())
       .then(({ memberships }) => {
         if (!active) return;
@@ -157,7 +157,7 @@ export function App() {
   }, [route]);
 
   useEffect(() => {
-    const backButton = insideMax ? window.WebApp?.BackButton : undefined;
+    const backButton = insideVk ? window.WebApp?.BackButton : undefined;
     if (!backButton) return;
 
     // Вкладки нижней навигации — корневые экраны, «Назад» на них не нужен.
@@ -186,7 +186,7 @@ export function App() {
       <div className="screen screen--with-panel">
         <main className="inner-content" id="main-content">
           <div className="screen-heading">
-            <Typography.Text asChild variant="header"><h1>Вход через MAX</h1></Typography.Text>
+            <Typography.Text asChild variant="header"><h1>Вход через VK</h1></Typography.Text>
             <Typography.Text asChild variant="body" color="secondary">
               <p>{authState === 'loading' ? 'Проверяем учётную запись…' : 'Не удалось подтвердить вход. Проверьте подключение и попробуйте ещё раз.'}</p>
             </Typography.Text>
@@ -297,7 +297,7 @@ export function App() {
       )}
       {/* key перезапускает анимацию появления при смене экрана */}
       <div className="screen-transition" key={route}>
-        {!insideMax && !isRootRoute(route) ? (
+        {!insideVk && !isRootRoute(route) ? (
           <div className="back-bar">
             <button className="text-action pressable back-bar__button" type="button" onClick={goBack}>
               <CaretLeft className="icon icon--small" weight="bold" aria-hidden />

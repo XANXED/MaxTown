@@ -22,13 +22,13 @@ export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Prom
   return fetch(input, { ...init, headers });
 }
 
-async function requestMaxSession(initData: string): Promise<AuthSessionResponse> {
-  const response = await fetch('/api/auth/max', {
+async function requestVkSession(launchParams: string): Promise<AuthSessionResponse> {
+  const response = await fetch('/api/auth/vk', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ initData }),
+    body: JSON.stringify({ launchParams }),
   });
-  if (!response.ok) throw new Error('Не удалось войти через MAX');
+  if (!response.ok) throw new Error('Не удалось подтвердить вход через VK');
 
   const result = await response.json() as AuthSessionResponse;
   if (typeof result.token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(result.token)
@@ -39,11 +39,11 @@ async function requestMaxSession(initData: string): Promise<AuthSessionResponse>
   return result;
 }
 
-export function authenticateWithMax(initData: string): Promise<AuthSessionResponse> {
-  if (!initData) return Promise.reject(new Error('MAX initData отсутствует'));
+export function authenticateWithVk(launchParams: string): Promise<AuthSessionResponse> {
+  if (!launchParams) return Promise.reject(new Error('Параметры запуска VK отсутствуют'));
   if (pendingAuthentication) return pendingAuthentication;
 
-  pendingAuthentication = requestMaxSession(initData).finally(() => {
+  pendingAuthentication = requestVkSession(launchParams).finally(() => {
     pendingAuthentication = null;
   });
   return pendingAuthentication;
@@ -58,7 +58,7 @@ export async function getCurrentResident(): Promise<MeResponse> {
   return response.json() as Promise<MeResponse>;
 }
 
-export async function logoutFromMax(): Promise<void> {
+export async function logoutFromVk(): Promise<void> {
   try {
     await apiFetch('/api/auth/logout', { method: 'POST' });
   } finally {

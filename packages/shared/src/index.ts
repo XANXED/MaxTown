@@ -278,7 +278,7 @@ export type HouseMembershipSummary = {
 /** Проверенные данные человека из текущей серверной сессии. */
 export type AuthResident = {
   id: string;
-  maxUserId: string;
+  vkUserId: string | null;
   displayName: string;
   username: string | null;
   phone: string | null;

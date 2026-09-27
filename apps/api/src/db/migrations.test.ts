@@ -48,5 +48,5 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('2');
+  expect(result.rows[0]?.count).toBe('3');
 });

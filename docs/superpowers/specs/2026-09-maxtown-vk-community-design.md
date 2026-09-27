@@ -155,8 +155,12 @@ its configured confirmation and secret values before accepting events.
 
 ## Failure and privacy behavior
 
-- Invalid, stale, wrong-app, or tampered VK launch data receives `401`; it must
-  never create a resident session.
+- Invalid, wrong-app, or tampered VK launch data receives `401`; it must never
+  create a resident session. VK's documented signed launch parameter format
+  does not guarantee a signed expiry timestamp, so the API cannot distinguish
+  a fresh valid payload from a captured replay. It validates the signature and
+  app ID, then issues the existing expiring server session. Revisit this replay
+  boundary if VK adds a documented signed timestamp.
 - VK message permission missing/revoked is a delivery state, not a poll-creation
   failure. The poll remains available in the house feed.
 - Transient VK API errors retry from the outbox without duplicating successful
@@ -179,8 +183,9 @@ its configured confirmation and secret values before accepting events.
 1. The resident UI initializes in VK clients using VKUI/VK Bridge and builds
    without MAX-only runtime dependencies.
 2. Valid signed launch parameters for the configured VK app create a session;
-   tampered parameters, wrong app IDs, stale parameters, missing signatures,
-   and spoofed user IDs do not.
+   tampered parameters, wrong app IDs, missing signatures, and spoofed user IDs
+   do not. VK launch parameters have no documented signed freshness timestamp;
+   server sessions remain expiring and launch payload replay risk is documented.
 3. Session expiry/revocation and logout continue to work; protected APIs require
    a valid server session.
 

@@ -45,7 +45,8 @@ function validateEnvironment(env: NodeJS.ProcessEnv): { databaseUrl: string; por
   const port = serverPort(env);
   const hasModeratorSetting = Boolean(env.MODERATOR_USERNAME || env.MODERATOR_PASSWORD_HASH);
   if (env.NODE_ENV === 'production') {
-    if (!env.BOT_TOKEN?.trim()) throw new Error('BOT_TOKEN is required in production');
+    if (!env.VK_APP_ID?.trim()) throw new Error('VK_APP_ID is required in production');
+    if (!env.VK_APP_SECRET?.trim()) throw new Error('VK_APP_SECRET is required in production');
     if (!hasValidModeratorBasicAuthConfiguration(env)) {
       throw new Error('MODERATOR_USERNAME and MODERATOR_PASSWORD_HASH must contain valid Moderator credentials');
     }

@@ -42,7 +42,7 @@ type SessionRow = {
   session_id: string;
   expires_at: Date;
   resident_id: string;
-  max_user_id: string;
+  vk_user_id: string | null;
   display_name: string;
   username: string | null;
   phone: string | null;
@@ -61,7 +61,7 @@ export async function getSession(pool: Pool, token: string, now = new Date()): P
   const result = await pool.query<SessionRow>(
     `SELECT
        s.id AS session_id, s.expires_at,
-       r.id AS resident_id, r.max_user_id, r.display_name, r.username, r.phone, r.phone_verified,
+       r.id AS resident_id, r.vk_user_id, r.display_name, r.username, r.phone, r.phone_verified,
        m.id AS membership_id, m.house_id AS membership_house_id, m.apartment_id,
        a.number AS apartment_number, h.address AS house_address, h.locality AS house_locality, m.role
      FROM sessions s
@@ -82,7 +82,7 @@ export async function getSession(pool: Pool, token: string, now = new Date()): P
     expiresAt: row.expires_at.toISOString(),
     resident: {
       id: row.resident_id,
-      maxUserId: row.max_user_id,
+      vkUserId: row.vk_user_id,
       displayName: row.display_name,
       username: row.username,
       phone: row.phone,

@@ -7,7 +7,8 @@ import { registerShutdownHandlers, startServer, type StartupDependencies } from 
 const validProductionEnv = {
   NODE_ENV: 'production',
   DATABASE_URL: 'postgres://maxtown:test@localhost/maxtown',
-  BOT_TOKEN: 'test-bot-token',
+  VK_APP_ID: '12345678',
+  VK_APP_SECRET: 'vk-test-app-secret',
   MODERATOR_USERNAME: 'moderator@example.org',
   MODERATOR_PASSWORD_HASH: `$2a$04$${'A'.repeat(53)}`,
 };
@@ -64,7 +65,7 @@ describe('API startup', () => {
   it('rejects missing production secrets before creating the pool', async () => {
     const { dependencies } = createDependencies();
 
-    await expect(startServer({ env: { ...validProductionEnv, BOT_TOKEN: '' }, dependencies })).rejects.toThrow(/BOT_TOKEN/);
+    await expect(startServer({ env: { ...validProductionEnv, VK_APP_SECRET: '' }, dependencies })).rejects.toThrow(/VK_APP_SECRET/);
 
     expect(dependencies.createPool).not.toHaveBeenCalled();
     expect(dependencies.listen).not.toHaveBeenCalled();
