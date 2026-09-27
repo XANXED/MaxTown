@@ -81,6 +81,159 @@ describe('Moderator Basic Authentication', () => {
     expect(response.json()).toEqual({ principal: 'moderator@example.org' });
   });
 
+  it('limits failed Moderator attempts per client IP without trusting X-Forwarded-For', async () => {
+    app = await createApp();
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const response = await app.inject({
+        url: '/admin/',
+        remoteAddress: '203.0.113.10',
+        headers: {
+          authorization: basic('moderator@example.org', 'incorrect password'),
+          'x-forwarded-for': `198.51.100.${attempt + 1}`,
+        },
+      });
+      expect(response.statusCode).toBe(401);
+    }
+
+    const blocked = await app.inject({
+      url: '/admin/',
+      remoteAddress: '203.0.113.10',
+      headers: {
+        authorization: basic('moderator@example.org', password),
+        'x-forwarded-for': '198.51.100.99',
+      },
+    });
+    const otherClient = await app.inject({
+      url: '/admin/',
+      remoteAddress: '203.0.113.11',
+      headers: { authorization: basic('moderator@example.org', password) },
+    });
+
+    expect(blocked.statusCode).toBe(429);
+    expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
+    expect(blocked.json()).toEqual({ error: 'moderator_rate_limited' });
+    expect(otherClient.statusCode).toBe(200);
+  });
+
+  it('uses only a valid Cloudflare client IP when explicitly enabled for Render', async () => {
+    app = Fastify();
+    const passwordHash = await bcrypt.hash(password, 4);
+    registerModeratorBasicAuth(app, {
+      NODE_ENV: 'production',
+      MODERATOR_USERNAME: 'moderator@example.org',
+      MODERATOR_PASSWORD_HASH: passwordHash,
+      RENDER: 'true',
+    });
+    app.get('/admin/', async () => ({ ok: true }));
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await app.inject({
+        url: '/admin/',
+        remoteAddress: '10.0.0.1',
+        headers: {
+          authorization: basic('moderator@example.org', 'incorrect password'),
+          'cf-connecting-ip': '203.0.113.10',
+          'x-forwarded-for': `198.51.100.${attempt + 1}`,
+        },
+      });
+    }
+
+    const blocked = await app.inject({
+      url: '/admin/',
+      remoteAddress: '10.0.0.1',
+      headers: {
+        authorization: basic('moderator@example.org', password),
+        'cf-connecting-ip': '203.0.113.10',
+        'x-forwarded-for': '198.51.100.99',
+      },
+    });
+    const otherClient = await app.inject({
+      url: '/admin/',
+      remoteAddress: '10.0.0.1',
+      headers: {
+        authorization: basic('moderator@example.org', password),
+        'cf-connecting-ip': '203.0.113.11',
+      },
+    });
+
+    expect(blocked.statusCode).toBe(429);
+    expect(otherClient.statusCode).toBe(200);
+  });
+
+  it('bounds concurrent bcrypt checks from one client IP', async () => {
+    app = await createApp();
+    const responses = await Promise.all(
+      Array.from({ length: 12 }, () => app!.inject({
+        url: '/api/moderator/registrations',
+        remoteAddress: '203.0.113.12',
+        headers: { authorization: basic('moderator@example.org', 'incorrect password') },
+      })),
+    );
+
+    expect(responses.filter((response) => response.statusCode === 401)).toHaveLength(5);
+    expect(responses.filter((response) => response.statusCode === 429)).toHaveLength(7);
+  });
+
+  it('reserves the remaining failure budget before concurrent password checks', async () => {
+    app = await createApp();
+    const remoteAddress = '203.0.113.14';
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const response = await app.inject({
+        url: '/admin/',
+        remoteAddress,
+        headers: { authorization: basic('moderator@example.org', 'incorrect password') },
+      });
+      expect(response.statusCode).toBe(401);
+    }
+
+    const burst = await Promise.all(
+      Array.from({ length: 12 }, () => app!.inject({
+        url: '/admin/',
+        remoteAddress,
+        headers: { authorization: basic('moderator@example.org', 'incorrect password') },
+      })),
+    );
+
+    expect(burst.filter((response) => response.statusCode === 401)).toHaveLength(1);
+    expect(burst.filter((response) => response.statusCode === 429)).toHaveLength(11);
+  });
+
+  it('clears the failed-attempt count for the same IP after a successful login', async () => {
+    app = await createApp();
+    const remoteAddress = '203.0.113.13';
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const response = await app.inject({
+        url: '/admin/',
+        remoteAddress,
+        headers: { authorization: basic('moderator@example.org', 'incorrect password') },
+      });
+      expect(response.statusCode).toBe(401);
+    }
+
+    const login = await app.inject({
+      url: '/admin/',
+      remoteAddress,
+      headers: { authorization: basic('moderator@example.org', password) },
+    });
+    const attemptsAfterLogin = await Promise.all(
+      Array.from({ length: 5 }, () => app!.inject({
+        url: '/admin/',
+        remoteAddress,
+        headers: { authorization: basic('moderator@example.org', 'incorrect password') },
+      })),
+    );
+    const blocked = await app.inject({
+      url: '/admin/',
+      remoteAddress,
+      headers: { authorization: basic('moderator@example.org', 'incorrect password') },
+    });
+
+    expect(login.statusCode).toBe(200);
+    expect(attemptsAfterLogin.every((response) => response.statusCode === 401)).toBe(true);
+    expect(blocked.statusCode).toBe(429);
+  });
+
   it('protects only Moderator routes and leaves health routes public', async () => {
     app = await createApp();
     const publicResponse = await app.inject({ url: '/api/health' });

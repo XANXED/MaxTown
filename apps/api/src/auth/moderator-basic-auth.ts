@@ -1,10 +1,17 @@
 import bcrypt from 'bcryptjs';
+import { isIP } from 'node:net';
 import type { FastifyInstance } from 'fastify';
 
 const challenge = 'Basic realm="MaxTown Moderator", charset="UTF-8"';
 const principalPattern = /^[A-Za-z0-9_.@-]{1,100}$/;
 const bcryptHashPattern = /^\$2[aby]\$(\d{2})\$[./A-Za-z0-9]{53}$/;
 const maxEncodedCredentialsLength = 4 * 1024;
+const maxFailedAttempts = 5;
+const failureWindowMs = 15 * 60 * 1000;
+const maxTrackedClients = 10_000;
+const maxConcurrentChecksPerClient = 5;
+
+type FailedAuthWindow = { count: number; inFlight: number; generation: number; resetAt: number };
 
 type ModeratorCredentials = {
   username: string;
@@ -57,6 +64,7 @@ export function registerModeratorBasicAuth(app: FastifyInstance, env: NodeJS.Pro
   }
 
   app.decorateRequest('moderatorPrincipal', null);
+  const failedAttempts = new Map<string, FailedAuthWindow>();
   app.addHook('onRequest', async (request, reply) => {
     const path = request.raw.url?.split(/[?#]/, 1)[0] ?? '/';
     if (!isModeratorPath(path)) return;
@@ -71,6 +79,37 @@ export function registerModeratorBasicAuth(app: FastifyInstance, env: NodeJS.Pro
       return reply.code(401).send({ error: 'moderator_authentication_required' });
     }
 
+    const cloudflareClientIp = env.RENDER === 'true' ? request.headers['cf-connecting-ip'] : undefined;
+    const clientKey = typeof cloudflareClientIp === 'string' && isIP(cloudflareClientIp)
+      ? cloudflareClientIp
+      : request.ip;
+    const now = Date.now();
+    let authWindow = failedAttempts.get(clientKey);
+    if (authWindow && authWindow.resetAt <= now) {
+      authWindow.count = 0;
+      authWindow.resetAt = now + failureWindowMs;
+      authWindow.generation += 1;
+    }
+    if (authWindow && authWindow.count + authWindow.inFlight >= maxFailedAttempts) {
+      reply.header('Retry-After', String(Math.max(1, Math.ceil((authWindow.resetAt - now) / 1000))));
+      return reply.code(429).send({ error: 'moderator_rate_limited' });
+    }
+    if (authWindow && authWindow.inFlight >= maxConcurrentChecksPerClient) {
+      reply.header('Retry-After', '1');
+      return reply.code(429).send({ error: 'moderator_rate_limited' });
+    }
+    if (!authWindow) {
+      if (failedAttempts.size >= maxTrackedClients) {
+        const oldestClient = failedAttempts.keys().next().value;
+        if (oldestClient) failedAttempts.delete(oldestClient);
+      }
+      authWindow = { count: 0, inFlight: 0, generation: 0, resetAt: now + failureWindowMs };
+    }
+    authWindow.inFlight += 1;
+    const generation = authWindow.generation;
+    failedAttempts.delete(clientKey);
+    failedAttempts.set(clientKey, authWindow);
+
     let passwordMatches = false;
     try {
       passwordMatches = await bcrypt.compare(supplied.password, credentials.passwordHash);
@@ -78,11 +117,24 @@ export function registerModeratorBasicAuth(app: FastifyInstance, env: NodeJS.Pro
       passwordMatches = false;
     }
 
+    authWindow.inFlight -= 1;
     if (supplied.username !== credentials.username || !passwordMatches) {
+      if (authWindow.generation === generation) {
+        authWindow.count += 1;
+      }
+      if (authWindow.count === 0 && authWindow.inFlight === 0 && failedAttempts.get(clientKey) === authWindow) {
+        failedAttempts.delete(clientKey);
+      }
       reply.header('WWW-Authenticate', challenge);
       return reply.code(401).send({ error: 'moderator_authentication_required' });
     }
 
+    if (failedAttempts.get(clientKey) === authWindow) {
+      authWindow.count = 0;
+      authWindow.resetAt = Date.now() + failureWindowMs;
+      authWindow.generation += 1;
+      if (authWindow.inFlight === 0) failedAttempts.delete(clientKey);
+    }
     request.moderatorPrincipal = credentials.username;
   });
 }

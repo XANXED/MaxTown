@@ -56,8 +56,9 @@ Today Caddy protects `/admin` and `/api/moderator/*`, removes the caller-supplie
 1. A shared Fastify hook protects `/admin`, `/admin/*`, and `/api/moderator/*` with HTTP Basic Authentication over Render's HTTPS endpoint.
 2. The server reads `MODERATOR_USERNAME` and a bcrypt-compatible `MODERATOR_PASSWORD_HASH` from environment variables. The plaintext password is never stored in the database or repository.
 3. Basic credentials are parsed and checked server-side. Malformed and invalid credentials receive `401` and `WWW-Authenticate`; supplied identity headers are discarded before authorization.
-4. The authenticated principal is checked against the existing enabled `moderators` table before registration data can be read or changed.
-5. On startup, when configured, the app inserts the initial Moderator principal only if absent. It never re-enables a disabled principal.
+4. After five failed password checks from one client IP, further attempts receive `429` with `Retry-After` for 15 minutes, and no more than five bcrypt checks per IP may run concurrently. On Render, use the edge-overwritten `CF-Connecting-IP`; never trust caller-supplied `X-Forwarded-For`. Store rate-limit counters in bounded per-process memory for this single-instance Free deployment.
+5. The authenticated principal is checked against the existing enabled `moderators` table before registration data can be read or changed.
+6. On startup, when configured, the app inserts the initial Moderator principal only if absent. It never re-enables a disabled principal.
 
 `BOT_TOKEN` remains a Render secret and MAX `initData` continues to be validated only by the API. Resident sessions remain random bearer tokens stored as hashes. House membership and per-house role checks are unchanged.
 

@@ -184,7 +184,7 @@
 - [ ] **Step 2: Run** `npm test -- --run deploy/render-blueprint.test.ts`; confirm it fails because `render.yaml` is not present.
 - [ ] **Step 3: Add `render.yaml`** with a stable region shared by both resources, one Render web service and one database, plus exact env wiring from the approved spec.
 - [ ] **Step 4: Document setup and limitations** in the current deployment guide and update `.env.example` for local combined-server values without adding secrets.
-- [ ] **Step 5: Run** `npm test -- --run deploy/render-blueprint.test.ts` and `render blueprints validate render.yaml`; verify YAML and Render's Blueprint schema both pass. CI installs Render CLI v2.28.0 from its pinned Linux AMD64 release and verifies the published SHA-256 before running this command. Render resource creation is validated when the owner applies the Blueprint in Render Dashboard.
+- [ ] **Step 5: Run** `npm test -- --run deploy/render-blueprint.test.ts` and verify the YAML contract locally. `render blueprints validate render.yaml` is an authenticated Render API call that requires `render login` and a selected workspace; it is reserved for the account owner, never CI. Render resource creation is validated when the owner applies the Blueprint in Render Dashboard.
 - [ ] **Step 6: Commit** as `feat(deploy): add render free blueprint`.
 
 ## Task 8: Make GitHub CI the Deployment Gate and Retire VPS Release Files
@@ -195,7 +195,7 @@
 - Modify: `compose.yml` and deployment docs only if Task 6/7 left obsolete references.
 
 **Interfaces:**
-- Required GitHub CI checks include install, typecheck, database migrations/tests, workspace builds, combined API image build, optional bot image build, Blueprint schema/contract validation (`render blueprints validate render.yaml`), and clean Compose smoke.
+- Required GitHub CI checks include install, typecheck, database migrations/tests, workspace builds, combined API image build, optional bot image build, the no-secret YAML Blueprint contract test, and clean Compose smoke. The platform API validator remains an owner-side check because the CLI requires a Render login/workspace.
 - Remove GHCR publication and VPS SSH deployment; Render is connected to the repository and waits for successful GitHub checks using `checksPass`.
 - `render.yaml` is the source of truth for Render resources; no Render API token or deployment credential is needed in GitHub Actions.
 
@@ -203,7 +203,7 @@
 - [ ] **Step 2: Run** `npm test -- --run deploy/deployment.test.ts deploy/render-blueprint.test.ts`; confirm they fail against the old VPS workflow and service matrix.
 - [ ] **Step 3: Delete the VPS-only workflow, Caddy gateway, and VPS deploy script**; retain the local Bot image build.
 - [ ] **Step 4: Review all deployment references** with `rg -n 'VPS|GHCR|Caddy|workflow_run|workflow dispatch' README.md docs .github deploy compose.yml render.yaml` and update any obsolete release instructions.
-- [ ] **Step 5: Run full verification**: `npm ci`, `npm run typecheck`, `npm test`, `npm run build`, `docker build --file apps/api/Dockerfile --tag maxtown-api:ci .`, optional bot Docker build, Blueprint validation, and clean Compose smoke.
+- [ ] **Step 5: Run full verification**: `npm ci`, `npm run typecheck`, `npm test`, `npm run build`, `docker build --file apps/api/Dockerfile --tag maxtown-api:ci .`, optional bot Docker build, YAML Blueprint contract test, and clean Compose smoke. Run Render's authenticated API validator manually only when the account owner has a configured CLI workspace.
 - [ ] **Step 6: Commit** as `ci: gate render deploys on verified main`.
 
 ## Task 9: Review Release Readiness and Publish the Pull Request
@@ -234,5 +234,4 @@
 ## Current Platform References
 
 - [Render Blueprint YAML reference](https://render.com/docs/blueprint-spec): Postgres resources belong under `databases`; `fromDatabase`, `sync: false`, Docker web services, and `checksPass` fields are documented there.
-- [Render CLI](https://render.com/docs/cli): `render blueprints validate [BLUEPRINT_FILE]` validates a Blueprint without an account token.
-- [Render CLI v2.28.0 Linux AMD64 release checksum](https://github.com/render-oss/cli/releases/tag/v2.28.0): CI pins the binary and verifies its SHA-256 before use.
+- [Render CLI](https://render.com/docs/cli): `render blueprints validate [BLUEPRINT_FILE]` validates against the selected Render workspace and requires authentication.
