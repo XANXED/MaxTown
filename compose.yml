@@ -17,103 +17,37 @@ services:
       start_period: 10s
     stop_grace_period: 1m
 
-  migrate:
-    image: ${API_IMAGE:?set API_IMAGE to a digest-pinned image}
-    restart: "no"
-    command: ["npm", "run", "db:migrate", "--workspace=@maxtown/api"]
-    environment:
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks: [database]
-
-  api:
-    image: ${API_IMAGE:?set API_IMAGE to a digest-pinned image}
+  web:
+    image: ${WEB_IMAGE:?set WEB_IMAGE to the combined API image}
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      API_PORT: 3000
+      PORT: "3000"
       DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
       BOT_TOKEN: ${BOT_TOKEN:?set BOT_TOKEN for server-side MAX initData validation}
+      MODERATOR_USERNAME: ${MODERATOR_USERNAME:?set MODERATOR_USERNAME}
+      MODERATOR_PASSWORD_HASH: ${MODERATOR_PASSWORD_HASH:?set MODERATOR_PASSWORD_HASH to a bcrypt hash}
+    ports:
+      - "${WEB_PUBLISH:-127.0.0.1:3000:3000}"
     depends_on:
-      migrate:
-        condition: service_completed_successfully
-    networks: [database, app]
+      postgres:
+        condition: service_healthy
+    networks: [database, public]
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 10s
       timeout: 4s
       retries: 12
       start_period: 15s
     stop_grace_period: 30s
 
-  miniapp:
-    image: ${MINIAPP_IMAGE:?set MINIAPP_IMAGE to a digest-pinned image}
-    restart: unless-stopped
-    networks: [app]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"]
-      interval: 10s
-      timeout: 4s
-      retries: 6
-      start_period: 5s
-
-  admin:
-    image: ${ADMIN_IMAGE:?set ADMIN_IMAGE to a digest-pinned image}
-    restart: unless-stopped
-    networks: [app]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/"]
-      interval: 10s
-      timeout: 4s
-      retries: 6
-      start_period: 5s
-
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    environment:
-      DOMAIN: ${DOMAIN:?set DOMAIN}
-      MODERATOR_USERNAME: ${MODERATOR_USERNAME:?set MODERATOR_USERNAME}
-      MODERATOR_PASSWORD_HASH: ${MODERATOR_PASSWORD_HASH:?set MODERATOR_PASSWORD_HASH to a Caddy hash-password result}
-    ports:
-      - "${HTTP_PUBLISH:-80:80}"
-      - "${HTTPS_PUBLISH:-443:443}"
-      - "${HTTPS_UDP_PUBLISH:-443:443/udp}"
-    volumes:
-      - ${CADDYFILE_PATH:-./Caddyfile}:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    depends_on:
-      api:
-        condition: service_healthy
-      miniapp:
-        condition: service_healthy
-      admin:
-        condition: service_healthy
-    networks: [app]
-    healthcheck:
-      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  bot:
-    image: ${BOT_IMAGE:?set BOT_IMAGE to a digest-pinned image}
-    profiles: [bot]
-    restart: unless-stopped
-    environment:
-      BOT_TOKEN: ${BOT_TOKEN:?set BOT_TOKEN to use the optional MAX bot}
-    networks: [app]
-
 volumes:
   postgres-data:
-  caddy-data:
-  caddy-config:
 
 networks:
   database:
     internal: true
-  app:
+  public: {}

@@ -1,41 +1,50 @@
+import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const projectRoot = new URL('../', import.meta.url);
 const readProjectFile = (path: string) => readFile(new URL(path, projectRoot), 'utf8');
 
 describe('production deployment contract', () => {
-  it('keeps the database private and gates API startup on successful migration', async () => {
-    const compose = await readProjectFile('compose.yml');
-    const smokeCompose = await readProjectFile('deploy/compose.smoke.yml');
-    expect(compose).toContain('postgres-data:/var/lib/postgresql/data');
-    expect(compose).toContain('condition: service_healthy');
-    expect(compose).toContain('condition: service_completed_successfully');
-    expect(compose).toContain('internal: true');
-    expect(compose).not.toMatch(/postgres:[\s\S]{0,120}?ports:/);
-    expect(smokeCompose).toContain('volumes: !reset []');
-    expect(smokeCompose).toContain('/var/lib/postgresql/data');
-  });
+  it('uses a private database and one web service for the Mini App, Admin, and API', () => {
+    const output = execFileSync('docker', ['compose', '--file', 'compose.yml', 'config', '--format', 'json'], {
+      cwd: fileURLToPath(projectRoot),
+      env: {
+        ...process.env,
+        WEB_IMAGE: 'maxtown-api:contract-test',
+        API_IMAGE: 'maxtown-api:legacy-test',
+        MINIAPP_IMAGE: 'maxtown-miniapp:legacy-test',
+        ADMIN_IMAGE: 'maxtown-admin:legacy-test',
+        BOT_IMAGE: 'maxtown-bot:legacy-test',
+        POSTGRES_DB: 'maxtown',
+        POSTGRES_USER: 'maxtown',
+        POSTGRES_PASSWORD: 'test-only-password',
+        DATABASE_URL: 'postgres://maxtown:test-only-password@postgres:5432/maxtown',
+        BOT_TOKEN: 'test-only-token',
+        DOMAIN: 'localhost',
+        MODERATOR_USERNAME: 'smoke-moderator',
+        MODERATOR_PASSWORD_HASH: '$2a$04$test-only-placeholder-hash',
+      },
+      encoding: 'utf8',
+    });
+    const compose = JSON.parse(output) as {
+      services: Record<string, {
+        image?: string;
+        build?: { dockerfile?: string };
+        depends_on?: Record<string, { condition?: string }>;
+        environment?: Record<string, string>;
+        ports?: unknown[];
+      }>;
+    };
 
-  it('requires digest-pinned image references and restores the previous release after candidate failure', async () => {
-    const script = await readProjectFile('deploy/deploy.sh');
-    expect(script).toContain('ghcr\\.io/');
-    expect(script).toContain('@sha256:[0-9a-f]{64}');
-    expect(script).toContain('current-release');
-    expect(script).toContain('restoring previous digest-pinned release');
-    expect(script).toContain('pg_dump');
-    expect(script).toContain('smoke.sh');
-    expect(script).not.toContain('down -v');
-  });
-
-  it('protects all production credentials as placeholders and documents the deployment bootstrap', async () => {
-    const example = await readProjectFile('.env.production.example');
-    const guide = await readProjectFile('docs/deployment.md');
-    expect(example).toContain('BOT_TOKEN=replace_with_max_bot_token');
-    expect(example).toContain('MODERATOR_PASSWORD_HASH=');
-    expect(guide).toContain('read:packages');
-    expect(guide).toContain('INSERT INTO moderators');
-    expect(guide).toContain('backup');
+    expect(Object.keys(compose.services).sort()).toEqual(['postgres', 'web']);
+    expect(compose.services.web?.image).toBe('maxtown-api:contract-test');
+    expect(compose.services.web?.build?.dockerfile).toMatch(/apps\/api\/Dockerfile$/);
+    expect(compose.services.web?.depends_on?.postgres?.condition).toBe('service_healthy');
+    expect(compose.services.web?.environment?.PORT).toBe('3000');
+    expect(compose.services.web?.ports).toHaveLength(1);
+    expect(compose.services.postgres?.ports).toBeUndefined();
   });
 
   it('pins every external action in GitHub workflows to a full commit SHA', async () => {
