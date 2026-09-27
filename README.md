@@ -20,6 +20,14 @@ npm run dev:bot          # бот MAX
 
 Проверки: `npm run typecheck`, `npm test` и `npm run smoke:mcp`.
 
+## Развёртывание
+
+Для Render Free используйте [`render.yaml`](render.yaml) и инструкцию
+[`docs/deployment.md`](docs/deployment.md). GitHub Actions проверяет изменения;
+Render деплоит только после успешных checks. Free Web Service засыпает при
+простоях, а бесплатная PostgreSQL база ограничена сроком хранения — подробности
+и шаги запуска описаны в инструкции.
+
 Проектный read-only MCP для Codex запускается командой `npm run mcp:project`.
 Подключение, ресурсы и инструменты описаны в
 [`docs/agents/project-mcp.md`](docs/agents/project-mcp.md).

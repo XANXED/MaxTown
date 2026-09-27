@@ -1,86 +1,62 @@
-# Production deployment
+# Развёртывание MaxTown на Render Free
 
-MaxTown deploys to one Docker Compose VPS. GitHub Actions runs the full CI suite, publishes four GHCR images, records their immutable SHA-256 digests, and deploys only after CI succeeds on `main`. Caddy terminates HTTPS and protects the Moderator panel and Moderator API with Basic Auth. PostgreSQL has a persistent named volume and is never published on a host port.
+В репозитории находится Blueprint [`render.yaml`](../render.yaml): один Docker Web Service (API обслуживает собранные Mini App и панель Модератора) и одна база Render PostgreSQL. GitHub Actions проверяет изменения; Render начинает новый деплой только после успешных GitHub checks (`checksPass`). Бот как отдельный процесс здесь не разворачивается, но `BOT_TOKEN` нужен API для проверки подписи MAX `initData`.
 
-## VPS preparation
+## Что нужно подготовить
 
-Prepare a Linux VPS with Docker Engine and the Docker Compose v2 plugin. Point the domain's A/AAAA records to the VPS and allow inbound TCP 80/443 and UDP 443. Create `/opt/maxtown`, copy `.env.production.example` to `/opt/maxtown/.env`, fill every value, and set mode `600`:
+- GitHub-репозиторий MaxTown и доступ владельца к Render.
+- Токен бота MAX из [Master Bot](https://max.ru/masterbot).
+- Отдельный длинный пароль Модератора. Храните пароль в менеджере паролей; в Render передаётся только bcrypt-хеш.
 
-```sh
-sudo install -d -m 750 /opt/maxtown/releases
-sudo install -m 600 .env.production.example /opt/maxtown/.env
-sudoedit /opt/maxtown/.env
-```
+## Создание Render-сервисов
 
-Use the same URL-safe random value in `POSTGRES_PASSWORD` and the `DATABASE_URL` password. Generate one with `openssl rand -base64 36 | tr '/+' '_-' | tr -d '='`. Do not put URL-reserved characters in this password unless percent-encoding them in `DATABASE_URL`.
+1. Убедитесь, что изменения опубликованы в GitHub, а обязательные GitHub Actions checks проходят на `main`.
+2. В Render Dashboard выберите **New → Blueprint**, подключите GitHub и репозиторий MaxTown, затем примените Blueprint из `render.yaml`.
+3. При создании задайте значения для `BOT_TOKEN` и `MODERATOR_PASSWORD_HASH`, которые помечены `sync: false`. Они являются секретами и не хранятся в Git. `MODERATOR_USERNAME` по умолчанию — `moderator`; это имя также используется для первоначальной записи Модератора в БД.
+4. Дождитесь успешного первого деплоя и состояния сервиса **Live**. Проверьте `https://<имя-сервиса>.onrender.com/api/ready` — ожидается HTTP 200.
+5. В настройках Mini App в MAX укажите публичный URL Mini App: `https://<имя-сервиса>.onrender.com/`. MAX должен открывать адрес сервиса по HTTPS. После изменения URL запустите приложение из MAX и проверьте вход.
 
-Generate the Moderator hash on a trusted machine with `caddy hash-password`, then put the complete result in the single-quoted `MODERATOR_PASSWORD_HASH` value. Use a long unique password and keep its plaintext in the organization's password manager. The matching username is the authenticated Caddy principal sent to the API.
+### Создание bcrypt-хеша
 
-Log the VPS into GHCR using an account with read-only `read:packages` access so Compose can pull private images. Keep the token outside the release directory and restrict its Docker config permissions. The optional Bot container is not started by the default deployment; its digest and token are still provisioned for a consistent release manifest and server-side MAX authentication.
-
-## GitHub configuration
-
-Create a GitHub Environment named `production`. Add these environment secrets:
-
-| Secret | Purpose |
-| --- | --- |
-| `VPS_HOST` | VPS DNS name or IP |
-| `VPS_USER` | Deployment account, allowed to run Docker Compose |
-| `VPS_SSH_PRIVATE_KEY` | Dedicated deployment key |
-| `VPS_SSH_KNOWN_HOSTS` | Pre-verified host key line; do not collect trust with unauthenticated `ssh-keyscan` in the workflow |
-
-Add environment variables `VPS_PORT` (usually `22`) and `MAINTOWN_ROOT` (`/opt/maxtown`). Restrict who can approve or deploy to this Environment. Protect `main` with required CI checks and review before enabling deployment. The publish job has `packages: write`; the CI job retains read-only repository permissions.
-
-The workflow uses only SHA-pinned third-party Actions, publishes `api`, `miniapp`, `admin`, and `bot` image manifests, and passes `ghcr.io/...@sha256:...` references to the host. The deploy script rejects tags and non-GHCR image references.
-
-## First release and Moderator bootstrap
-
-Push a reviewed commit to `main`. After the CI job succeeds, the workflow publishes the images, copies the deployment bundle into `/opt/maxtown/releases/<commit>`, and runs `deploy/deploy.sh` over SSH. It waits for PostgreSQL, applies forward-compatible migrations, waits for API/readiness and static-server health checks, then runs the external HTTPS smoke checks. Caddy obtains and renews the certificate automatically.
-
-After the first successful deployment, create the Moderator row for the configured Caddy username. Run the command on the VPS, replacing the username with its configured value:
+На машине с Docker запустите утилиту Caddy. Она запросит пароль интерактивно; не вставляйте пароль в командную строку и не сохраняйте хеш в репозитории:
 
 ```sh
-docker compose --project-name maxtown --env-file /opt/maxtown/.env \
-  --file /opt/maxtown/releases/COMMIT/compose.yml \
-  exec -T postgres psql -U maxtown -d maxtown \
-  -c "INSERT INTO moderators (principal) VALUES ('moderator') ON CONFLICT (principal) DO NOTHING"
+docker run --rm -it caddy:2-alpine caddy hash-password
 ```
 
-The password hash only authenticates at Caddy. Moderator access is granted only when that exact username also has an enabled row in `moderators`.
+Скопируйте выведенный bcrypt-хеш целиком в секрет `MODERATOR_PASSWORD_HASH`. API проверяет пароль Basic Auth, а затем сверяет имя пользователя с включённой записью `moderators` в базе. Пароль и хеш не являются учётными данными MAX.
 
-## Health checks and rollback
+## Проверка после деплоя
 
-`deploy/smoke.sh https://<domain>` checks the Mini App response, `/api/health`, database-backed `/api/ready`, rejection of invalid MAX `initData`, and unauthenticated protection of `/admin/`. Run it after any manual infrastructure change.
-
-Before each upgrade the host writes a mode-600 `pg_dump` backup under `/opt/maxtown/backups`; a failed backup stops deployment before migrations begin. The host records the current release directory only after all checks pass. If a candidate fails, the script re-pulls the previous digest-pinned images using the previous Compose bundle and repeats health/smoke checks. It reports failure even when rollback succeeds, so the GitHub deployment is never shown as successful for a reverted release. PostgreSQL data is retained; the deploy script never runs `down -v` or removes volumes.
-
-Database changes must follow expand/migrate/contract: a release's schema migration must remain compatible with the currently deployed image until the new image is healthy. The append-only audit trigger is additive. Take a PostgreSQL backup before a release that changes data shape:
+После того как Render завершил деплой, выполните локально против публичного URL:
 
 ```sh
-docker compose --project-name maxtown --env-file /opt/maxtown/.env \
-  --file /opt/maxtown/releases/COMMIT/compose.yml \
-  exec -T postgres pg_dump -U maxtown maxtown > maxtown-$(date -u +%Y%m%dT%H%M%SZ).sql
+./deploy/smoke.sh https://<имя-сервиса>.onrender.com
 ```
 
-Keep backups off the VPS and periodically test restoration into a separate database. Old release directories can be removed after the retention window, but keep the current and previous release bundles and their image digests.
+Smoke-проверка обращается к Mini App, панели Модератора и API, проверяет `/api/health` и `/api/ready`, отклонение поддельного MAX `initData`, запрет доступа без Moderator Basic Auth и отклонение неправильного пароля. Для корректного ответа панели задайте временные переменные `MODERATOR_SMOKE_USER` и `MODERATOR_SMOKE_PASSWORD` в окружении запуска скрипта; пароль не передавайте аргументом процесса. Например, экспортируйте их из локального менеджера секретов перед запуском. Не записывайте эти значения в shell history или CI-логи.
 
-## Optional MAX bot
-
-The `bot` Compose service has a `bot` profile and is not started by normal deployment. `BOT_TOKEN` remains required by the API for MAX `initData` validation even when the separate Bot process is disabled. To start that process after deployment, use the active Compose bundle and profile:
+Blueprint и YAML-контракт тестируются локально:
 
 ```sh
-docker compose --project-name maxtown --profile bot --env-file /opt/maxtown/.env \
-  --file /opt/maxtown/releases/COMMIT/compose.yml up -d bot
+npm test -- --run deploy/render-blueprint.test.ts
+render blueprints validate render.yaml
 ```
 
-The Bot process and its GHCR image can be omitted from runtime when only the Mini App is needed; keep the token in the protected environment because API authentication depends on it.
+В GitHub Actions Render CLI устанавливается из закреплённого релиза с проверкой SHA-256. Валидация Blueprint не создаёт облачные ресурсы и не доказывает успешность hosted deployment; это подтверждают только применение Blueprint владельцем Render, зелёный деплой и smoke-проверка публичного сервиса.
 
-## Local Compose validation
+## Секреты и обновления
 
-Copy `.env.production.example` to `.env`, supply local secrets and four valid image references, then validate the production topology without starting it:
+Blueprint использует `sync: false` для `BOT_TOKEN` и `MODERATOR_PASSWORD_HASH`. Render запрашивает такие значения при первом создании Blueprint, но последующие синхронизации Blueprint не обновляют уже сохранённые секреты. Меняйте их в Render Dashboard, в настройках Environment сервиса. Не коммитьте `.env` и не включайте секреты в логи или снимки CI.
 
-```sh
-docker compose --env-file .env config --quiet
-```
+При изменениях приложения сначала должны пройти обязательные CI checks GitHub. Render настроен на `autoDeployTrigger: checksPass`, поэтому проверка CI является условием деплоя из подключённой ветки. После деплоя повторяйте публичный smoke-тест.
 
-`deploy/deploy.sh` validates the image manifest, Compose model, database migration completion, service health and external smoke test. Never use `docker compose down -v` against production.
+## Ограничения бесплатного тарифа
+
+- Бесплатный Web Service засыпает после 15 минут без входящего трафика. Следующий запрос пробуждает приложение, что может занять около минуты. Это поведение тарифа; оно не означает, что приложение постоянно доступно без задержки.
+- У бесплатного Web Service лимит 750 часов в месяц на workspace. Несколько бесплатных Web Services делят этот лимит.
+- Бесплатная PostgreSQL база действует 30 дней. После истечения срока Render предоставляет 14-дневное окно для обновления тарифа или экспорта; затем база и её данные удаляются. Бесплатная база не подходит для постоянных пользовательских данных.
+
+Перед окончанием срока базы экспортируйте данные или переведите её на подходящий платный тариф. Перед публичным запуском для реальных жильцов необходимо решить вопрос постоянного хранения, резервных копий и восстановления; Free-ресурсы не обеспечивают долговременное хранение базы.
+
+Render предназначает Free для тестирования, хобби-проектов и предварительного знакомства с платформой, а не для production. Перед использованием с реальными жильцами перейдите на ресурсы с постоянным хранением и резервным копированием. Актуальные ограничения описаны в [документации Render о Free](https://render.com/docs/free); формат Blueprint — в [спецификации Render Blueprint](https://render.com/docs/blueprint-spec).
