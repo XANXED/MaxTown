@@ -64,36 +64,38 @@ export async function buildApp({ pool, env, staticAssets }: BuildAppOptions): Pr
   registerCommunityRoutes(app, pool);
   registerRepairModeRoutes(app, pool);
 
-  const assets = staticAssets ?? {
+  const assets = staticAssets ?? (env.NODE_ENV === 'production' ? {
     miniAppRoot: fileURLToPath(new URL('../../miniapp/dist', import.meta.url)),
     adminRoot: fileURLToPath(new URL('../../admin/dist', import.meta.url)),
-  };
-  await app.register(fastifyStatic, {
-    root: assets.miniAppRoot,
-    prefix: '/',
-    wildcard: false,
-    dotfiles: 'deny',
-  });
-  await app.register(fastifyStatic, {
-    root: assets.adminRoot,
-    prefix: '/admin/',
-    wildcard: false,
-    decorateReply: false,
-    dotfiles: 'deny',
-  });
+  } : undefined);
+  if (assets) {
+    await app.register(fastifyStatic, {
+      root: assets.miniAppRoot,
+      prefix: '/',
+      wildcard: false,
+      dotfiles: 'deny',
+    });
+    await app.register(fastifyStatic, {
+      root: assets.adminRoot,
+      prefix: '/admin/',
+      wildcard: false,
+      decorateReply: false,
+      dotfiles: 'deny',
+    });
 
-  app.get('/admin', async (_request, reply) => reply.redirect('/admin/', 308));
-  app.get('/admin/*', async (request, reply) => {
-    const path = request.raw.url?.split(/[?#]/, 1)[0] ?? '/admin/';
-    if (!isHtmlNavigation(request, path)) return reply.code(404).send({ error: 'not_found' });
-    return reply.type('text/html').sendFile('index.html', assets.adminRoot);
-  });
-  app.get('/*', async (request, reply) => {
-    const path = request.raw.url?.split(/[?#]/, 1)[0] ?? '/';
-    if (path === '/api' || path.startsWith('/api/')) return reply.code(404).send({ error: 'not_found' });
-    if (!isHtmlNavigation(request, path)) return reply.code(404).send({ error: 'not_found' });
-    return reply.type('text/html').sendFile('index.html', assets.miniAppRoot);
-  });
+    app.get('/admin', async (_request, reply) => reply.redirect('/admin/', 308));
+    app.get('/admin/*', async (request, reply) => {
+      const path = request.raw.url?.split(/[?#]/, 1)[0] ?? '/admin/';
+      if (!isHtmlNavigation(request, path)) return reply.code(404).send({ error: 'not_found' });
+      return reply.type('text/html').sendFile('index.html', assets.adminRoot);
+    });
+    app.get('/*', async (request, reply) => {
+      const path = request.raw.url?.split(/[?#]/, 1)[0] ?? '/';
+      if (path === '/api' || path.startsWith('/api/')) return reply.code(404).send({ error: 'not_found' });
+      if (!isHtmlNavigation(request, path)) return reply.code(404).send({ error: 'not_found' });
+      return reply.type('text/html').sendFile('index.html', assets.miniAppRoot);
+    });
+  }
 
   return app;
 }

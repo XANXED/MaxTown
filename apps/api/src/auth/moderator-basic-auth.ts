@@ -24,6 +24,10 @@ function readCredentials(env: NodeJS.ProcessEnv): ModeratorCredentials | null {
   return { username, passwordHash };
 }
 
+export function hasValidModeratorBasicAuthConfiguration(env: NodeJS.ProcessEnv): boolean {
+  return readCredentials(env) !== null;
+}
+
 function isModeratorPath(path: string): boolean {
   return path === '/admin' || path.startsWith('/admin/') || path.startsWith('/api/moderator/');
 }
