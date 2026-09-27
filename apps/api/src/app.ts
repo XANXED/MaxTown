@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { HealthResponse } from '@maxtown/shared';
+import { registerModeratorBasicAuth } from './auth/moderator-basic-auth.ts';
 import { registerAuthRoutes } from './routes/auth.ts';
 import { registerHouseRoutes } from './routes/houses.ts';
 import { registerModeratorRoutes } from './routes/moderator.ts';
@@ -18,6 +19,8 @@ export async function buildApp({ pool, env }: BuildAppOptions): Promise<FastifyI
   app.addHook('onClose', async () => {
     await pool.end();
   });
+
+  registerModeratorBasicAuth(app, env);
 
   app.setErrorHandler((error, _request, reply) => {
     if (typeof error === 'object' && error !== null && 'validation' in error) {
