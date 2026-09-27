@@ -6,7 +6,6 @@ dist/
 .env
 .env.*
 !.env.example
-!.env.production.example
 
 .scratch/
 .DS_Store

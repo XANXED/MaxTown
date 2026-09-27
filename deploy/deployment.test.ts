@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 const projectRoot = new URL('../', import.meta.url);
 const readProjectFile = (path: string) => readFile(new URL(path, projectRoot), 'utf8');
@@ -13,10 +14,6 @@ describe('production deployment contract', () => {
       env: {
         ...process.env,
         WEB_IMAGE: 'maxtown-api:contract-test',
-        API_IMAGE: 'maxtown-api:legacy-test',
-        MINIAPP_IMAGE: 'maxtown-miniapp:legacy-test',
-        ADMIN_IMAGE: 'maxtown-admin:legacy-test',
-        BOT_IMAGE: 'maxtown-bot:legacy-test',
         POSTGRES_DB: 'maxtown',
         POSTGRES_USER: 'maxtown',
         POSTGRES_PASSWORD: 'test-only-password',
@@ -47,16 +44,25 @@ describe('production deployment contract', () => {
     expect(compose.services.postgres?.ports).toBeUndefined();
   });
 
-  it('pins every external action in GitHub workflows to a full commit SHA', async () => {
-    const workflow = await readProjectFile('.github/workflows/deploy.yml');
+  it('uses only CI as the release gate and runs required Render checks', async () => {
     const ci = await readProjectFile('.github/workflows/ci.yml');
-    for (const yaml of [workflow, ci]) {
-      const actionRefs = [...yaml.matchAll(/^\s*uses:\s*([^\s#]+)(?:\s+#.*)?\s*$/gm)].map((match) => match[1]!);
-      expect(actionRefs.length).toBeGreaterThan(0);
-      expect(actionRefs.every((ref) => /@[0-9a-f]{40}$/.test(ref))).toBe(true);
-    }
-    expect(workflow).toContain("workflow_run:");
-    expect(workflow).toContain("conclusion == 'success'");
-    expect(workflow).toContain('packages: write');
+    const parsed = parse(ci) as { jobs?: Record<string, { steps?: Array<{ run?: string }> }> };
+    const workflowNames = (await readdir(new URL('../.github/workflows/', import.meta.url))).sort();
+    const actionRefs = [...ci.matchAll(/^\s*uses:\s*([^\s#]+)(?:\s+#.*)?\s*$/gm)].map((match) => match[1]!);
+
+    expect(workflowNames).toEqual(['ci.yml']);
+    expect(parsed.jobs?.checks?.steps?.length).toBeGreaterThan(0);
+    expect(actionRefs.length).toBeGreaterThan(0);
+    expect(actionRefs.every((ref) => /@[0-9a-f]{40}$/.test(ref))).toBe(true);
+    expect(ci).toContain('npm run typecheck');
+    expect(ci).toContain('npm run db:migrate --workspace=@maxtown/api');
+    expect(ci).toContain('npm test');
+    expect(ci).toContain('npm run build');
+    expect(ci).toContain('docker build --file apps/api/Dockerfile --tag maxtown-api:ci .');
+    expect(ci).toContain('docker build --file apps/bot/Dockerfile --tag maxtown-bot:ci .');
+    expect(ci).toContain('./deploy/compose-smoke.sh maxtown-api:ci');
+    expect(ci).not.toContain('packages: write');
+    expect(ci).not.toMatch(/VPS_|GHCR|ssh-keyscan|workflow_run/);
+    expect(ci).toMatch(/Run tests, including Render Blueprint contract/);
   });
 });

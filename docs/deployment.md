@@ -40,10 +40,15 @@ Blueprint и YAML-контракт тестируются локально:
 
 ```sh
 npm test -- --run deploy/render-blueprint.test.ts
+```
+
+Контрактный тест разбирает настоящий YAML и проверяет структуру ресурсов, Free планы, health check, `checksPass`, связь с PostgreSQL и объявления секретов. Владелец Render может дополнительно проверить конфигурацию через официальный CLI после `render login` и выбора workspace:
+
+```sh
 render blueprints validate render.yaml
 ```
 
-В GitHub Actions Render CLI устанавливается из закреплённого релиза с проверкой SHA-256. Валидация Blueprint не создаёт облачные ресурсы и не доказывает успешность hosted deployment; это подтверждают только применение Blueprint владельцем Render, зелёный деплой и smoke-проверка публичного сервиса.
+Эта команда валидирует Blueprint через Render API и требует входа в Render и выбранного workspace. Запускайте её вручную на машине владельца аккаунта; CI не хранит Render API key. Применение Blueprint владельцем, успешный деплой и публичный smoke-тест подтверждают hosted deployment.
 
 ## Секреты и обновления
 
