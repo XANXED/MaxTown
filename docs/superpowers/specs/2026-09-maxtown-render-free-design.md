@@ -1,6 +1,6 @@
 # MaxTown on Render Free
 
-**Status:** Conversational design approved; awaiting review of this written specification.
+**Status:** Approved by the project owner.
 
 ## Context and decision
 
