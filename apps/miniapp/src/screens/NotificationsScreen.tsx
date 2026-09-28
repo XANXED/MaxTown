@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BellSimple, CalendarCheck, CaretRight, ChatCircleText, FileText, House, HouseLine } from '@phosphor-icons/react';
+import { BellSimple, CalendarCheck, CaretRight, ChatCircleText, FileText } from '@phosphor-icons/react';
 import { Typography } from '@maxhub/max-ui';
 import type { UserNotification } from '@maxtown/shared';
 import {
@@ -23,11 +23,9 @@ const kindVisuals: Record<UserNotification['kind'], { icon: IconComponent; tone:
   'request-status': { icon: FileText, tone: 'teal' },
   'request-comment': { icon: ChatCircleText, tone: 'blue' },
   'request-visit': { icon: CalendarCheck, tone: 'coral' },
-  'join-approved': { icon: House, tone: 'green' },
-  'join-declined': { icon: HouseLine, tone: 'neutral' },
 };
 
-/** Уведомления: что изменилось в Заявках и в Запросе на вступление. Новые — жирнее и с отметкой. */
+/** Уведомления: что изменилось в Заявках. Новые — жирнее и с отметкой. */
 export function NotificationsScreen({ navigate }: { navigate: Navigate }) {
   const { status, data, retry } = useNotifications();
   // Прочитанность живёт на экране; с API отметка уйдёт на сервер.

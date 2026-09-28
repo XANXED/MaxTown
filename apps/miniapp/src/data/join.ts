@@ -1,10 +1,8 @@
-import { useMemo } from 'react';
-import type { HouseSearchResult, InviteCheck } from '@maxtown/shared';
-import { demoMode, loadFixtures, useLoadable, type LoadStatus } from './loadable.ts';
+import type { InviteCheck } from '@maxtown/shared';
+import { demoMode, loadFixtures } from './loadable.ts';
 
-// Как стать Жильцом (CONTEXT.md): по Приглашению — QR-код или ссылка на
-// конкретную Квартиру — или Запросом на вступление, который решает Жилец
-// Квартиры, а если в ней никого нет, Староста.
+// Стать Жильцом можно только по Приглашению — QR-коду или ссылке на
+// конкретную Квартиру.
 //
 // Приглашение — ссылка MAX на мини-апп: https://max.ru/<бот>?startapp=inv_<код>,
 // код — 22 символа base64url (docs/research/2026-09-house-data-and-max-platform.md, 2.5).
@@ -46,14 +44,6 @@ export function launchInviteCode(): string | null {
   return inviteFromStartParam(typeof startParam === 'string' ? startParam : undefined);
 }
 
-/** Ошибка в номере Квартиры или null. Бывают номера с буквой: 34А. */
-export function validateApartment(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return 'Укажите номер Квартиры';
-  if (!/^[1-9]\d{0,3}[а-яА-Яa-zA-Z]?$/.test(trimmed)) return 'Только номер, например 34 или 34А';
-  return null;
-}
-
 /** Результат проверки на экране: к ответам сервера добавляется «вступить пока нельзя». */
 export type InviteResult = InviteCheck | { status: 'unavailable' };
 
@@ -65,28 +55,4 @@ export async function checkInvite(code: string): Promise<InviteResult> {
   const fixtures = demoMode() ? loadFixtures() : null;
   if (!fixtures) return { status: 'unavailable' };
   return (await fixtures).sampleInviteCheck(code);
-}
-
-function normalize(text: string): string {
-  return text.toLocaleLowerCase('ru-RU').replaceAll('ё', 'е').replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-/** Дома, где встречается каждое слово запроса: «лесная 12» находит «ул. Лесная, 12». */
-export function matchHouses(houses: HouseSearchResult[], query: string): HouseSearchResult[] {
-  const words = normalize(query).split(' ').filter(Boolean);
-  if (words.length === 0) return [];
-  return houses.filter((house) => {
-    const haystack = normalize(`${house.address} ${house.locality}`);
-    return words.every((word) => haystack.includes(word));
-  });
-}
-
-/**
- * Поиск Дома для Запроса на вступление. Без API Домов в поиске нет;
- * в dev-демо — несколько примеров.
- */
-export function useHouseSearch(query: string): { status: LoadStatus; houses: HouseSearchResult[] } {
-  const { status, data } = useLoadable<HouseSearchResult[]>([], ({ sampleHouses }) => sampleHouses);
-  const houses = useMemo(() => matchHouses(data, query), [data, query]);
-  return { status, houses };
 }

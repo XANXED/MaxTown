@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { CaretLeft, WifiSlash } from '@phosphor-icons/react';
+import { Button, Spinner } from '@maxhub/max-ui';
+import { CaretLeft, HouseLine, LockKey, WifiSlash } from '@phosphor-icons/react';
+import type { MaxAuthResponse } from '@maxtown/shared';
+import { authorizeCurrentMaxUser, MaxAuthRequestError } from './auth.ts';
+import { EmptyState, ScreenHeading } from './components/ui.tsx';
 import { ContactsScreen } from './screens/ContactsScreen.tsx';
 import { EventScreen } from './screens/EventScreen.tsx';
 import { HomeScreen } from './screens/HomeScreen.tsx';
 import { HouseEventsScreen } from './screens/HouseEventsScreen.tsx';
 import { HouseStateScreen } from './screens/HouseStateScreen.tsx';
+import { HouseSetupScreen } from './screens/HouseSetupScreen.tsx';
 import { JoinScreen } from './screens/JoinScreen.tsx';
 import { NotificationsScreen } from './screens/NotificationsScreen.tsx';
 import { NewRequestScreen } from './screens/NewRequestScreen.tsx';
@@ -26,6 +31,9 @@ import {
   type AppRoute,
 } from './routes.ts';
 import { launchInviteCode } from './data/join.ts';
+import { demoMode } from './data/loadable.ts';
+import { demoPendingHouseSetup, launchSetupChatId } from './houseSetup.ts';
+import { currentMaxInitData, waitForMaxInitData } from './maxLaunch.ts';
 import { useOnline } from './network.ts';
 import { hasSeenWelcome, markWelcomeSeen } from './welcome.ts';
 import './app.css';
@@ -52,16 +60,63 @@ function currentEntry(): HistoryEntry {
   return { step: typeof state?.step === 'number' ? state.step : 0, scrollY: state?.scrollY };
 }
 
-/** В MAX «Назад» — системная кнопка; в браузере её нет, и внутренним экранам нужна своя. */
-const insideMax = Boolean(window.WebApp?.initData);
+type MaxAuthorizationState =
+  | { status: 'demo' }
+  | { status: 'loading' }
+  | { status: 'ready'; authorization: MaxAuthResponse }
+  | { status: 'error'; message: string; accessDenied: boolean };
+
+function MaxAuthorizationScreen({
+  state,
+  onRetry,
+}: {
+  state: Extract<MaxAuthorizationState, { status: 'loading' | 'error' }>;
+  onRetry: () => void;
+}) {
+  const loading = state.status === 'loading';
+  return (
+    <main className="screen screen--inner" id="main-content">
+      <ScreenHeading description="Вход доступен участникам подключённого домового чата MAX">
+        Доступ к дому
+      </ScreenHeading>
+      <div className="list-card">
+        <EmptyState
+          icon={loading ? HouseLine : LockKey}
+          title={loading ? 'Проверяем участие в чате' : state.message}
+          description={
+            loading
+              ? 'Это займёт несколько секунд'
+              : state.accessDenied
+                ? 'Попросите администратора домового чата добавить MaxTown и выдать боту права администратора'
+                : 'Проверьте интернет и попробуйте ещё раз'
+          }
+          action={
+            loading ? (
+              <Spinner size={20} />
+            ) : (
+              <Button size="small" variant="secondary" onClick={onRetry}>
+                Проверить снова
+              </Button>
+            )
+          }
+        />
+      </div>
+    </main>
+  );
+}
 
 export function App() {
   const [route, setRoute] = useState<AppRoute>(initialRoute);
   const [notice, setNotice] = useState<{ message: string; leaving: boolean } | null>(null);
   const noticeTimers = useRef<number[]>([]);
   const online = useOnline();
+  const [maxAuthorization, setMaxAuthorization] = useState<MaxAuthorizationState>({
+    status: import.meta.env.DEV && !currentMaxInitData() ? 'demo' : 'loading',
+  });
+  const [demoSetupDone, setDemoSetupDone] = useState(false);
   /** Куда прокрутить после смены экрана: наверх или туда, где Жилец был до перехода. */
   const pendingScroll = useRef(0);
+  const insideMax = Boolean(currentMaxInitData());
 
   const navigate = useCallback((nextRoute: AppRoute) => {
     const nextHash = hashForRoute(nextRoute);
@@ -98,6 +153,30 @@ export function App() {
       window.setTimeout(() => setNotice(null), NOTICE_DURATION_MS + NOTICE_EXIT_MS),
     ];
   }, []);
+
+  const authorizeInMax = useCallback(() => {
+    setMaxAuthorization({ status: 'loading' });
+    void waitForMaxInitData()
+      .then((initData) => {
+        if (!initData) return null;
+        return authorizeCurrentMaxUser(globalThis.fetch, initData);
+      })
+      .then((authorization) => {
+        setMaxAuthorization(authorization ? { status: 'ready', authorization } : { status: 'demo' });
+      })
+      .catch((error: unknown) => {
+        const requestError = error instanceof MaxAuthRequestError ? error : null;
+        setMaxAuthorization({
+          status: 'error',
+          message: requestError?.message ?? 'Не удалось проверить доступ через MAX',
+          accessDenied: requestError?.status === 403,
+        });
+      });
+  }, []);
+
+  useEffect(() => {
+    authorizeInMax();
+  }, [authorizeInMax]);
 
   useEffect(() => {
     // «Назад» и «Вперёд» браузера, ручная правка адреса. Оба события приходят
@@ -138,7 +217,7 @@ export function App() {
     backButton.onClick(goBack);
 
     return () => backButton.offClick(goBack);
-  }, [goBack, route]);
+  }, [goBack, insideMax, route]);
 
   useEffect(
     () => () => {
@@ -146,6 +225,43 @@ export function App() {
     },
     [],
   );
+
+  if (maxAuthorization.status === 'loading' || maxAuthorization.status === 'error') {
+    return (
+      <div className="app-shell">
+        <MaxAuthorizationScreen state={maxAuthorization} onRetry={authorizeInMax} />
+      </div>
+    );
+  }
+
+  const requestedSetupChatId = launchSetupChatId();
+  const pendingHouseSetup =
+    maxAuthorization.status === 'ready'
+      ? requestedSetupChatId !== null
+        ? maxAuthorization.authorization.pendingHouseSetups.find(
+            (setup) => setup.chatId === requestedSetupChatId,
+          ) ?? null
+        : maxAuthorization.authorization.houses.length === 0
+          ? maxAuthorization.authorization.pendingHouseSetups[0] ?? null
+          : null
+      : demoMode() === 'house-setup' && !demoSetupDone
+        ? demoPendingHouseSetup()
+        : null;
+
+  if (pendingHouseSetup) {
+    return (
+      <div className="app-shell">
+        <HouseSetupScreen
+          setup={pendingHouseSetup}
+          onOpenHouse={() => {
+            setDemoSetupDone(true);
+            authorizeInMax();
+            navigate(ROUTES.home);
+          }}
+        />
+      </div>
+    );
+  }
 
   let screen;
 
@@ -192,7 +308,7 @@ export function App() {
       screen = <NotificationsScreen navigate={navigate} />;
       break;
     case ROUTES.join:
-      screen = <JoinScreen navigate={navigate} notify={notify} />;
+      screen = <JoinScreen navigate={navigate} />;
       break;
     case ROUTES.house:
       screen = <HouseStateScreen navigate={navigate} />;

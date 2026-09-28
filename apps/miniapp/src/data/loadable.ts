@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 //   ?demo=filled  — данные из fixtures.ts
 //   ?demo=loading — вечные скелетоны
 //   ?demo=error   — ошибка загрузки; «Повторить» подгружает примеры
+//   ?demo=house-setup — выбор адреса при подключении Домового чата
 // Фикстуры грузит только loadFixtures(): import() стоит прямо под
 // import.meta.env.DEV, сборщик выкидывает его вместе с fixtures.ts.
 // Не переносите import('./fixtures.ts') в другие места — чанк с примерами
@@ -20,7 +21,7 @@ export function loadFixtures(): Promise<Fixtures> | null {
   return import.meta.env.DEV ? import('./fixtures.ts') : null;
 }
 
-export type DemoMode = 'filled' | 'loading' | 'error';
+export type DemoMode = 'filled' | 'loading' | 'error' | 'house-setup';
 
 export type LoadStatus = 'loading' | 'ready' | 'error';
 
@@ -30,7 +31,7 @@ export type Loadable<T> = {
   retry: () => void;
 };
 
-const demoModes = new Set<string>(['filled', 'loading', 'error']);
+const demoModes = new Set<string>(['filled', 'loading', 'error', 'house-setup']);
 
 /** Режим примера из строки запроса: `?demo=filled` → 'filled'. Незнакомый — null. */
 export function parseDemoMode(search: string): DemoMode | null {

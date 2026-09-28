@@ -15,6 +15,8 @@
     "dev:api": "npm run dev -w @maxtown/api",
     "dev:bot": "npm run dev -w @maxtown/bot",
     "build": "npm run build --workspaces --if-present",
+    "build:cloudflare": "npm run build -w @maxtown/miniapp && npm run deploy:dry -w @maxtown/bot",
+    "deploy:cloudflare": "npm run build -w @maxtown/miniapp && npm run deploy -w @maxtown/bot",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest"

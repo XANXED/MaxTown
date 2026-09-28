@@ -1,9 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "types": ["node"]
+    "lib": ["ES2023", "WebWorker"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": []
   },
   "include": ["src"]
 }

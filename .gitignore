@@ -2,10 +2,13 @@ node_modules/
 dist/
 *.tsbuildinfo
 .vite/
+.wrangler/
+.dev.vars*
 
 .env
 .env.*
 !.env.example
 
 .scratch/
+.data/
 .DS_Store
