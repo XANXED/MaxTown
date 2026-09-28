@@ -68,6 +68,7 @@ describe('Fastify static app hosting', () => {
 
   it('protects the Admin app and assets, serves its SPA route, and denies dotfiles', async () => {
     const unauthorized = await app.inject({ url: '/admin/' });
+    const encodedPath = await app.inject({ url: '/admin%2Fassets%2Fadmin.js' });
     const authorization = `Basic ${Buffer.from(`moderator@example.org:${password}`).toString('base64')}`;
     const index = await app.inject({ url: '/admin/', headers: { authorization } });
     const asset = await app.inject({ url: '/admin/assets/admin.js', headers: { authorization } });
@@ -75,6 +76,7 @@ describe('Fastify static app hosting', () => {
     const dotfile = await app.inject({ url: '/admin/.env', headers: { authorization } });
 
     expect(unauthorized.statusCode).toBe(401);
+    expect(encodedPath.body).not.toContain('window.app = "admin"');
     expect(index.statusCode).toBe(200);
     expect(index.body).toContain('Moderator fixture');
     expect(asset.statusCode).toBe(200);
