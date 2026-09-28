@@ -99,7 +99,7 @@ it.skipIf(!databaseUrl)('preserves old public totals while deleting every histor
     await admin.query(`CREATE SCHEMA ${schema}`);
     const client = await scoped.connect();
     try {
-      for (const file of ['0001_core.sql', '0002_append_only_audit.sql', '0003_vk_identity.sql']) {
+      for (const file of ['0001_core.sql', '0002_immutable_audit_events.sql', '0003_vk_identity.sql']) {
         await client.query(readFileSync(new URL(`./migrations/${file}`, import.meta.url), 'utf8'));
       }
       const inserted = await client.query<{ house_id: string; resident_id: string; membership_id: string; poll_id: string; option_id: string }>(`

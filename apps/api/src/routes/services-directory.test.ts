@@ -16,6 +16,7 @@ describe.skipIf(!databaseUrl)('house service directory', () => {
   let residentToken: string;
   let headmanToken: string;
   let foreignToken: string;
+  let apartmentNumber = 0;
 
   async function person(key: string): Promise<{ id: string; token: string }> {
     const result = await pool.query<{ id: string }>('INSERT INTO residents (vk_user_id, display_name) VALUES ($1, $1) RETURNING id', [key]);
@@ -25,12 +26,14 @@ describe.skipIf(!databaseUrl)('house service directory', () => {
 
   async function addMember(targetHouseId: string, key: string, role: 'resident' | 'headman'): Promise<string> {
     const member = await person(key);
-    const apartment = await pool.query<{ id: string }>("INSERT INTO apartments (house_id, number) VALUES ($1, '1') RETURNING id", [targetHouseId]);
+    apartmentNumber += 1;
+    const apartment = await pool.query<{ id: string }>('INSERT INTO apartments (house_id, number) VALUES ($1, $2) RETURNING id', [targetHouseId, String(apartmentNumber)]);
     await pool.query('INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, $4)', [targetHouseId, apartment.rows[0]!.id, member.id, role]);
     return member.token;
   }
 
   beforeEach(async () => {
+    apartmentNumber = 0;
     pool = createPool(databaseUrl!);
     await runMigrations(pool);
     await pool.query('TRUNCATE TABLE houses CASCADE');
