@@ -1,3 +1,14 @@
+FROM node:24-alpine AS build
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY apps ./apps
+COPY packages ./packages
+COPY design ./design
+COPY tsconfig.base.json ./tsconfig.base.json
+RUN npm ci --workspace=@maxtown/miniapp --workspace=@maxtown/admin --workspace=@maxtown/shared --include-workspace-root=false
+RUN npm run build --workspace=@maxtown/miniapp && npm run build --workspace=@maxtown/admin
+
 FROM node:24-alpine AS dependencies
 
 WORKDIR /app
@@ -8,7 +19,7 @@ RUN npm ci --omit=dev --workspace=@maxtown/api --workspace=@maxtown/shared --inc
 
 FROM node:24-alpine AS runtime
 
-ENV NODE_ENV=production
+ENV NODE_ENV=production PORT=3000
 WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
@@ -16,6 +27,8 @@ COPY --from=dependencies /app/apps/api/package.json ./apps/api/package.json
 COPY --from=dependencies /app/apps/api/src ./apps/api/src
 COPY --from=dependencies /app/packages/shared/package.json ./packages/shared/package.json
 COPY --from=dependencies /app/packages/shared/src ./packages/shared/src
+COPY --from=build --chown=node:node /app/apps/miniapp/dist ./apps/miniapp/dist
+COPY --from=build --chown=node:node /app/apps/admin/dist ./apps/admin/dist
 
 USER node
 EXPOSE 3000

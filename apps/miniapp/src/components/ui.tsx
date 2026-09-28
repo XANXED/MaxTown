@@ -10,7 +10,7 @@ import {
   Warning,
   CalendarBlank,
 } from '@phosphor-icons/react';
-import { Button, Counter, Typography } from '@maxhub/max-ui';
+import { Button, Counter, Typography } from './platform-ui.tsx';
 import { categoryVisual } from './categoryVisuals.ts';
 import type { HouseEventKind, HouseEventSummary, RequestSummary } from '@maxtown/shared';
 import {
@@ -95,7 +95,7 @@ export function FilterChips<T extends string>({ label, options, value, onChange 
   );
 }
 
-/** Выбор одного из двух-трёх вариантов: подложка с бегунком, как в настройках MAX. */
+/** Выбор одного из двух-трёх вариантов: подложка с бегунком. */
 export function Segmented<T extends string>({ label, options, value, onChange }: ChoiceProps<T>) {
   const index = Math.max(
     options.findIndex((option) => option.value === value),
@@ -301,7 +301,7 @@ type ListGroupProps = {
   plain?: boolean;
 };
 
-/** Группа с подписью капсом, как в настройках MAX: подпись и карточка под ней. */
+/** Группа с подписью капсом: подпись и карточка под ней. */
 export function ListGroup({ id, title, children, plain = false }: ListGroupProps) {
   return (
     <section className="list-group" aria-labelledby={id}>

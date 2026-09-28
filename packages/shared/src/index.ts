@@ -163,7 +163,7 @@ export type InviteCheck =
 export type UserNotification = {
   id: string;
   /** Что именно изменилось — от этого зависит значок. */
-  kind: 'request-status' | 'request-comment' | 'request-visit' | 'join-approved' | 'join-declined';
+  kind: 'request-status' | 'request-comment' | 'request-visit' | 'join-approved' | 'join-declined' | 'community-poll';
   /** Готовая строка: «Заявка № 2431 выполнена». */
   title: string;
   /** Подробность: текст Комментария, время Визита. */
@@ -173,6 +173,9 @@ export type UserNotification = {
   read: boolean;
   /** Заявка, которую открывает Уведомление; у Запроса на вступление нет. */
   requestId?: string;
+  /** Дом и Опрос для перехода из уведомления. */
+  houseId?: string;
+  pollId?: string;
 };
 
 /** Контакт: телефон или ссылка службы, полезной Жильцам Дома. Список ведёт Староста. */
@@ -186,6 +189,32 @@ export type Contact = {
   phone?: string;
   link?: string;
   kind: 'dispatch' | 'emergency' | 'police' | 'other';
+};
+
+/** Тариф Услуги дома с явно указанными источником и датой проверки. */
+export type HouseServiceTariff = {
+  id: string;
+  amount: string;
+  currency: string;
+  billingPeriod: string;
+  conditions: string;
+  startsOn: string;
+  endsOn: string | null;
+  source: string;
+  checkedOn: string;
+};
+
+/** Услуга конкретного Дома и Поставщик, который её оказывает. */
+export type HouseService = {
+  id: string;
+  category: 'internet' | 'telecom' | 'utilities' | 'maintenance' | 'other';
+  provider: string;
+  title: string;
+  state: 'available' | 'limited' | 'unavailable' | 'discontinued';
+  contacts: { phone?: string; link?: string; details?: string };
+  note: string | null;
+  updatedAt: string;
+  tariffs: HouseServiceTariff[];
 };
 
 /** Место рядом: организация поблизости от Дома. */
@@ -243,11 +272,11 @@ export type HouseRegistration = {
   locality: string;
   /** GUID дома в ГАР; нет — адреса нет в реестре (новостройка), сверять вручную. */
   garHouseGuid?: string;
-  /** Кто зарегистрировал: будущий Староста. Имя и ник — из MAX. */
+  /** Кто зарегистрировал: будущий Староста. Имя и ник — из VK. */
   headman: {
     name: string;
-    maxUsername?: string;
-    /** Телефон, подтверждённый через MAX; нет — не подтверждал. */
+    vkUsername?: string;
+    /** Телефон, который Староста передал при регистрации. */
     phone?: string;
     /** Квартира Старосты в этом Доме. */
     apartment: string;
@@ -278,7 +307,7 @@ export type HouseMembershipSummary = {
 /** Проверенные данные человека из текущей серверной сессии. */
 export type AuthResident = {
   id: string;
-  maxUserId: string;
+  vkUserId: string | null;
   displayName: string;
   username: string | null;
   phone: string | null;
@@ -316,6 +345,7 @@ export type CommunityPollResults = {
   question: string;
   totalVotes: number;
   options: CommunityPollOption[];
+  myVoteOptionId: string | null;
 };
 
 /** Текущий объявленный режим ремонта в Доме и автор последнего изменения. */

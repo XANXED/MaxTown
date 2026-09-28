@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { CalendarBlank, CheckCircle, Drop, Lightning, Moon, Thermometer } from '@phosphor-icons/react';
-import { Button, Typography } from '@maxhub/max-ui';
+import { Button, Typography } from '../components/platform-ui.tsx';
 import type { Meter, ReadingsWindow } from '@maxtown/shared';
 import {
   EmptyState,

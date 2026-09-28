@@ -26,7 +26,7 @@ it('keeps the bearer token in memory and clears it on logout', () => {
   expect(sessionModule.getSession()).toBeNull();
 });
 
-it('sends raw MAX initData to the auth endpoint and saves only the returned token', async () => {
+it('sends signed VK launch parameters to the API and saves only the returned server token', async () => {
   const token = 'Q'.repeat(43);
   const fetchMock = vi.fn(async (_input: RequestInfo | URL, _request?: RequestInit) => new Response(
     JSON.stringify({ token, expiresAt: '2026-10-03T12:00:00.000Z' }),
@@ -34,13 +34,13 @@ it('sends raw MAX initData to the auth endpoint and saves only the returned toke
   ));
   vi.stubGlobal('fetch', fetchMock);
 
-  expect(typeof sessionModule?.authenticateWithMax).toBe('function');
-  if (!sessionModule?.authenticateWithMax) return;
-  await sessionModule.authenticateWithMax('raw=MAX%20initData');
+  expect(typeof sessionModule?.authenticateWithVk).toBe('function');
+  if (!sessionModule?.authenticateWithVk) return;
+  await sessionModule.authenticateWithVk('vk_app_id=123&sign=signature');
 
   const [, request] = fetchMock.mock.calls[0]!;
   expect(request?.method).toBe('POST');
-  expect(JSON.parse(String(request?.body))).toEqual({ initData: 'raw=MAX%20initData' });
+  expect(JSON.parse(String(request?.body))).toEqual({ launchParams: 'vk_app_id=123&sign=signature' });
   expect(sessionModule.getSession()).toBe(token);
 });
 

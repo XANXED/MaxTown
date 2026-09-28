@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import type { MeResponse } from '@maxtown/shared';
-import { validateMaxInitData } from '../auth/max-init-data.ts';
+import { validateVkLaunchParams } from '../auth/vk-launch-params.ts';
 import { createSession, requireAuthentication, revokeSession } from '../auth/sessions.ts';
 
-type AuthBody = { initData: string };
+type AuthBody = { launchParams: string };
 
 type ResidentRow = {
   id: string;
@@ -15,37 +15,37 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool, env: NodeJS
   app.decorateRequest('authToken', null);
 
   app.post<{ Body: AuthBody }>(
-    '/api/auth/max',
+    '/api/auth/vk',
     {
       schema: {
         body: {
           type: 'object',
-          required: ['initData'],
+          required: ['launchParams'],
           additionalProperties: false,
-          properties: { initData: { type: 'string', minLength: 1, maxLength: 16_384 } },
+          properties: { launchParams: { type: 'string', minLength: 1, maxLength: 16_384 } },
         },
       },
     },
     async (request, reply) => {
-      const botToken = env.BOT_TOKEN;
-      if (!botToken?.trim()) return reply.code(503).send({ error: 'authentication_unavailable' });
+      const appSecret = env.VK_APP_SECRET;
+      const appId = env.VK_APP_ID;
+      if (!appSecret?.trim() || !appId?.trim()) return reply.code(503).send({ error: 'authentication_unavailable' });
 
       let identity;
       try {
-        identity = validateMaxInitData(request.body.initData, botToken);
+        identity = validateVkLaunchParams(request.body.launchParams, appSecret, appId);
       } catch {
         return reply.code(401).send({ error: 'unauthorized' });
       }
 
       const resident = await pool.query<ResidentRow>(
-        `INSERT INTO residents (max_user_id, display_name, username)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (max_user_id) DO UPDATE
+        `INSERT INTO residents (vk_user_id, display_name, username)
+         VALUES ($1, $2, NULL)
+         ON CONFLICT (vk_user_id) DO UPDATE
            SET display_name = EXCLUDED.display_name,
-               username = EXCLUDED.username,
                updated_at = now()
          RETURNING id`,
-        [identity.maxUserId, [identity.firstName, identity.lastName].filter(Boolean).join(' '), identity.username],
+        [identity.vkUserId, `Жилец ${identity.vkUserId}`],
       );
       const session = await createSession(pool, resident.rows[0]!.id);
       return { token: session.token, expiresAt: session.expiresAt.toISOString() };

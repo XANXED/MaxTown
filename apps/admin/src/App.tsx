@@ -263,10 +263,10 @@ function Review({ item, all, onApprove, onReject }: ReviewProps) {
         </h3>
         <dl className="facts">
           <div className="facts__row">
-            <dt>Имя в MAX</dt>
+            <dt>Имя в VK</dt>
             <dd>
               {item.headman.name}
-              {item.headman.maxUsername ? <span className="muted"> @{item.headman.maxUsername}</span> : null}
+              {item.headman.vkUsername ? <span className="muted"> @{item.headman.vkUsername}</span> : null}
             </dd>
           </div>
           <div className="facts__row">

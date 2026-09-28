@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { CheckCircle, FileX, PaperPlaneRight, Prohibit, XCircle } from '@phosphor-icons/react';
-import { Button, Textarea, Typography } from '@maxhub/max-ui';
+import { Button, Textarea, Typography } from '../components/platform-ui.tsx';
 import type { RequestDetails } from '@maxtown/shared';
 import { categoryVisual } from '../components/categoryVisuals.ts';
 import { EmptyState, ErrorState, IconTile, ListGroup, SkeletonRows } from '../components/ui.tsx';

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Hammer, Wrench } from '@phosphor-icons/react';
-import { Button, Input, Spinner, Textarea, Typography } from '@maxhub/max-ui';
+import { Button, Input, Spinner, Textarea, Typography } from '../components/platform-ui.tsx';
 import type { HouseRole, RepairMode } from '@maxtown/shared';
 import { getCurrentResident } from '../auth/session.ts';
 import { fromDateTimeLocal, loadRepairMode, saveRepairMode, toDateTimeLocal } from '../data/repairMode.ts';

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Buildings, HourglassMedium, House, LinkSimple, MagnifyingGlass, QrCode, WarningCircle } from '@phosphor-icons/react';
-import { Button, Input, Spinner, Typography } from '@maxhub/max-ui';
+import { Button, Input, Spinner, Typography } from '../components/platform-ui.tsx';
+import bridge from '@vkontakte/vk-bridge';
+import { readVkCode } from '../platform/vk.ts';
 import type { HouseRegistration, HouseSearchResult } from '@maxtown/shared';
 import { IconTile, ListCard, RowShell, ScreenHeading, Segmented, SkeletonRows } from '../components/ui.tsx';
 import {
@@ -148,7 +150,7 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
   const [check, setCheck] = useState<CheckState>({ state: 'idle' });
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
-  const scanner = window.WebApp?.initData ? window.WebApp.openCodeReader : undefined;
+  const scanner = bridge.supports('VKWebAppOpenCodeReader');
 
   const verify = (code: string) => {
     setError(null);
@@ -171,17 +173,16 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
     event.preventDefault();
     const code = parseInviteCode(link);
     if (!code) {
-      setError('Это не похоже на Приглашение. Вставьте ссылку целиком: она начинается с https://max.ru/');
+      setError('Это не похоже на Приглашение. Вставьте ссылку целиком: она начинается с https://vk.com/app');
       return;
     }
     verify(code);
   };
 
   const scan = async () => {
-    if (!scanner) return;
     try {
-      const text = await scanner.call(window.WebApp, true);
-      const code = parseInviteCode(text);
+      const scannedValue = await readVkCode(bridge);
+      const code = scannedValue ? parseInviteCode(scannedValue) : null;
       if (code) verify(code);
       else setError('В QR-коде нет Приглашения MaxTown. Попросите код ещё раз');
     } catch {
@@ -256,7 +257,7 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
           size="large"
           inputMode="url"
           autoComplete="off"
-          placeholder="https://max.ru/…"
+          placeholder="https://vk.com/app…"
           value={link}
           withClearButton
           aria-invalid={Boolean(error)}

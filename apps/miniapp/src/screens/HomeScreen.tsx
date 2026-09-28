@@ -1,5 +1,5 @@
 import { Bell, CaretRight } from '@phosphor-icons/react';
-import { Button, Counter, IconButton, Typography } from '@maxhub/max-ui';
+import { Button, Counter, IconButton, Typography } from '../components/platform-ui.tsx';
 import buildingImage from '../assets/home-building.webp';
 import { systemVisuals } from '../components/categoryVisuals.ts';
 import { serviceVisuals } from '../components/serviceVisuals.ts';
@@ -21,7 +21,7 @@ import { brokenFirst, houseSummary, useHouseState } from '../data/houseState.ts'
 import { unreadCount, useNotifications } from '../data/notifications.ts';
 import type { ServiceIcon } from '../data/services.ts';
 import { greeting } from '../data/text.ts';
-import { currentProfileUser } from '../maxUser.ts';
+import { currentProfileUser } from '../vkUser.ts';
 import { eventRoute, requestRoute, ROUTES } from '../routes.ts';
 import type { Navigate } from './types.ts';
 

@@ -68,13 +68,8 @@ describe('startRoute', () => {
     expect(startRoute('', false)).toBe(ROUTES.welcome);
   });
 
-  it('starts with the welcome screen when MAX passes launch data in the hash', () => {
-    expect(startRoute('#WebAppData=user%3D%7B%7D&WebAppPlatform=web', false)).toBe(ROUTES.welcome);
-  });
-
   it('opens home once the welcome screen was seen', () => {
     expect(startRoute('', true)).toBe(ROUTES.home);
-    expect(startRoute('#WebAppData=x', true)).toBe(ROUTES.home);
   });
 
   it('respects an explicit screen in the hash', () => {

@@ -1,5 +1,5 @@
 import { CalendarBlank, CaretRight, CheckCircle, House, Warning, WarningCircle } from '@phosphor-icons/react';
-import { Button, Typography } from '@maxhub/max-ui';
+import { Button, Typography } from '../components/platform-ui.tsx';
 import type { HouseSystemState } from '@maxtown/shared';
 import { categoryVisual } from '../components/categoryVisuals.ts';
 import {

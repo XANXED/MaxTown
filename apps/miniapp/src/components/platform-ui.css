@@ -1,0 +1,16 @@
+.vk-text {
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.vk-text--hero { font-size: var(--font-size-hero); line-height: var(--line-height-hero); font-weight: 600; }
+.vk-text--header { font-size: var(--font-size-header); line-height: var(--line-height-header); font-weight: 600; }
+.vk-text--subheader { font-size: var(--font-size-subheader); line-height: var(--line-height-subheader); font-weight: 600; }
+.vk-text--title { font-size: var(--font-size-title); line-height: var(--line-height-title); font-weight: 600; }
+.vk-text--body { font-size: var(--font-size-body); line-height: var(--line-height-body); font-weight: 400; }
+.vk-text--body-strong { font-size: var(--font-size-body-strong); line-height: var(--line-height-body-strong); font-weight: 600; }
+.vk-text--detail { font-size: var(--font-size-detail); line-height: var(--line-height-detail); font-weight: 400; }
+.vk-text--description { font-size: var(--font-size-description); line-height: var(--line-height-description); font-weight: 400; }
+.vk-text--note { font-size: var(--font-size-note); line-height: var(--line-height-note); font-weight: 400; }
+.vk-text--secondary { color: var(--text-secondary); }
+.vk-text--tertiary { color: var(--text-tertiary); }

@@ -280,7 +280,7 @@ time,
 
 /*
  * Тона плиток. Цветные — палитра --tile-* из design/tokens.css (акценты тем
- * MAX): залитая иконка в цвет на подложке того же тона. Объём даёт блик
+ * VK): залитая иконка в цвет на подложке того же тона. Объём даёт блик
  * по верхнему краю подложки и мягкая тень иконки в её же цвете — это не
  * тень карточки. danger — сигнальный красный, только для Аварии.
  */
@@ -339,7 +339,7 @@ time,
   padding-top: var(--space-16);
 }
 
-/* Вне MAX у внутренних экранов нет системной «Назад» — показываем свою. */
+/* На внутренних экранах показываем собственную навигацию «Назад». */
 .back-bar {
   padding: var(--space-6) var(--space-8) var(--space-0);
 }
@@ -559,7 +559,7 @@ time,
   display: grid;
   /*
    * Ширина колонки растёт вместе с текстом: обычно 4 в ряд, а на крупном
-   * шрифте MAX плитки встают 2×2 — слова не рвутся посередине.
+   * шрифте VK плитки встают 2×2 — слова не рвутся посередине.
    */
   grid-template-columns: repeat(auto-fit, minmax(calc(var(--font-size-description) * 5.5), 1fr));
   gap: var(--space-8);
@@ -662,7 +662,7 @@ time,
   position: relative;
 }
 
-/* Разделитель от начала текста, как в списках MAX. */
+/* Разделитель от начала текста, как в списках VK. */
 .list-card > * + *::before {
   position: absolute;
   z-index: 1;
@@ -1131,7 +1131,7 @@ time,
   color: var(--text-tertiary);
 }
 
-/* Подробности: подпись слева, значение справа, как в ячейках MAX. */
+/* Подробности: подпись слева, значение справа, как в ячейках VK. */
 .facts {
   margin: var(--space-0);
 }
@@ -1192,7 +1192,7 @@ time,
 }
 
 /*
- * Комментарии — пузыри MAX: входящие на --bubble-in-*, свои на --bubble-out-*
+ * Комментарии — пузыри VK: входящие на --bubble-in-*, свои на --bubble-out-*
  * (в светлой схеме это сплошной цвет, в тёмной — фирменный градиент пузыря).
  */
 .comments {
@@ -1261,7 +1261,7 @@ time,
   padding-inline: var(--space-16);
 }
 
-/* Поле Комментария — строка ввода MAX: плоское поле и иконка отправки в цвет акцента. */
+/* Поле Комментария — строка ввода VK: плоское поле и иконка отправки в цвет акцента. */
 .comment-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1326,7 +1326,7 @@ time,
   mask-image: none;
 }
 
-/* Что делать Жильцу: строки с разделителями, как в списках MAX. */
+/* Что делать Жильцу: строки с разделителями, как в списках VK. */
 .advice {
   padding: var(--space-0);
   list-style: none;
@@ -1677,7 +1677,7 @@ time,
   content: '';
 }
 
-/* Деструктивное действие отдельной ячейкой, как «Выйти» в настройках MAX. */
+/* Деструктивное действие отдельной ячейкой, как «Выйти» в настройках VK. */
 .danger-action {
   width: 100%;
   min-height: calc(var(--space-24) * 2);
@@ -2012,6 +2012,17 @@ time,
   gap: var(--space-12);
 }
 
+.community-permission,
+.community-permission__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.community-permission > p {
+  margin: 0;
+}
+
 .community-panel__heading h2,
 .community-poll h3 {
   margin: 0;
@@ -2163,6 +2174,56 @@ time,
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
+}
+
+.house-service-card,
+.house-service-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-16);
+}
+
+.house-service-card + .house-service-card,
+.house-service-editor {
+  border-top: 1px solid var(--divider-primary);
+}
+
+.house-service-card h3,
+.house-service-editor h3,
+.house-service-card p {
+  margin: 0;
+}
+
+.house-service-card a,
+.house-service-tariff a {
+  color: var(--bubble-link);
+  overflow-wrap: anywhere;
+}
+
+.house-service-tariff,
+.house-service-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+}
+
+.house-service-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.house-service-select {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-8) var(--space-12);
+  color: var(--text-primary);
+  background: var(--input-background);
+  border: 0;
+  border-radius: var(--radius-8);
+  font: inherit;
 }
 
 @media (prefers-color-scheme: dark) {

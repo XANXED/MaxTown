@@ -30,7 +30,7 @@ function toRegistration(row: RegistrationRow): HouseRegistration {
     ...(row.gar_house_guid ? { garHouseGuid: row.gar_house_guid } : {}),
     headman: {
       name: row.display_name, apartment: row.apartment_number,
-      ...(row.username ? { maxUsername: row.username } : {}), ...(row.phone ? { phone: row.phone } : {}),
+      ...(row.username ? { vkUsername: row.username } : {}), ...(row.phone ? { phone: row.phone } : {}),
     },
     submittedAt: row.submitted_at.toISOString(), status: row.status,
     ...(row.decided_at ? { decidedAt: row.decided_at.toISOString() } : {}),
@@ -44,8 +44,7 @@ const registrationSelect = `SELECT r.id, r.address, r.locality, r.gar_house_guid
   FROM house_registrations r JOIN residents p ON p.id = r.submitted_by_resident_id`;
 
 export function registerModeratorRoutes(app: FastifyInstance, pool: Pool): void {
-  async function principal(request: { headers: Record<string, unknown> }): Promise<string | null> {
-    const value = request.headers['x-maxtown-moderator'];
+  async function principal(value: string | null): Promise<string | null> {
     if (typeof value !== 'string' || !/^[A-Za-z0-9_.@-]{1,100}$/.test(value)) return null;
     const moderator = await pool.query('SELECT 1 FROM moderators WHERE principal = $1 AND disabled_at IS NULL', [value]);
     return moderator.rowCount ? value : null;
@@ -55,7 +54,7 @@ export function registerModeratorRoutes(app: FastifyInstance, pool: Pool): void 
     '/api/moderator/registrations',
     { schema: { querystring: { type: 'object', additionalProperties: false, properties: { status: { type: 'string', enum: ['pending', 'approved', 'rejected'] } } } } },
     async (request, reply) => {
-      const actor = await principal(request);
+      const actor = await principal(request.moderatorPrincipal);
       if (!actor) return reply.code(401).send({ error: 'moderator_authentication_required' });
       const result = request.query.status
         ? await pool.query<RegistrationRow>(`${registrationSelect} WHERE r.status = $1 ORDER BY r.submitted_at ASC`, [request.query.status])
@@ -74,7 +73,7 @@ export function registerModeratorRoutes(app: FastifyInstance, pool: Pool): void 
       },
     },
     async (request, reply) => {
-      const actor = await principal(request);
+      const actor = await principal(request.moderatorPrincipal);
       if (!actor) return reply.code(401).send({ error: 'moderator_authentication_required' });
       if (request.body.decision === 'reject' && !request.body.reason?.trim()) return reply.code(400).send({ error: 'rejection_reason_required' });
       let result: { status: 404 | 409 } | { status: 200; registration: HouseRegistration };

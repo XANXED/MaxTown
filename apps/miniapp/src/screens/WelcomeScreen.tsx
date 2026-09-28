@@ -1,5 +1,5 @@
 import { House, Phone, Wrench } from '@phosphor-icons/react';
-import { Button, Typography } from '@maxhub/max-ui';
+import { Button, Typography } from '../components/platform-ui.tsx';
 import buildingImage from '../assets/home-building.webp';
 import { IconTile, type IconComponent, type TileColor } from '../components/ui.tsx';
 import { useHomeData } from '../data/home.ts';
@@ -49,7 +49,7 @@ export function WelcomeScreen({ onJoin, onContinue }: WelcomeScreenProps) {
 
         <div className="welcome__copy stagger">
           <Typography.Text asChild variant="hero">
-            <h1>Ваш дом в MAX</h1>
+            <h1>Ваш дом в VK</h1>
           </Typography.Text>
           <Typography.Text asChild variant="body" color="secondary">
             <p>Состояние дома, Заявки и нужные Контакты — в одном месте, без звонков и личных походов.</p>

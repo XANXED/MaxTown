@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Button, Spinner, Typography } from '@maxhub/max-ui';
+import { Button, Spinner, Typography } from './components/platform-ui.tsx';
 import { CaretLeft, WifiSlash } from '@phosphor-icons/react';
 import { ContactsScreen } from './screens/ContactsScreen.tsx';
 import { EventScreen } from './screens/EventScreen.tsx';
@@ -29,20 +29,22 @@ import {
 import { launchInviteCode } from './data/join.ts';
 import { useOnline } from './network.ts';
 import { hasSeenWelcome, markWelcomeSeen } from './welcome.ts';
-import { authenticateWithMax, getCurrentResident } from './auth/session.ts';
+import { authenticateWithVk, getCurrentResident } from './auth/session.ts';
 import type { HouseRole } from '@maxtown/shared';
 import './app.css';
 
 const NOTICE_DURATION_MS = 3200;
 /** Столько длится анимация исчезновения уведомления в app.css (--motion-base). */
 const NOTICE_EXIT_MS = 240;
-const REQUIRE_SERVER_AUTH = !import.meta.env.DEV || Boolean(window.WebApp?.initData);
+const launchParams = window.__VK_LAUNCH_PARAMS__ ?? new URLSearchParams(window.location.search).toString();
+const REQUIRE_SERVER_AUTH = !import.meta.env.DEV || Boolean(new URLSearchParams(launchParams).get('sign'));
 const CommunityScreen = lazy(() => import('./screens/CommunityScreen.tsx').then(({ CommunityScreen: Screen }) => ({ default: Screen })));
 const RepairModeScreen = lazy(() => import('./screens/RepairModeScreen.tsx').then(({ RepairModeScreen: Screen }) => ({ default: Screen })));
 
 function initialRoute(): AppRoute {
   // Открыли по ссылке-приглашению — сразу к вступлению, приветствие не нужно.
   if (launchInviteCode()) return ROUTES.join;
+  if (new URLSearchParams(window.location.search).has('poll_id')) return ROUTES.community;
   return startRoute(window.location.hash, hasSeenWelcome());
 }
 
@@ -58,9 +60,6 @@ function currentEntry(): HistoryEntry {
   return { step: typeof state?.step === 'number' ? state.step : 0, scrollY: state?.scrollY };
 }
 
-/** В MAX «Назад» — системная кнопка; в браузере её нет, и внутренним экранам нужна своя. */
-const insideMax = Boolean(window.WebApp?.initData);
-
 export function App() {
   const [route, setRoute] = useState<AppRoute>(initialRoute);
   const [notice, setNotice] = useState<{ message: string; leaving: boolean } | null>(null);
@@ -70,25 +69,27 @@ export function App() {
   const [authAttempt, setAuthAttempt] = useState(0);
   const [activeHouseId, setActiveHouseId] = useState<string | null>(null);
   const [activeHouseRole, setActiveHouseRole] = useState<HouseRole | null>(null);
+  const [communityPollId, setCommunityPollId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('poll_id'));
   /** Куда прокрутить после смены экрана: наверх или туда, где Жилец был до перехода. */
   const pendingScroll = useRef(0);
 
   useEffect(() => {
     if (!REQUIRE_SERVER_AUTH) return;
     let active = true;
-    const initData = window.WebApp?.initData;
-    if (!initData) {
+    if (!launchParams) {
       setAuthState('error');
       return () => { active = false; };
     }
 
     setAuthState('loading');
-    authenticateWithMax(initData)
+    authenticateWithVk(launchParams)
       .then(() => getCurrentResident())
       .then(({ memberships }) => {
         if (!active) return;
-        setActiveHouseId(memberships[0]?.houseId ?? null);
-        setActiveHouseRole(memberships[0]?.role ?? null);
+        const requestedHouse = new URLSearchParams(window.location.search).get('house_id');
+        const membership = memberships.find((item) => item.houseId === requestedHouse) ?? memberships[0];
+        setActiveHouseId(membership?.houseId ?? null);
+        setActiveHouseRole(membership?.role ?? null);
         setAuthState('ready');
       })
       .catch(() => { if (active) setAuthState('error'); });
@@ -131,6 +132,20 @@ export function App() {
     ];
   }, []);
 
+  const openCommunityPoll = useCallback(async (houseId: string, pollId: string) => {
+    try {
+      const me = await getCurrentResident();
+      const membership = me.memberships.find((item) => item.houseId === houseId);
+      if (!membership) return;
+      setActiveHouseId(houseId);
+      setActiveHouseRole(membership.role);
+      setCommunityPollId(pollId);
+      navigate(ROUTES.community);
+    } catch {
+      notify('Не удалось открыть Опрос. Обновите экран и попробуйте снова.');
+    }
+  }, [navigate, notify]);
+
   useEffect(() => {
     // «Назад» и «Вперёд» браузера, ручная правка адреса. Оба события приходят
     // на один переход — обработчик повторяемый.
@@ -156,22 +171,6 @@ export function App() {
     pendingScroll.current = 0;
   }, [route]);
 
-  useEffect(() => {
-    const backButton = insideMax ? window.WebApp?.BackButton : undefined;
-    if (!backButton) return;
-
-    // Вкладки нижней навигации — корневые экраны, «Назад» на них не нужен.
-    if (isRootRoute(route)) {
-      backButton.hide();
-      return;
-    }
-
-    backButton.show();
-    backButton.onClick(goBack);
-
-    return () => backButton.offClick(goBack);
-  }, [goBack, route]);
-
   useEffect(
     () => () => {
       noticeTimers.current.forEach((timer) => window.clearTimeout(timer));
@@ -186,7 +185,7 @@ export function App() {
       <div className="screen screen--with-panel">
         <main className="inner-content" id="main-content">
           <div className="screen-heading">
-            <Typography.Text asChild variant="header"><h1>Вход через MAX</h1></Typography.Text>
+            <Typography.Text asChild variant="header"><h1>Вход через VK</h1></Typography.Text>
             <Typography.Text asChild variant="body" color="secondary">
               <p>{authState === 'loading' ? 'Проверяем учётную запись…' : 'Не удалось подтвердить вход. Проверьте подключение и попробуйте ещё раз.'}</p>
             </Typography.Text>
@@ -228,7 +227,7 @@ export function App() {
       screen = <HouseEventsScreen navigate={navigate} />;
       break;
     case ROUTES.services:
-      screen = <ServicesScreen navigate={navigate} notify={notify} />;
+      screen = <ServicesScreen navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />;
       break;
     case ROUTES.profile:
       screen = <ProfileScreen navigate={navigate} notify={notify} />;
@@ -237,7 +236,7 @@ export function App() {
       screen = <ReadingsScreen navigate={navigate} />;
       break;
     case ROUTES.community:
-      screen = <CommunityScreen houseId={activeHouseId} role={activeHouseRole} />;
+      screen = <CommunityScreen houseId={activeHouseId} role={activeHouseRole} selectedPollId={communityPollId} />;
       break;
     case ROUTES.repairMode:
       screen = <RepairModeScreen houseId={activeHouseId} role={activeHouseRole} />;
@@ -249,7 +248,7 @@ export function App() {
       screen = <PlacesScreen navigate={navigate} />;
       break;
     case ROUTES.notifications:
-      screen = <NotificationsScreen navigate={navigate} />;
+      screen = <NotificationsScreen navigate={navigate} openCommunityPoll={(houseId, pollId) => void openCommunityPoll(houseId, pollId)} />;
       break;
     case ROUTES.join:
       screen = <JoinScreen navigate={navigate} notify={notify} />;
@@ -297,7 +296,7 @@ export function App() {
       )}
       {/* key перезапускает анимацию появления при смене экрана */}
       <div className="screen-transition" key={route}>
-        {!insideMax && !isRootRoute(route) ? (
+        {!isRootRoute(route) ? (
           <div className="back-bar">
             <button className="text-action pressable back-bar__button" type="button" onClick={goBack}>
               <CaretLeft className="icon icon--small" weight="bold" aria-hidden />
