@@ -1,6 +1,7 @@
 import type { HouseState, HouseSystemState } from '@maxtown/shared';
 import { useLoadable, type Loadable } from './loadable.ts';
 import { glueRanges, plural } from './text.ts';
+import { useCurrentHouse } from '../houseSession.ts';
 
 // Состояние дома: работает ли каждая Система прямо сейчас. Авария важнее
 // Планового отключения — о ней говорим первой.
@@ -18,6 +19,9 @@ function names(systems: HouseSystemState[]): string {
 
 /** Одна фраза о Доме для главной и шапки экрана. */
 export function houseSummary(systems: HouseSystemState[]): HouseSummary {
+  if (systems.length === 0) return {
+    tone: 'positive', title: 'Дом подключён', description: 'Данные о системах дома ещё не добавлены',
+  };
   const accidents = systems.filter(({ status }) => status === 'accident');
   const outages = systems.filter(({ status }) => status === 'planned-outage');
 
@@ -81,9 +85,14 @@ export function knownProblem(state: HouseState | null, category: string | null):
 }
 
 /**
- * Состояние дома Жильца. Без API человек ещё не Жилец — Дома нет, и экран
- * предлагает вступить. Примеры для dev — см. loadable.ts.
+ * Адрес подключённого Дома получен от сервера. До появления данных о системах
+ * оставляем их список пустым и не утверждаем, что всё работает.
  */
 export function useHouseState(): Loadable<HouseState | null> {
-  return useLoadable<HouseState | null>(null, ({ sampleHouseState }) => sampleHouseState());
+  const house = useCurrentHouse();
+  const result = useLoadable<HouseState | null>(null, ({ sampleHouseState }) => sampleHouseState());
+  return house ? {
+    ...result, status: 'ready',
+    data: { address: house.houseLabel, apartment: '', systems: [], updatedAt: '' },
+  } : result;
 }

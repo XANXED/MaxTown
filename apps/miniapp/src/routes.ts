@@ -41,7 +41,7 @@ export function matchCard(route: AppRoute): { kind: 'request' | 'event'; id: str
 }
 
 export function routeFromHash(hash: string): AppRoute {
-  const candidate = hash.replace(/^#/, '') || ROUTES.home;
+  const candidate = hash.replace(/^#/, '').split('&')[0] || ROUTES.home;
   if (staticRoutes.has(candidate) || cardPattern.test(candidate)) return candidate as AppRoute;
   return ROUTES.home;
 }
@@ -80,7 +80,7 @@ export function parentRoute(route: AppRoute): AppRoute {
  */
 export function startRoute(hash: string, seenWelcome: boolean): AppRoute {
   const route = routeFromHash(hash);
-  const namesScreen = hashForRoute(route) === hash;
+  const namesScreen = hashForRoute(route) === hash.split('&')[0];
   if (!namesScreen && !seenWelcome) return ROUTES.welcome;
   return route;
 }

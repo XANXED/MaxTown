@@ -1,4 +1,5 @@
 import type { HouseAddressSuggestion } from '@maxtown/shared';
+import { withTimeout } from '@maxtown/shared/http';
 
 const DADATA_API_ORIGIN = 'https://suggestions.dadata.ru';
 
@@ -125,21 +126,24 @@ async function callDaData(
 ): Promise<HouseAddressSuggestion[]> {
   if (!apiKey) throw new AddressProviderError('API-ключ DaData не настроен');
 
-  const response = await fetcher(new URL(path, DADATA_API_ORIGIN).href, {
-    method: 'POST',
-    headers: {
-      authorization: `Token ${apiKey}`,
-      accept: 'application/json',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-
+  let response: Response;
   let data: unknown;
   try {
-    data = await response.json();
+    ({ response, data } = await withTimeout(async (signal) => {
+      const response = await fetcher(new URL(path, DADATA_API_ORIGIN).href, {
+        method: 'POST',
+        headers: {
+          authorization: `Token ${apiKey}`,
+          accept: 'application/json',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal,
+      });
+      return { response, data: await response.json() as unknown };
+    }, 6_000));
   } catch {
-    throw new AddressProviderError('DaData вернула некорректный ответ');
+    throw new AddressProviderError('DaData не ответила вовремя или вернула некорректный ответ');
   }
 
   if (!response.ok) {

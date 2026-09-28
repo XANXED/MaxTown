@@ -28,19 +28,25 @@ describe('настройка адреса Домового чата', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ initData: 'signed', chatId: -42, query: 'Лесная 12' }),
+      signal: expect.any(AbortSignal),
     });
   });
 
   it('подтверждает GUID выбранного дома, а не произвольную подпись', async () => {
+    const access = {
+      houseId: 'max-chat:-42', houseLabel: suggestion.value, maxChatRole: 'administrator',
+      canManageHouse: true, apartment: null, roles: ['admin'],
+    };
     const fetcher = vi.fn<typeof fetch>(async () =>
-      Response.json({ house: { houseId: 'max-chat:-42', houseLabel: suggestion.value } }),
+      Response.json({ house: { houseId: 'max-chat:-42', houseLabel: suggestion.value }, access }),
     );
 
-    await confirmSetupAddress(setup, suggestion, fetcher, 'signed');
+    await expect(confirmSetupAddress(setup, suggestion, fetcher, 'signed')).resolves.toEqual(access);
     expect(fetcher).toHaveBeenCalledWith('/api/house-setup/confirm', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ initData: 'signed', chatId: -42, garHouseGuid: 'guid-12' }),
+      signal: expect.any(AbortSignal),
     });
   });
 });

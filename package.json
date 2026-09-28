@@ -19,9 +19,11 @@
     "deploy:cloudflare": "npm run build -w @maxtown/miniapp && npm run deploy -w @maxtown/bot",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run --passWithNoTests",
+    "test:e2e": "playwright test",
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.2",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"

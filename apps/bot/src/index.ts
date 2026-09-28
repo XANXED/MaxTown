@@ -7,6 +7,7 @@ import type {
   MaxHouseChatRole,
   PendingHouseSetup,
 } from '@maxtown/shared';
+import { withTimeout } from '@maxtown/shared/http';
 import {
   AddressProviderError,
   findHouseAddressByGuid,
@@ -245,20 +246,27 @@ async function callMaxApi<T>(
   init: RequestInit,
   fetcher: typeof fetch,
 ): Promise<T> {
-  const response = await fetchMaxApi(env, path, init, fetcher);
-
-  let data: unknown;
   try {
-    data = await response.json();
-  } catch {
-    data = null;
-  }
+    return await withTimeout(async (signal) => {
+      const response = await fetchMaxApi(env, path, { ...init, signal }, fetcher);
 
-  if (!response.ok) {
-    throw new MaxApiError(`MAX API ответил с HTTP ${response.status}`);
-  }
+      let data: unknown;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
 
-  return data as T;
+      if (!response.ok) {
+        throw new MaxApiError(`MAX API ответил с HTTP ${response.status}`);
+      }
+
+      return data as T;
+    }, 4_000);
+  } catch (error) {
+    if (error instanceof MaxApiError) throw error;
+    throw new MaxApiError('MAX не ответил вовремя или недоступен');
+  }
 }
 
 function openAppAttachment(env: BotEnv, text = 'Открыть MaxTown', payload?: string): unknown[] {
@@ -304,22 +312,29 @@ async function sendWelcome(update: BotStartedUpdate, env: BotEnv, fetcher: typeo
 }
 
 async function botIsAdmin(chatId: number, env: BotEnv, fetcher: typeof fetch): Promise<boolean> {
-  const response = await fetchMaxApi(
-    env,
-    `/chats/${encodeURIComponent(String(chatId))}/members/me`,
-    { method: 'GET' },
-    fetcher,
-  );
-  if (response.status === 403 || response.status === 404) return false;
-  if (!response.ok) throw new MaxApiError(`MAX API ответил с HTTP ${response.status}`);
-
-  let data: unknown;
   try {
-    data = await response.json();
-  } catch {
-    throw new MaxApiError('MAX API вернул некорректный JSON');
+    return await withTimeout(async (signal) => {
+      const response = await fetchMaxApi(
+        env,
+        `/chats/${encodeURIComponent(String(chatId))}/members/me`,
+        { method: 'GET', signal },
+        fetcher,
+      );
+      if (response.status === 403 || response.status === 404) return false;
+      if (!response.ok) throw new MaxApiError(`MAX API ответил с HTTP ${response.status}`);
+
+      let data: unknown;
+      try {
+        data = await response.json();
+      } catch {
+        throw new MaxApiError('MAX API вернул некорректный JSON');
+      }
+      return isRecord(data) && (data.is_admin === true || data.is_owner === true);
+    }, 4_000);
+  } catch (error) {
+    if (error instanceof MaxApiError) throw error;
+    throw new MaxApiError('Не удалось проверить права бота в MAX');
   }
-  return isRecord(data) && data.is_admin === true;
 }
 
 function houseChatKey(chatId: number): string {
@@ -560,7 +575,12 @@ async function activateHouseChat(
     deleteHouseOnboarding(env.HOUSE_CHATS, chatId),
     deleteHouseCreator(env.HOUSE_CHATS, chatId),
   ]);
-  await sendChatMessage(chatId, houseConnectedMessage(address.value), openAppAttachment(env), env, fetcher);
+  try {
+    await sendChatMessage(chatId, houseConnectedMessage(address.value), openAppAttachment(env), env, fetcher);
+  } catch {
+    // Сохранённый Дом уже доступен. Сбой доставки объявления не отменяет создание.
+    console.warn('Дом создан, но MAX не принял объявление в чат');
+  }
   return binding;
 }
 
@@ -914,7 +934,8 @@ async function pendingSetupForUser(
   const member = await memberForChat(onboarding.chatId, userId, env, fetcher);
   if (!member) return null;
   const role = chatRole(member);
-  return role === 'administrator' || role === 'owner'
+  const creator = env.HOUSE_CHATS ? await readHouseCreator(env.HOUSE_CHATS, onboarding.chatId) : null;
+  return role === 'administrator' || role === 'owner' || creator?.userId === userId
     ? { chatId: onboarding.chatId, chatTitle: onboarding.chatTitle }
     : null;
 }
@@ -928,6 +949,10 @@ async function accessForChat(
   const member = await memberForChat(binding.chatId, userId, env, fetcher);
   if (!member) return null;
 
+  return houseAccess(binding, member);
+}
+
+function houseAccess(binding: HouseChatBinding, member: Record<string, unknown>): HouseAccess {
   const maxChatRole = chatRole(member);
   const roles = rolesForHouse(binding, member);
   return {
@@ -956,14 +981,18 @@ async function authenticateMaxUser(request: Request, env: BotEnv, fetcher: typeo
   }
 
   try {
-    const [chats, onboardings] = await Promise.all([
-      listHouseChats(env.HOUSE_CHATS),
-      listHouseOnboardings(env.HOUSE_CHATS),
-    ]);
+    // Контекст запуска лишь выбирает чат; права всё равно проверяются через MAX.
+    // Читаем запись напрямую: список ключей KV может отставать после создания.
+    const targetChatId = isChatId(body.chatId) ? body.chatId : null;
+    const [chats, onboardings] = targetChatId !== null ? await Promise.all([
+      readHouseChat(env.HOUSE_CHATS, targetChatId).then((house) => house ? [house] : []),
+      readHouseOnboarding(env.HOUSE_CHATS, targetChatId).then((setup) => setup ? [setup] : []),
+    ]) : await Promise.all([listHouseChats(env.HOUSE_CHATS), listHouseOnboardings(env.HOUSE_CHATS)]);
     const [accesses, pendingSetups] = await Promise.all([
       Promise.all(chats.map((chat) => accessForChat(chat, validation.user.id, env, fetcher))),
       Promise.all(
-        onboardings.map((onboarding) => pendingSetupForUser(onboarding, validation.user.id, env, fetcher)),
+        onboardings.filter((onboarding) => !chats.some((house) => house.chatId === onboarding.chatId))
+          .map((onboarding) => pendingSetupForUser(onboarding, validation.user.id, env, fetcher)),
       ),
     ]);
     const houses = accesses.filter((access): access is HouseAccess => access !== null);
@@ -990,7 +1019,7 @@ async function validateSetupAdmin(
   env: BotEnv,
   fetcher: typeof fetch,
 ): Promise<
-  | { ok: true; chatId: number; body: Record<string, unknown>; onboarding: HouseOnboarding }
+  | { ok: true; chatId: number; body: Record<string, unknown>; member: Record<string, unknown>; existingHouse: HouseChatBinding | null }
   | { ok: false; response: Response }
 > {
   if (!env.BOT_TOKEN || !env.HOUSE_CHATS) {
@@ -1007,21 +1036,24 @@ async function validateSetupAdmin(
     return { ok: false, response: json({ error: 'Данные запуска MAX недействительны или устарели' }, 401) };
   }
 
-  const onboarding = await readHouseOnboarding(env.HOUSE_CHATS, body.chatId);
-  if (!onboarding) {
+  const [onboarding, existingHouse, creator] = await Promise.all([
+    readHouseOnboarding(env.HOUSE_CHATS, body.chatId),
+    readHouseChat(env.HOUSE_CHATS, body.chatId),
+    readHouseCreator(env.HOUSE_CHATS, body.chatId),
+  ]);
+  if (!onboarding && !existingHouse) {
     return { ok: false, response: json({ error: 'Адрес этого Домового чата уже выбран или настройка не найдена' }, 404) };
   }
 
   const member = await memberForChat(body.chatId, validation.user.id, env, fetcher);
-  if (!member || chatRole(member) === 'member') {
+  if (!member || !(existingHouse ? isHouseAdmin(existingHouse, member) : chatRole(member) !== 'member' || creator?.userId === validation.user.id)) {
     return { ok: false, response: json({ error: 'Выбрать адрес может только администратор чата' }, 403) };
   }
   if (!(await botIsAdmin(body.chatId, env, fetcher))) {
-    await deleteHouseState(env.HOUSE_CHATS, body.chatId);
     return { ok: false, response: json({ error: 'Сначала верните боту права администратора чата' }, 409) };
   }
 
-  return { ok: true, chatId: body.chatId, body, onboarding };
+  return { ok: true, chatId: body.chatId, body, member, existingHouse };
 }
 
 async function getAddressSuggestions(request: Request, env: BotEnv, fetcher: typeof fetch): Promise<Response> {
@@ -1056,6 +1088,10 @@ async function confirmHouseAddress(request: Request, env: BotEnv, fetcher: typeo
   try {
     const setup = await validateSetupAdmin(request, env, fetcher);
     if (!setup.ok) return setup.response;
+    // Повтор после потери ответа не создаёт Дом заново и не меняет его адрес/УК.
+    if (setup.existingHouse) {
+      return json({ house: setup.existingHouse, access: houseAccess(setup.existingHouse, setup.member) });
+    }
     const garHouseGuid =
       typeof setup.body.garHouseGuid === 'string' ? setup.body.garHouseGuid.trim() : '';
     if (!garHouseGuid || garHouseGuid.length > 128) {
@@ -1066,7 +1102,7 @@ async function confirmHouseAddress(request: Request, env: BotEnv, fetcher: typeo
     if (!address) return json({ error: 'Выбранный дом не найден в ГАР' }, 400);
 
     const house = await activateHouseChat(setup.chatId, address, env, fetcher);
-    return json({ house });
+    return json({ house, access: houseAccess(house, setup.member) });
   } catch (error) {
     if (error instanceof AddressProviderError) {
       console.error('Не удалось подтвердить адрес через DaData', error);

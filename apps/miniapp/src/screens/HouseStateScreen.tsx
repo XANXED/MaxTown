@@ -83,8 +83,8 @@ export function HouseStateScreen({ navigate }: { navigate: Navigate }) {
         <ScreenHeading
           description={
             <>
-              {house.address}. Обновлено{' '}
-              <time dateTime={house.updatedAt}>{formatUpdatedAt(house.updatedAt).toLocaleLowerCase('ru-RU')}</time>
+              {house.address}
+              {house.updatedAt ? <>. Обновлено{' '}<time dateTime={house.updatedAt}>{formatUpdatedAt(house.updatedAt).toLocaleLowerCase('ru-RU')}</time></> : null}
             </>
           }
         >

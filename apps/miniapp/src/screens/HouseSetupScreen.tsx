@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Buildings, CheckCircle, MapPin, WarningCircle } from '@phosphor-icons/react';
 import { Button, Input, Spinner, Typography } from '@maxhub/max-ui';
-import type { HouseAddressSuggestion, PendingHouseSetup } from '@maxtown/shared';
+import type { HouseAccess, HouseAddressSuggestion, PendingHouseSetup } from '@maxtown/shared';
 import { IconTile, RowShell, ScreenHeading } from '../components/ui.tsx';
 import {
   confirmSetupAddress,
@@ -12,7 +12,7 @@ import { hapticSuccess, hapticWarning } from '../haptics.ts';
 
 type HouseSetupScreenProps = {
   setup: PendingHouseSetup;
-  onOpenHouse: () => void;
+  onOpenHouse: (house: HouseAccess) => void;
 };
 
 export function HouseSetupScreen({ setup, onOpenHouse }: HouseSetupScreenProps) {
@@ -23,7 +23,7 @@ export function HouseSetupScreen({ setup, onOpenHouse }: HouseSetupScreenProps) 
   const [saving, setSaving] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [createdAddress, setCreatedAddress] = useState<string | null>(null);
+  const [createdHouse, setCreatedHouse] = useState<HouseAccess | null>(null);
 
   useEffect(() => {
     const normalized = query.trim();
@@ -68,9 +68,9 @@ export function HouseSetupScreen({ setup, onOpenHouse }: HouseSetupScreenProps) 
     setSaving(true);
     setError(null);
     void confirmSetupAddress(setup, selected)
-      .then(() => {
+      .then((house) => {
         hapticSuccess();
-        setCreatedAddress(selected.value);
+        setCreatedHouse(house);
       })
       .catch((reason: unknown) => {
         hapticWarning();
@@ -79,11 +79,11 @@ export function HouseSetupScreen({ setup, onOpenHouse }: HouseSetupScreenProps) 
       .finally(() => setSaving(false));
   };
 
-  if (createdAddress) {
+  if (createdHouse) {
     return (
       <main className="screen screen--inner" id="main-content">
         <div className="inner-content">
-          <ScreenHeading description={createdAddress}>Дом создан</ScreenHeading>
+          <ScreenHeading description={createdHouse.houseLabel}>Дом создан</ScreenHeading>
           <section className="outcome outcome--positive" aria-live="polite">
             <CheckCircle className="icon" weight="fill" aria-hidden />
             <span className="outcome__copy">
@@ -95,7 +95,7 @@ export function HouseSetupScreen({ setup, onOpenHouse }: HouseSetupScreenProps) 
               </Typography.Text>
             </span>
           </section>
-          <Button size="medium" variant="primary" stretched onClick={onOpenHouse}>
+          <Button size="medium" variant="primary" stretched onClick={() => onOpenHouse(createdHouse)}>
             Открыть Дом
           </Button>
         </div>

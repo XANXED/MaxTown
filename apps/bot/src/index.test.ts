@@ -509,6 +509,95 @@ describe('Cloudflare Worker бота MAX', () => {
         garHouseGuid: 'house-guid-12',
       }),
     );
+    await expect(response.json()).resolves.toMatchObject({ access: {
+      houseId: 'max-chat:-42', houseLabel: 'г Казань, ул Лесная, д 12', roles: ['admin'], canManageHouse: true,
+    } });
+  });
+
+  it('создание успешно при сбое объявления, повтор возвращает тот же Дом и сохраняет УК', async () => {
+    const store = new MemoryHouseChatStore();
+    await seedOnboarding(store, -42);
+    const env = createEnv(store, { DADATA_API_KEY: 'dadata-key' });
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.includes('/members/me')) return Response.json({ is_admin: true });
+      if (url.includes('/members?')) return Response.json({ members: [{ user_id: 67890, is_admin: true }] });
+      if (url.includes('suggestions.dadata.ru')) return Response.json({ suggestions: [dadataHouse()] });
+      return Response.json({ error: 'message unavailable' }, { status: 503 });
+    });
+    const initData = await signedInitData(env.BOT_TOKEN);
+    const request = () => new Request('https://maxtown.example/api/house-setup/confirm', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ initData, chatId: -42, garHouseGuid: 'house-guid-12' }),
+    });
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const first = await handleRequest(request(), env, fetcher);
+      expect(first.status).toBe(200);
+      const binding = JSON.parse((await store.get('house-chat:-42'))!);
+      binding.managementCompanyUserId = 777;
+      await store.put('house-chat:-42', JSON.stringify(binding), { metadata: binding });
+      const retry = await handleRequest(request(), env, fetcher);
+      expect(retry.status).toBe(200);
+      await expect(retry.json()).resolves.toMatchObject({ house: { managementCompanyUserId: 777 }, access: { roles: ['admin'] } });
+      expect(fetcher.mock.calls.filter(([url]) => String(url).includes('/messages?'))).toHaveLength(1);
+    } finally {
+      warning.mockRestore();
+    }
+  });
+
+  it('читает Дом стартового чата напрямую, даже когда список KV отстаёт', async () => {
+    const store = new MemoryHouseChatStore();
+    await seedHouse(store, -42);
+    // В списке может оставаться старый onboarding после завершения настройки.
+    await seedOnboarding(store, -42);
+    const list = vi.spyOn(store, 'list').mockResolvedValue({ keys: [], list_complete: true });
+    const env = createEnv(store);
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({ members: [{ user_id: 67890, is_admin: true }] }));
+    const response = await handleRequest(new Request('https://maxtown.example/api/auth/max', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ initData: await signedInitData(env.BOT_TOKEN), chatId: -42 }),
+    }), env, fetcher);
+    await expect(response.json()).resolves.toMatchObject({ houses: [{ houseId: 'max-chat:-42' }], pendingHouseSetups: [] });
+    expect(list).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it('стартовый параметр чужого чата не даёт доступа и не позволяет создать Дом', async () => {
+    const store = new MemoryHouseChatStore();
+    await seedOnboarding(store, -42);
+    const env = createEnv(store, { DADATA_API_KEY: 'dadata-key' });
+    const initData = await signedInitData(env.BOT_TOKEN);
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({ members: [] }));
+    for (const endpoint of ['/api/auth/max', '/api/house-setup/confirm']) {
+      const response = await handleRequest(new Request(`https://maxtown.example${endpoint}`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ initData, chatId: -42, garHouseGuid: 'house-guid-12' }),
+      }), env, fetcher);
+      expect(response.status).toBe(403);
+    }
+    expect(store.values.has('house-chat:-42')).toBe(false);
+  });
+
+  it('зависший MAX API завершает авторизацию ошибкой вместо вечного ожидания', async () => {
+    const store = new MemoryHouseChatStore();
+    await seedOnboarding(store, -42);
+    const env = createEnv(store);
+    const initData = await signedInitData(env.BOT_TOKEN);
+    const fetcher = vi.fn<typeof fetch>(() => new Promise(() => undefined));
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.useFakeTimers();
+    try {
+      const response = handleRequest(new Request('https://maxtown.example/api/auth/max', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ initData, chatId: -42 }),
+      }), env, fetcher);
+      await vi.waitFor(() => expect(fetcher).toHaveBeenCalled());
+      await vi.advanceTimersByTimeAsync(4_000);
+      expect((await response).status).toBe(502);
+    } finally {
+      vi.useRealTimers();
+      log.mockRestore();
+    }
   });
 
   it('не подключает чат, пока бот не администратор', async () => {

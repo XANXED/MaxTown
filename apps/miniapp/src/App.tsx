@@ -33,7 +33,8 @@ import {
 import { launchInviteCode } from './data/join.ts';
 import { demoMode } from './data/loadable.ts';
 import { demoPendingHouseSetup, launchSetupChatId } from './houseSetup.ts';
-import { currentMaxInitData, waitForMaxInitData } from './maxLaunch.ts';
+import { currentMaxInitData, maxNavigationHash, waitForMaxInitData } from './maxLaunch.ts';
+import { HouseSession } from './houseSession.ts';
 import { useOnline } from './network.ts';
 import { hasSeenWelcome, markWelcomeSeen } from './welcome.ts';
 import './app.css';
@@ -45,6 +46,7 @@ const NOTICE_EXIT_MS = 240;
 function initialRoute(): AppRoute {
   // Открыли по ссылке-приглашению — сразу к вступлению, приветствие не нужно.
   if (launchInviteCode()) return ROUTES.join;
+  if (currentMaxInitData()) return routeFromHash(window.location.hash);
   return startRoute(window.location.hash, hasSeenWelcome());
 }
 
@@ -75,7 +77,7 @@ function MaxAuthorizationScreen({
 }) {
   const loading = state.status === 'loading';
   return (
-    <main className="screen screen--inner" id="main-content">
+    <main className="screen screen--inner inner-content" id="main-content">
       <ScreenHeading description="Вход доступен участникам подключённого домового чата MAX">
         Доступ к дому
       </ScreenHeading>
@@ -114,12 +116,13 @@ export function App() {
     status: import.meta.env.DEV && !currentMaxInitData() ? 'demo' : 'loading',
   });
   const [demoSetupDone, setDemoSetupDone] = useState(false);
+  const authAttempt = useRef(0);
   /** Куда прокрутить после смены экрана: наверх или туда, где Жилец был до перехода. */
   const pendingScroll = useRef(0);
   const insideMax = Boolean(currentMaxInitData());
 
   const navigate = useCallback((nextRoute: AppRoute) => {
-    const nextHash = hashForRoute(nextRoute);
+    const nextHash = maxNavigationHash(hashForRoute(nextRoute));
     if (window.location.hash === nextHash) {
       setRoute(nextRoute);
       return;
@@ -140,7 +143,7 @@ export function App() {
 
     // Истории нет (экран открыли по ссылке) — поднимаемся к родителю, не выходя из приложения.
     const parent = parentRoute(route);
-    window.history.replaceState({ step: 0 } satisfies HistoryEntry, '', hashForRoute(parent));
+    window.history.replaceState({ step: 0 } satisfies HistoryEntry, '', maxNavigationHash(hashForRoute(parent)));
     pendingScroll.current = 0;
     setRoute(parent);
   }, [route]);
@@ -155,16 +158,25 @@ export function App() {
   }, []);
 
   const authorizeInMax = useCallback(() => {
+    const attempt = ++authAttempt.current;
     setMaxAuthorization({ status: 'loading' });
     void waitForMaxInitData()
       .then((initData) => {
-        if (!initData) return null;
+        if (!initData) {
+          if (import.meta.env.DEV) return null;
+          throw new MaxAuthRequestError('Откройте мини-приложение кнопкой из чата MAX', 401);
+        }
         return authorizeCurrentMaxUser(globalThis.fetch, initData);
       })
       .then((authorization) => {
+        if (attempt !== authAttempt.current) return;
         setMaxAuthorization(authorization ? { status: 'ready', authorization } : { status: 'demo' });
+        if (authorization?.houses.length && routeFromHash(window.location.hash) === ROUTES.welcome) {
+          navigate(ROUTES.home);
+        }
       })
       .catch((error: unknown) => {
+        if (attempt !== authAttempt.current) return;
         const requestError = error instanceof MaxAuthRequestError ? error : null;
         setMaxAuthorization({
           status: 'error',
@@ -172,10 +184,11 @@ export function App() {
           accessDenied: requestError?.status === 403,
         });
       });
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     authorizeInMax();
+    return () => { authAttempt.current += 1; };
   }, [authorizeInMax]);
 
   useEffect(() => {
@@ -187,7 +200,7 @@ export function App() {
     };
 
     if (!window.location.hash) {
-      window.history.replaceState({ step: 0 } satisfies HistoryEntry, '', hashForRoute(initialRoute()));
+      window.history.replaceState({ step: 0 } satisfies HistoryEntry, '', maxNavigationHash(hashForRoute(initialRoute())));
     }
 
     window.addEventListener('popstate', syncRoute);
@@ -253,9 +266,17 @@ export function App() {
       <div className="app-shell">
         <HouseSetupScreen
           setup={pendingHouseSetup}
-          onOpenHouse={() => {
+          onOpenHouse={(house) => {
             setDemoSetupDone(true);
-            authorizeInMax();
+            setMaxAuthorization((current) => current.status === 'ready' ? {
+              status: 'ready',
+              authorization: {
+                ...current.authorization,
+                houses: [house, ...current.authorization.houses.filter((existing) => existing.houseId !== house.houseId)],
+                pendingHouseSetups: current.authorization.pendingHouseSetups.filter((setup) => setup.chatId !== pendingHouseSetup.chatId),
+              },
+            } : current);
+            markWelcomeSeen();
             navigate(ROUTES.home);
           }}
         />
@@ -330,6 +351,7 @@ export function App() {
   }
 
   return (
+    <HouseSession.Provider value={maxAuthorization.status === 'ready' ? maxAuthorization.authorization.houses[0] ?? null : null}>
     <div className="app-shell">
       <a
         className="skip-link"
@@ -371,5 +393,6 @@ export function App() {
         ) : null}
       </div>
     </div>
+    </HouseSession.Provider>
   );
 }

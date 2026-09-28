@@ -15,10 +15,21 @@ cp .env.example .env     # впишите BOT_TOKEN и DADATA_API_KEY, если 
 npm run dev:miniapp      # мини-апп жильцов, http://localhost:5173
 npm run dev:admin        # панель Модератора, http://localhost:5174
 npm run dev:api          # API, http://localhost:3000/health
-npm run dev:bot          # бот MAX
+npm run dev:bot          # Worker (бот и API), http://localhost:8787
 ```
 
 Проверки: `npm run typecheck` и `npm test`.
+
+Для подключения Дома запустите `dev:miniapp` вместе с `dev:bot`:
+Vite направляет `/api` в тот же Worker, который работает на Cloudflare.
+`dev:api` — отдельный ранний сервер, в нём нет сценария выбора адреса.
+Локальный KV изолирован от опубликованного; данные запуска MAX проверяются
+на сервере и в локальном режиме.
+
+Браузерный регрессионный тест: `npx playwright install chromium --only-shell`,
+затем `npm run test:e2e`. Он использует production-сборку интерфейса, настоящий
+обработчик Worker и тестовые MAX/DaData/KV: проверяет зависание запроса,
+выбор адреса, создание Дома, отображение адреса и повторную загрузку.
 
 ## Публичная версия
 

@@ -33,6 +33,7 @@ describe('клиент авторизации MAX', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ initData: 'signed-init-data' }),
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -53,6 +54,7 @@ describe('клиент авторизации MAX', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ initData: 'signed-init-data' }),
+      signal: expect.any(AbortSignal),
     });
   });
 

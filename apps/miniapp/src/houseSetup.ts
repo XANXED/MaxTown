@@ -1,5 +1,6 @@
-import type { HouseAddressSuggestion, PendingHouseSetup } from '@maxtown/shared';
-import { currentMaxInitData } from './maxLaunch.ts';
+import type { HouseAccess, HouseAddressSuggestion, PendingHouseSetup } from '@maxtown/shared';
+import { RequestTimeoutError, withTimeout } from '@maxtown/shared/http';
+import { currentMaxInitData, launchParameter } from './maxLaunch.ts';
 
 export class HouseSetupRequestError extends Error {
   readonly status: number;
@@ -29,7 +30,27 @@ export function launchSetupChatId(): number | null {
 
   // MAX также передаёт payload запуска в GET-параметре WebAppStartParam.
   // В некоторых клиентах он появляется раньше, чем initDataUnsafe заполняется мостом.
-  return setupChatId(new URLSearchParams(window.location.search).get('WebAppStartParam'));
+  return setupChatId(launchParameter('WebAppStartParam'))
+    ?? setupChatId(new URLSearchParams(currentMaxInitData()).get('start_param'));
+}
+
+async function setupRequest(path: string, body: Record<string, unknown>, fetcher: typeof fetch) {
+  try {
+    return await withTimeout(async (signal) => {
+      const response = await fetcher(path, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+        signal,
+      });
+      return { response, data: await responseData(response) };
+    }, 20_000);
+  } catch (error) {
+    if (error instanceof RequestTimeoutError) {
+      throw new HouseSetupRequestError('Сервер долго не отвечает. Попробуйте ещё раз', 504);
+    }
+    throw error;
+  }
 }
 
 export function demoPendingHouseSetup(): PendingHouseSetup {
@@ -80,12 +101,7 @@ export async function suggestSetupAddresses(
   if (!initData && import.meta.env.DEV) return demoSuggestions;
   if (!initData) throw new HouseSetupRequestError('Откройте настройку из чата MAX', 401);
 
-  const response = await fetcher('/api/house-setup/suggestions', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ initData, chatId: setup.chatId, query }),
-  });
-  const data = await responseData(response);
+  const { response, data } = await setupRequest('/api/house-setup/suggestions', { initData, chatId: setup.chatId, query }, fetcher);
   if (!response.ok) throw responseError(data, response, 'Не удалось найти адрес');
   if (!isRecord(data) || !Array.isArray(data.suggestions) || !data.suggestions.every(isSuggestion)) {
     throw new HouseSetupRequestError('Сервер вернул адреса неизвестного формата', response.status);
@@ -98,22 +114,24 @@ export async function confirmSetupAddress(
   address: HouseAddressSuggestion,
   fetcher: typeof fetch = globalThis.fetch,
   initData: string | undefined = currentMaxInitData(),
-): Promise<void> {
-  if (!initData && import.meta.env.DEV) return;
+): Promise<HouseAccess> {
+  if (!initData && import.meta.env.DEV) return {
+    houseId: `max-chat:${setup.chatId}`, houseLabel: address.value,
+    maxChatRole: 'administrator', canManageHouse: true, apartment: null, roles: ['admin'],
+  };
   if (!initData) throw new HouseSetupRequestError('Откройте настройку из чата MAX', 401);
 
-  const response = await fetcher('/api/house-setup/confirm', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      initData,
-      chatId: setup.chatId,
-      garHouseGuid: address.garHouseGuid,
-    }),
-  });
-  const data = await responseData(response);
+  const { response, data } = await setupRequest('/api/house-setup/confirm', {
+    initData,
+    chatId: setup.chatId,
+    garHouseGuid: address.garHouseGuid,
+  }, fetcher);
   if (!response.ok) throw responseError(data, response, 'Не удалось сохранить адрес');
   if (!isRecord(data) || !isRecord(data.house) || typeof data.house.houseLabel !== 'string') {
     throw new HouseSetupRequestError('Сервер не подтвердил создание Дома', response.status);
   }
+  if (!isRecord(data.access) || typeof data.access.houseId !== 'string' || !Array.isArray(data.access.roles)) {
+    throw new HouseSetupRequestError('Сервер не подтвердил доступ к созданному Дому', response.status);
+  }
+  return data.access as HouseAccess;
 }

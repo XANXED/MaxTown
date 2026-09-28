@@ -24,6 +24,7 @@ import { greeting } from '../data/text.ts';
 import { currentProfileUser } from '../maxUser.ts';
 import { eventRoute, requestRoute, ROUTES } from '../routes.ts';
 import type { Navigate } from './types.ts';
+import { houseRoleLabel, useCurrentHouse } from '../houseSession.ts';
 
 /** Сколько последних строк показывать на главной; остальное — на экране по «Все». */
 const PREVIEW_LIMIT = 3;
@@ -205,6 +206,7 @@ function JoinCard({ navigate }: { navigate: Navigate }) {
 /** Жилец: Состояние дома одной фразой и Системы чипами; нажатие ведёт в подробности. */
 function HouseCard({ navigate }: { navigate: Navigate }) {
   const { status, data: house } = useHouseState();
+  const access = useCurrentHouse();
 
   if (status === 'loading') return <SkeletonRows count={1} />;
   if (!house) return null;
@@ -213,6 +215,8 @@ function HouseCard({ navigate }: { navigate: Navigate }) {
   return (
     <section className="join-card" aria-labelledby="house-card-title">
       <div className="join-card__body">
+        <Typography.Text asChild variant="detail"><p>{house.address}</p></Typography.Text>
+        {access ? <Typography.Text asChild variant="description" color="secondary"><p>{houseRoleLabel(access)}</p></Typography.Text> : null}
         <button className="house-card__open pressable" type="button" onClick={() => navigate(ROUTES.house)}>
           <span className="house-card__copy">
             <span className="caps-label">Состояние дома</span>
