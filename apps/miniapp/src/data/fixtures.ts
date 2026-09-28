@@ -4,7 +4,6 @@ import type {
   HouseContact,
   HouseEventDetails,
   HouseEventSummary,
-  HouseSearchResult,
   HouseState,
   InviteCheck,
   AssignedPlace,
@@ -236,12 +235,6 @@ export function sampleHouseState(): HouseState {
   };
 }
 
-export const sampleHouses: HouseSearchResult[] = [
-  { id: 'h1', address: 'ул. Лесная, 12', locality: 'Казань, Советский район' },
-  { id: 'h2', address: 'ул. Лесная, 14', locality: 'Казань, Советский район' },
-  { id: 'h3', address: 'пр. Победы, 3', locality: 'Казань, Приволжский район' },
-];
-
 export function sampleNotifications(): UserNotification[] {
   return [
     {
@@ -270,14 +263,6 @@ export function sampleNotifications(): UserNotification[] {
       at: hoursAgo(5.1),
       read: true,
       requestId: 'r4',
-    },
-    {
-      id: 'n2',
-      kind: 'join-approved',
-      title: 'Запрос на вступление одобрен',
-      text: 'Вы Жилец Квартиры 34, ул. Лесная, 12',
-      at: hoursAgo(30),
-      read: true,
     },
     {
       id: 'n1',

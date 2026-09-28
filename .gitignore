@@ -2,10 +2,15 @@ node_modules/
 dist/
 *.tsbuildinfo
 .vite/
+.wrangler/
+.dev.vars*
 
 .env
 .env.*
 !.env.example
 
 .scratch/
+test-results/
+playwright-report/
+.data/
 .DS_Store

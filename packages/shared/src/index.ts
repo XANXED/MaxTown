@@ -5,6 +5,59 @@ export type HealthResponse = {
   status: 'ok';
 };
 
+/** Роли внутри Дома для хакатона. */
+export type HouseRole = 'admin' | 'resident' | 'management-company';
+
+/** Подтверждённая сервером личность из подписанного initData MAX. */
+export type MaxAuthUser = {
+  id: number;
+  firstName: string;
+  lastName?: string;
+  username?: string;
+  photoUrl?: string;
+};
+
+/** Положение человека в Домовом чате, из которого выводится Роль в Доме. */
+export type MaxHouseChatRole = 'member' | 'administrator' | 'owner';
+
+/** Доступ к общим данным Дома, подтверждённый текущим участием в Домовом чате. */
+export type HouseAccess = {
+  houseId: string;
+  /** Точный адрес Дома из подсказки DaData. */
+  houseLabel: string;
+  maxChatRole: MaxHouseChatRole;
+  /** Администратор Дома может назначить аккаунт УК и управлять Домом. */
+  canManageHouse: boolean;
+  /** Привязка к Квартире пока не реализована. */
+  apartment: null;
+  /** Роли актуальны только для этого Дома. */
+  roles: HouseRole[];
+};
+
+/** Подключение Домового чата, для которого администратору нужно выбрать точный адрес. */
+export type PendingHouseSetup = {
+  chatId: number;
+  chatTitle: string;
+};
+
+/** Один адрес дома из ГАР, предложенный DaData. */
+export type HouseAddressSuggestion = {
+  value: string;
+  locality: string;
+  garHouseGuid: string;
+};
+
+export type HouseAddressSuggestionsResponse = {
+  suggestions: HouseAddressSuggestion[];
+};
+
+export type MaxAuthResponse = {
+  user: MaxAuthUser;
+  houses: HouseAccess[];
+  /** Видны только администратору или владельцу соответствующего чата. */
+  pendingHouseSetups: PendingHouseSetup[];
+};
+
 /**
  * Состояние Заявки по CONTEXT.md: новая, в работе, Выполненная (ждёт подтверждения
  * Жильца), Закрытая, Отклонённая Ответственным, Отменённая самим Жильцом.
@@ -89,7 +142,7 @@ export type HouseEventSummary = {
 /** Кто опубликовал Событие дома. */
 export type HouseEventAuthor = {
   name: string;
-  /** Роль в Доме: «Староста», «Ответственный», «Консьерж». */
+  /** Роль в Доме: «Администратор Дома» или «УК». */
   role: string;
 };
 
@@ -140,15 +193,6 @@ export type HouseState = {
   updatedAt: string;
 };
 
-/** Дом в поиске для Запроса на вступление. */
-export type HouseSearchResult = {
-  id: string;
-  /** «ул. Лесная, 12». */
-  address: string;
-  /** Город или район — чтобы отличить одинаковые адреса. */
-  locality: string;
-};
-
 /** Что показала проверка Приглашения. */
 export type InviteCheck =
   | { status: 'valid'; houseAddress: string; apartment: string }
@@ -157,8 +201,8 @@ export type InviteCheck =
   | { status: 'not-found' };
 
 /**
- * Уведомление: что изменилось в Заявке человека или в его Запросе на
- * вступление. Не путать с Событием дома — то видят все Жильцы.
+ * Уведомление: что изменилось в Заявке человека. Не путать с Событием дома —
+ * то видят все Жильцы.
  */
 export type UserNotification = {
   id: string;
@@ -171,7 +215,7 @@ export type UserNotification = {
   /** ISO 8601. */
   at: string;
   read: boolean;
-  /** Заявка, которую открывает Уведомление; у Запроса на вступление нет. */
+  /** Заявка, которую открывает Уведомление. */
   requestId?: string;
   /** Дом и Опрос для перехода из уведомления. */
   houseId?: string;
@@ -192,7 +236,7 @@ export type HouseContactKind =
 
 export type ContactKind = HouseContactKind | 'emergency';
 
-/** Контакт: телефон или ссылка службы, полезной Жильцам Дома. Список ведёт Староста. */
+/** Контакт: телефон или ссылка службы, полезной Жильцам Дома. Список ведёт Администратор Дома. */
 export type Contact = {
   id: string;
   /** «Диспетчерская», «Сантехник», «Участковый». */
@@ -498,9 +542,6 @@ export type HouseRegistration = {
   /** Причина отказа — её увидит Староста. */
   rejectionReason?: string;
 };
-
-/** Роль человека в конкретном Доме. */
-export type HouseRole = 'headman' | 'responsible' | 'concierge' | 'resident';
 
 /** Активная связь Жильца с Домом, которую возвращает авторизованная сессия. */
 export type HouseMembershipSummary = {

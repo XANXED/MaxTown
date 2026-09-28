@@ -233,6 +233,8 @@ function HouseCard({ navigate }: { navigate: Navigate }) {
   return (
     <section className="join-card" aria-labelledby="house-card-title">
       <div className="join-card__body">
+        <Typography.Text asChild variant="detail"><p>{house.address}</p></Typography.Text>
+        {membership ? <Typography.Text asChild variant="description" color="secondary"><p>{membershipLine(membership)}</p></Typography.Text> : null}
         <button className="house-card__open pressable" type="button" onClick={() => navigate(ROUTES.house)}>
           <span className="house-card__copy">
             <span className="caps-label">Состояние дома</span>

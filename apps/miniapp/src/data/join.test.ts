@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inviteFromStartParam, matchHouses, parseInviteCode, validateApartment } from './join.ts';
+import { inviteFromStartParam, parseInviteCode } from './join.ts';
 
 describe('parseInviteCode', () => {
   it('reads the code from VK Mini App links and VK launch parameters', () => {
@@ -27,35 +27,5 @@ describe('inviteFromStartParam', () => {
     expect(inviteFromStartParam('inv_abc123')).toBe('abc123');
     expect(inviteFromStartParam('promo_summer')).toBeNull();
     expect(inviteFromStartParam(undefined)).toBeNull();
-  });
-});
-
-describe('validateApartment', () => {
-  it('accepts a number with an optional letter', () => {
-    expect(validateApartment('34')).toBeNull();
-    expect(validateApartment(' 112а ')).toBeNull();
-  });
-
-  it('explains what is wrong', () => {
-    expect(validateApartment('')).toBe('Укажите номер Квартиры');
-    expect(validateApartment('кв. 34')).toBe('Только номер, например 34 или 34А');
-    expect(validateApartment('0')).toBe('Только номер, например 34 или 34А');
-  });
-});
-
-describe('matchHouses', () => {
-  const houses = [
-    { id: 'h1', address: 'ул. Лесная, 12', locality: 'Казань' },
-    { id: 'h2', address: 'ул. Лесная, 14', locality: 'Казань' },
-    { id: 'h3', address: 'пр. Победы, 3', locality: 'Казань' },
-  ];
-
-  it('needs every word and ignores punctuation', () => {
-    expect(matchHouses(houses, 'лесная 12').map(({ id }) => id)).toEqual(['h1']);
-    expect(matchHouses(houses, 'ул. лесная').map(({ id }) => id)).toEqual(['h1', 'h2']);
-  });
-
-  it('returns nothing for an empty query', () => {
-    expect(matchHouses(houses, '  ')).toEqual([]);
   });
 });

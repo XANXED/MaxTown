@@ -1,0 +1,14 @@
+{
+  "name": "@maxtown/bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --env-file ../../.env",
+    "deploy": "wrangler deploy",
+    "deploy:dry": "wrangler deploy --dry-run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "wrangler": "^4.45.4"
+  }
+}

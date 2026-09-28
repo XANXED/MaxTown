@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import type { HouseRegistration, HouseSearchResult, InviteCheck } from '@maxtown/shared';
+import type { InviteCheck } from '@maxtown/shared';
 import { apiFetch } from '../auth/session.ts';
-import { demoMode, loadFixtures, useLoadable, type LoadStatus } from './loadable.ts';
+import { demoMode, loadFixtures } from './loadable.ts';
 
-// Как стать Жильцом (CONTEXT.md): по Приглашению — QR-код или ссылка на
-// конкретную Квартиру — или Запросом на вступление, который решает Жилец
-// Квартиры, а если в ней никого нет, Староста.
+// Стать Жильцом можно только по Приглашению — QR-коду или ссылке на
+// конкретную Квартиру.
 //
 // Приглашение — ссылка мессенджера на мини-апп с параметром запуска inv_<код>.
 
@@ -45,14 +43,6 @@ export function launchInviteCode(): string | null {
   return inviteFromStartParam(typeof startParam === 'string' ? startParam : undefined);
 }
 
-/** Ошибка в номере Квартиры или null. Бывают номера с буквой: 34А. */
-export function validateApartment(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return 'Укажите номер Квартиры';
-  if (!/^[1-9]\d{0,3}[а-яА-Яa-zA-Z]?$/.test(trimmed)) return 'Только номер, например 34 или 34А';
-  return null;
-}
-
 /** Результат проверки на экране: к ответам сервера добавляется «вступить пока нельзя». */
 export type InviteResult = InviteCheck | { status: 'unavailable' };
 
@@ -78,76 +68,3 @@ export async function redeemInvite(code: string): Promise<void> {
   if (!response.ok) throw new Error('Не удалось вступить по Приглашению');
 }
 
-export async function requestHouseMembership(houseId: string, apartmentNumber: string): Promise<string> {
-  if (demoMode()) return `demo-${houseId}-${apartmentNumber}`;
-  const response = await apiFetch('/api/join-requests', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ houseId, apartmentNumber }),
-  });
-  if (!response.ok) throw new Error('Не удалось отправить Запрос на вступление');
-  return (await response.json() as { id: string }).id;
-}
-
-export async function cancelHouseMembershipRequest(requestId: string): Promise<void> {
-  if (demoMode()) return;
-  const response = await apiFetch(`/api/join-requests/${encodeURIComponent(requestId)}`, { method: 'DELETE' });
-  if (!response.ok) throw new Error('Не удалось отозвать Запрос на вступление');
-}
-
-export async function getMyHouseRegistration(): Promise<HouseRegistration | null> {
-  if (demoMode()) return null;
-  const response = await apiFetch('/api/houses/registrations/mine');
-  if (!response.ok) throw new Error('Не удалось загрузить регистрацию Дома');
-  return (await response.json() as { registration: HouseRegistration | null }).registration;
-}
-
-export async function registerHouse(input: { address: string; locality: string; apartmentNumber: string }): Promise<void> {
-  if (demoMode()) return;
-  const response = await apiFetch('/api/houses/registrations', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
-  });
-  if (!response.ok) throw new Error('Не удалось отправить регистрацию Дома');
-}
-
-function normalize(text: string): string {
-  return text.toLocaleLowerCase('ru-RU').replaceAll('ё', 'е').replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-/** Дома, где встречается каждое слово запроса: «лесная 12» находит «ул. Лесная, 12». */
-export function matchHouses(houses: HouseSearchResult[], query: string): HouseSearchResult[] {
-  const words = normalize(query).split(' ').filter(Boolean);
-  if (words.length === 0) return [];
-  return houses.filter((house) => {
-    const haystack = normalize(`${house.address} ${house.locality}`);
-    return words.every((word) => haystack.includes(word));
-  });
-}
-
-/**
- * Поиск Дома для Запроса на вступление. Без API Домов в поиске нет;
- * в dev-демо — несколько примеров.
- */
-export function useHouseSearch(query: string): { status: LoadStatus; houses: HouseSearchResult[] } {
-  const { status, data } = useLoadable<HouseSearchResult[]>([], ({ sampleHouses }) => sampleHouses);
-  const demo = demoMode();
-  const [remote, setRemote] = useState<{ status: LoadStatus; houses: HouseSearchResult[] }>({ status: 'ready', houses: [] });
-  useEffect(() => {
-    if (demo) return;
-    const text = query.trim();
-    if (text.length < 2) {
-      setRemote({ status: 'ready', houses: [] });
-      return;
-    }
-    const controller = new AbortController();
-    setRemote((current) => ({ ...current, status: 'loading' }));
-    void apiFetch(`/api/houses/search?query=${encodeURIComponent(text)}`, { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error('house search failed');
-        const result = await response.json() as { houses: HouseSearchResult[] };
-        if (!controller.signal.aborted) setRemote({ status: 'ready', houses: result.houses });
-      })
-      .catch(() => { if (!controller.signal.aborted) setRemote({ status: 'error', houses: [] }); });
-    return () => controller.abort();
-  }, [demo, query]);
-  const houses = useMemo(() => matchHouses(demo ? data : remote.houses, query), [data, demo, query, remote.houses]);
-  return demo ? { status, houses } : { status: remote.status, houses };
-}

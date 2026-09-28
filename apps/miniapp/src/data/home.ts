@@ -16,10 +16,11 @@ type HomeContent = Pick<HomeData, 'isResident' | 'requests' | 'events'>;
 const empty: HomeContent = { isResident: false, requests: [], events: [] };
 
 /**
- * Данные главной и списков Заявок и Событий дома. API ещё нет, поэтому пока всегда пусто; запрос к
- * apps/api появится здесь. Примеры для dev — см. loadable.ts.
+ * Участие в Доме берём из серверной авторизации. Заявки и События пока пустые;
+ * их будущий API подключается отдельно. Примеры для dev — см. loadable.ts.
  */
 export function useHomeData(): HomeData {
+  const house = useCurrentHouse();
   const { status, data, retry } = useLoadable(empty, ({ sampleRequests, sampleEvents }) => ({
     isResident: true,
     requests: sampleRequests(),

@@ -5,6 +5,7 @@ describe('demo mode', () => {
   it('reads a known mode from the query string', () => {
     expect(parseDemoMode('?demo=filled')).toBe('filled');
     expect(parseDemoMode('?x=1&demo=error')).toBe('error');
+    expect(parseDemoMode('?demo=house-setup')).toBe('house-setup');
   });
 
   it('ignores missing and unknown modes', () => {

@@ -16,6 +16,7 @@ import { currentProfileUser } from '../vkUser.ts';
 import { ROUTES } from '../routes.ts';
 import { membershipLine, useMembership } from '../auth/membership.tsx';
 import type { Navigate, Notify } from './types.ts';
+import { houseRoleLabel, useCurrentHouse } from '../houseSession.ts';
 
 type ProfileScreenProps = {
   navigate: Navigate;
@@ -23,6 +24,7 @@ type ProfileScreenProps = {
 };
 
 export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
+  const access = useCurrentHouse();
   const user = currentProfileUser();
   const platform = new URLSearchParams(window.__VK_LAUNCH_PARAMS__ ?? '').get('vk_platform');
   const soon = (title: string) => () => notify(`«${title}» появится позже`);
@@ -87,7 +89,7 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
               icon={House}
               color="green"
               title={house.address}
-              description={`Квартира ${house.apartment}. Вы Жилец`}
+              description={access ? houseRoleLabel(access) : `Квартира ${house.apartment}. Вы Жилец`}
               onOpen={() => navigate(ROUTES.house)}
             />
           ) : (
