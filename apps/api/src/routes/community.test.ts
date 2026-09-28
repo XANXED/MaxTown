@@ -85,7 +85,8 @@ describe.skipIf(!databaseUrl)('house community and polls', () => {
     const row = await pool.query<{ status: string; consented_at: Date }>('SELECT status, consented_at FROM resident_message_permissions WHERE resident_id = $1', [residentId]);
     expect(row.rows[0]?.status).toBe('allowed');
     expect(row.rows[0]?.consented_at).toBeInstanceOf(Date);
-    await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers, payload: { question: 'Первый вопрос?', options: [{ label: 'Да' }, { label: 'Нет' }] } });
+    const created = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers, payload: { question: 'Первый вопрос?', options: [{ label: 'Да' }, { label: 'Нет' }] } });
+    expect(created.statusCode, created.body).toBe(201);
     expect((await pool.query("SELECT id FROM vk_notification_outbox WHERE house_id = $1 AND status = 'pending'", [houseId])).rows).toHaveLength(1);
     await app.inject({ method: 'POST', url: '/api/notifications/permission', headers, payload: { allowed: false } });
     expect((await app.inject({ method: 'GET', url: '/api/notifications/permission', headers })).json()).toEqual({ status: 'opted_out', groupId: 123 });

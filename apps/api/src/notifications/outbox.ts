@@ -25,7 +25,7 @@ export type OutboxStore = {
 export async function enqueuePollNotifications(client: PoolClient, houseId: string, pollId: string): Promise<void> {
   await client.query(
     `INSERT INTO in_app_notifications (resident_id, house_id, poll_id)
-     SELECT DISTINCT membership.resident_id, membership.house_id, $2
+     SELECT DISTINCT membership.resident_id, membership.house_id, $2::uuid
        FROM memberships membership
       WHERE membership.house_id = $1 AND membership.ended_at IS NULL
      ON CONFLICT (resident_id, poll_id) DO NOTHING`,
@@ -33,7 +33,7 @@ export async function enqueuePollNotifications(client: PoolClient, houseId: stri
   );
   await client.query(
     `INSERT INTO vk_notification_outbox (poll_id, house_id, membership_id, resident_id, vk_user_id)
-     SELECT $2, membership.house_id, membership.id, membership.resident_id, resident.vk_user_id
+     SELECT $2::uuid, membership.house_id, membership.id, membership.resident_id, resident.vk_user_id
        FROM memberships membership
        JOIN residents resident ON resident.id = membership.resident_id
        JOIN resident_message_permissions permission ON permission.resident_id = resident.id AND permission.status = 'allowed'
