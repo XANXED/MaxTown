@@ -1,13 +1,9 @@
-// Тактильный отклик MAX. Вне MAX (в браузере) моста нет — вызов молча ничего не делает.
-
-function haptics() {
-  return window.WebApp?.initData ? window.WebApp.HapticFeedback : undefined;
-}
+import bridge from '@vkontakte/vk-bridge';
 
 export function hapticSuccess(): void {
-  haptics()?.notificationOccurred('success', true);
+  void bridge.send('VKWebAppTapticNotificationOccurred', { type: 'success' }).catch(() => undefined);
 }
 
 export function hapticWarning(): void {
-  haptics()?.notificationOccurred('warning', true);
+  void bridge.send('VKWebAppTapticNotificationOccurred', { type: 'warning' }).catch(() => undefined);
 }

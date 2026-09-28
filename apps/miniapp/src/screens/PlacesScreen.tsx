@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Baby, Bank, FirstAidKit, GraduationCap, MapPin, Pill } from '@phosphor-icons/react';
-import { Button, Typography } from '@maxhub/max-ui';
+import { Button, Typography } from '../components/platform-ui.tsx';
 import type { Place } from '@maxtown/shared';
 import {
   EmptyState,

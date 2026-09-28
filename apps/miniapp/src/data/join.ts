@@ -7,9 +7,7 @@ import { demoMode, loadFixtures, useLoadable, type LoadStatus } from './loadable
 // конкретную Квартиру — или Запросом на вступление, который решает Жилец
 // Квартиры, а если в ней никого нет, Староста.
 //
-// Приглашение — ссылка MAX на мини-апп: https://max.ru/<бот>?startapp=inv_<код>,
-// код — 22 символа base64url (docs/research/2026-09-house-data-and-max-platform.md, 2.5).
-// В payload MAX пропускает только латиницу, цифры, «_» и «-», до 512 символов.
+// Приглашение — ссылка мессенджера на мини-апп с параметром запуска inv_<код>.
 
 const INVITE_PREFIX = 'inv_';
 const codePattern = /^[A-Za-z0-9_-]{4,64}$/;
@@ -26,15 +24,15 @@ export function parseInviteCode(text: string): string | null {
     } catch {
       return null;
     }
-    if (url.hostname !== 'max.ru') return null;
-    return inviteFromStartParam(url.searchParams.get('startapp') ?? undefined);
+    if (!['vk.com', 'm.vk.com'].includes(url.hostname) || !/^\/app\d+$/.test(url.pathname)) return null;
+    return inviteFromStartParam(url.searchParams.get('ref') ?? url.searchParams.get('vk_ref') ?? undefined);
   }
 
   const code = trimmed.startsWith(INVITE_PREFIX) ? trimmed.slice(INVITE_PREFIX.length) : trimmed;
   return codePattern.test(code) ? code : null;
 }
 
-/** Приглашение из параметра запуска MAX (`initDataUnsafe.start_param`). */
+/** Код приглашения из параметра запуска VK, подтверждённого подписью при авторизации. */
 export function inviteFromStartParam(startParam: string | undefined): string | null {
   if (!startParam?.startsWith(INVITE_PREFIX)) return null;
   const code = startParam.slice(INVITE_PREFIX.length);
@@ -43,7 +41,7 @@ export function inviteFromStartParam(startParam: string | undefined): string | n
 
 /** Приглашение, с которым открыли мини-апп, если оно было в ссылке. */
 export function launchInviteCode(): string | null {
-  const startParam = window.WebApp?.initDataUnsafe?.start_param;
+  const startParam = new URLSearchParams(window.__VK_LAUNCH_PARAMS__ ?? '').get('vk_ref') ?? undefined;
   return inviteFromStartParam(typeof startParam === 'string' ? startParam : undefined);
 }
 

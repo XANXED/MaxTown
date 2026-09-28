@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Headset, IdentificationBadge, Phone, Siren } from '@phosphor-icons/react';
-import { Typography } from '@maxhub/max-ui';
+import { Typography } from '../components/platform-ui.tsx';
 import type { Contact } from '@maxtown/shared';
 import {
   ErrorState,

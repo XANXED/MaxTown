@@ -1,5 +1,5 @@
 import { CalendarX, Phone, UsersThree } from '@phosphor-icons/react';
-import { Button, Typography } from '@maxhub/max-ui';
+import { Button, Typography } from '../components/platform-ui.tsx';
 import type { HouseEventDetails } from '@maxtown/shared';
 import { systemVisuals } from '../components/categoryVisuals.ts';
 import {

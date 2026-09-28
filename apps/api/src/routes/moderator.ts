@@ -30,7 +30,7 @@ function toRegistration(row: RegistrationRow): HouseRegistration {
     ...(row.gar_house_guid ? { garHouseGuid: row.gar_house_guid } : {}),
     headman: {
       name: row.display_name, apartment: row.apartment_number,
-      ...(row.username ? { maxUsername: row.username } : {}), ...(row.phone ? { phone: row.phone } : {}),
+      ...(row.username ? { vkUsername: row.username } : {}), ...(row.phone ? { phone: row.phone } : {}),
     },
     submittedAt: row.submitted_at.toISOString(), status: row.status,
     ...(row.decided_at ? { decidedAt: row.decided_at.toISOString() } : {}),

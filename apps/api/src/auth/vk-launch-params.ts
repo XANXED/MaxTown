@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-const MAX_LAUNCH_PARAMS_LENGTH = 16_384;
+const VK_LAUNCH_PARAMS_LENGTH = 16_384;
 
 export type VkVerifiedIdentity = { vkUserId: string };
 
@@ -18,7 +18,7 @@ export function validateVkLaunchParams(
   appSecret: string,
   expectedAppId: string,
 ): VkVerifiedIdentity {
-  if (!launchParams || launchParams.length > MAX_LAUNCH_PARAMS_LENGTH) throw new Error('Invalid VK launch parameters');
+  if (!launchParams || launchParams.length > VK_LAUNCH_PARAMS_LENGTH) throw new Error('Invalid VK launch parameters');
   if (!appSecret.trim() || !expectedAppId.trim()) throw new Error('VK Mini App credentials are not configured');
 
   const values = new Map<string, string>();

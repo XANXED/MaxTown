@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
+import { Avatar } from '@vkontakte/vkui';
 import { BellRinging, BookOpen, ChatCircleText, CloudSlash, House, ShieldCheck, User } from '@phosphor-icons/react';
-import { Avatar, Typography } from '@maxhub/max-ui';
+import { Typography } from '../components/platform-ui.tsx';
 import {
   BottomNavigation,
   IconTile,
@@ -11,7 +12,7 @@ import {
   type TileColor,
 } from '../components/ui.tsx';
 import { useHouseState } from '../data/houseState.ts';
-import { currentProfileUser } from '../maxUser.ts';
+import { currentProfileUser } from '../vkUser.ts';
 import { ROUTES } from '../routes.ts';
 import type { Navigate, Notify } from './types.ts';
 
@@ -22,7 +23,7 @@ type ProfileScreenProps = {
 
 export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
   const user = currentProfileUser();
-  const platform = window.WebApp?.platform;
+  const platform = new URLSearchParams(window.__VK_LAUNCH_PARAMS__ ?? '').get('vk_platform');
   const soon = (title: string) => () => notify(`«${title}» появится позже`);
   const { status: houseStatus, data: house, retry: retryHouse } = useHouseState();
 
@@ -36,30 +37,19 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
         </header>
 
         <section className="profile-card" aria-label="Кто вы">
-          <Avatar.Container className="profile-card__avatar" size={72} form="circle">
-            {user ? (
-              <Avatar.Image
-                src={user.photoUrl}
-                alt=""
-                fallback={<Avatar.Text gradient="blue">{user.initials}</Avatar.Text>}
-                fallbackGradient="blue"
-              />
-            ) : (
+          {user ? (
+            <Avatar className="profile-card__avatar" src={user.photoUrl} initials={user.initials} size={72} alt="" gradientColor="blue" />
+          ) : (
               <span className="profile-card__avatar-fallback icon-tile--blue">
                 <User className="icon icon--large" weight="fill" aria-hidden />
               </span>
-            )}
-          </Avatar.Container>
+          )}
           <Typography.Text asChild variant="subheader">
             <h2>{user?.name ?? 'Гость'}</h2>
           </Typography.Text>
           <Typography.Text asChild variant="description" color="secondary">
             <p>
-              {user
-                ? user.username
-                  ? `@${user.username} · вход через MAX`
-                  : 'Вход через MAX'
-                : 'Откройте MaxTown в MAX — имя и фото подтянутся сами'}
+              {user ? 'Вход через VK' : 'Откройте мини-приложение MaxTown в VK — имя и фото появятся здесь'}
             </p>
           </Typography.Text>
         </section>
@@ -138,7 +128,7 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
         </ProfileGroup>
 
         <Typography.Text asChild variant="description" color="tertiary">
-          <p className="services-note">{platform ? `MaxTown · MAX, ${platform}` : 'MaxTown · открыт в браузере'}</p>
+          <p className="services-note">{platform ? `MaxTown · VK, ${platform}` : 'MaxTown · открыт в браузере'}</p>
         </Typography.Text>
       </main>
       <BottomNavigation active={ROUTES.profile} navigate={navigate} />

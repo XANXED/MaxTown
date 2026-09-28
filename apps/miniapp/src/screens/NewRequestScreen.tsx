@@ -1,5 +1,5 @@
 import { Camera, House, Info, Warning, X } from '@phosphor-icons/react';
-import { Button, Textarea, Typography } from '@maxhub/max-ui';
+import { Button, Textarea, Typography } from '../components/platform-ui.tsx';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { categoryVisual } from '../components/categoryVisuals.ts';
 import { MiniTile, ScreenHeading, Segmented } from '../components/ui.tsx';

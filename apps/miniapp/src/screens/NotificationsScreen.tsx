@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BellSimple, CalendarCheck, CaretRight, ChatCircleText, FileText, House, HouseLine } from '@phosphor-icons/react';
-import { Typography } from '@maxhub/max-ui';
+import { Typography } from '../components/platform-ui.tsx';
 import type { UserNotification } from '@maxtown/shared';
 import {
   EmptyState,

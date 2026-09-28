@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Button, Spinner, Typography } from '@maxhub/max-ui';
+import { Button, Spinner, Typography } from './components/platform-ui.tsx';
 import { CaretLeft, WifiSlash } from '@phosphor-icons/react';
 import { ContactsScreen } from './screens/ContactsScreen.tsx';
 import { EventScreen } from './screens/EventScreen.tsx';
@@ -36,8 +36,8 @@ import './app.css';
 const NOTICE_DURATION_MS = 3200;
 /** Столько длится анимация исчезновения уведомления в app.css (--motion-base). */
 const NOTICE_EXIT_MS = 240;
-const launchParams = new URLSearchParams(window.location.search).toString();
-const REQUIRE_SERVER_AUTH = !import.meta.env.DEV || Boolean(launchParams);
+const launchParams = window.__VK_LAUNCH_PARAMS__ ?? new URLSearchParams(window.location.search).toString();
+const REQUIRE_SERVER_AUTH = !import.meta.env.DEV || Boolean(new URLSearchParams(launchParams).get('sign'));
 const CommunityScreen = lazy(() => import('./screens/CommunityScreen.tsx').then(({ CommunityScreen: Screen }) => ({ default: Screen })));
 const RepairModeScreen = lazy(() => import('./screens/RepairModeScreen.tsx').then(({ RepairModeScreen: Screen }) => ({ default: Screen })));
 
@@ -58,9 +58,6 @@ function currentEntry(): HistoryEntry {
   const state = window.history.state as Partial<HistoryEntry> | null;
   return { step: typeof state?.step === 'number' ? state.step : 0, scrollY: state?.scrollY };
 }
-
-/** В VK «Назад» — системная кнопка; в браузере её нет, и внутренним экранам нужна своя. */
-const insideVk = Boolean(launchParams);
 
 export function App() {
   const [route, setRoute] = useState<AppRoute>(initialRoute);
@@ -155,22 +152,6 @@ export function App() {
     window.scrollTo({ top: pendingScroll.current, behavior: 'instant' });
     pendingScroll.current = 0;
   }, [route]);
-
-  useEffect(() => {
-    const backButton = insideVk ? window.WebApp?.BackButton : undefined;
-    if (!backButton) return;
-
-    // Вкладки нижней навигации — корневые экраны, «Назад» на них не нужен.
-    if (isRootRoute(route)) {
-      backButton.hide();
-      return;
-    }
-
-    backButton.show();
-    backButton.onClick(goBack);
-
-    return () => backButton.offClick(goBack);
-  }, [goBack, route]);
 
   useEffect(
     () => () => {
@@ -297,7 +278,7 @@ export function App() {
       )}
       {/* key перезапускает анимацию появления при смене экрана */}
       <div className="screen-transition" key={route}>
-        {!insideVk && !isRootRoute(route) ? (
+        {!isRootRoute(route) ? (
           <div className="back-bar">
             <button className="text-action pressable back-bar__button" type="button" onClick={goBack}>
               <CaretLeft className="icon icon--small" weight="bold" aria-hidden />

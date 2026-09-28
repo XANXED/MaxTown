@@ -77,8 +77,8 @@ export function parentRoute(route: AppRoute): AppRoute {
 }
 
 /**
- * Экран при запуске. MAX кладёт данные запуска во фрагмент адреса
- * (`#WebAppData=…`), поэтому непустой хеш ещё не значит, что экран выбран.
+ * VK передаёт launch-параметры отдельно от hash-маршрута, поэтому пустой hash
+ * при первом запуске не выбирает экран.
  * Если хеш не называет экран и приветствие не видели — начинаем с него.
  */
 export function startRoute(hash: string, seenWelcome: boolean): AppRoute {

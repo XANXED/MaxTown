@@ -49,8 +49,8 @@ export function registrationChecks(item: HouseRegistration, all: HouseRegistrati
         },
     duplicateCheck(item, all),
     item.headman.phone
-      ? { label: 'Телефон подтверждён в MAX', hint: item.headman.phone, state: 'ok' }
-      : { label: 'Телефон не подтверждён', hint: 'Связаться со Старостой можно только через MAX', state: 'warning' },
+      ? { label: 'Телефон указан Старостой', hint: item.headman.phone, state: 'ok' }
+      : { label: 'Телефон не указан', hint: 'Контакт Старосты не добавлен', state: 'warning' },
   ];
 }
 

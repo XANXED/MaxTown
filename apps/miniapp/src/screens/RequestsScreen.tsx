@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus } from '@phosphor-icons/react';
-import { Button, IconButton, Typography } from '@maxhub/max-ui';
+import { Button, IconButton, Typography } from '../components/platform-ui.tsx';
 import { serviceVisuals } from '../components/serviceVisuals.ts';
 import {
   BottomNavigation,

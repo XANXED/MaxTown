@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { ArrowClockwise, ChatCircle, PaperPlaneRight, Plus } from '@phosphor-icons/react';
-import { Button, Input, Spinner, Textarea, Typography } from '@maxhub/max-ui';
+import { Button, Input, Spinner, Textarea, Typography } from '../components/platform-ui.tsx';
 import type { CommunityMessage, CommunityPoll, HouseRole } from '@maxtown/shared';
 import { getCurrentResident } from '../auth/session.ts';
 import {

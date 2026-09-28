@@ -19,7 +19,7 @@ const asRegistration = (row: Record<string, unknown>): HouseRegistration => ({
   ...(row.gar_house_guid ? { garHouseGuid: String(row.gar_house_guid) } : {}),
   headman: {
     name: String(row.display_name), apartment: String(row.apartment_number),
-    ...(row.username ? { maxUsername: String(row.username) } : {}),
+    ...(row.username ? { vkUsername: String(row.username) } : {}),
     ...(row.phone ? { phone: String(row.phone) } : {}),
   },
   submittedAt: new Date(String(row.submitted_at)).toISOString(), status: row.status as HouseRegistration['status'],

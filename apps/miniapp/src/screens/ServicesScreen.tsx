@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MagnifyingGlass } from '@phosphor-icons/react';
-import { Input, Typography } from '@maxhub/max-ui';
+import { Input, Typography } from '../components/platform-ui.tsx';
 import { serviceVisuals } from '../components/serviceVisuals.ts';
 import { BottomNavigation, EmptyState, IconTile, ListCard, RowShell } from '../components/ui.tsx';
 import { filterServiceGroups, serviceGroups, type Service } from '../data/services.ts';
