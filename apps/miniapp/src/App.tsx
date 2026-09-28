@@ -227,7 +227,7 @@ export function App() {
       screen = <HouseEventsScreen navigate={navigate} />;
       break;
     case ROUTES.services:
-      screen = <ServicesScreen navigate={navigate} notify={notify} />;
+      screen = <ServicesScreen navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />;
       break;
     case ROUTES.profile:
       screen = <ProfileScreen navigate={navigate} notify={notify} />;

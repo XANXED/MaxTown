@@ -70,6 +70,16 @@ it('defines per-resident consent, in-app poll notifications, and idempotent dire
   expect(migration).toContain('provider_random_id integer GENERATED ALWAYS AS IDENTITY UNIQUE');
 });
 
+it('defines house scoped services and sourced tariffs', () => {
+  const migration = readFileSync(new URL('./migrations/0006_house_service_directory.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('CREATE TABLE house_services');
+  expect(migration).toContain('UNIQUE (id, house_id)');
+  expect(migration).toContain('CREATE TABLE house_service_tariffs');
+  expect(migration).toContain('source');
+  expect(migration).toContain('checked_on');
+  expect(migration).toContain('FOREIGN KEY (service_id, house_id)');
+});
+
 it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent', async () => {
   expect(pool).not.toBeNull();
   if (!pool) return;
@@ -78,7 +88,7 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('5');
+  expect(result.rows[0]?.count).toBe('6');
 });
 
 it.skipIf(!databaseUrl)('preserves old public totals while deleting every historical voter link', async () => {

@@ -2176,6 +2176,56 @@ time,
   gap: var(--space-8);
 }
 
+.house-service-card,
+.house-service-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-16);
+}
+
+.house-service-card + .house-service-card,
+.house-service-editor {
+  border-top: 1px solid var(--divider-primary);
+}
+
+.house-service-card h3,
+.house-service-editor h3,
+.house-service-card p {
+  margin: 0;
+}
+
+.house-service-card a,
+.house-service-tariff a {
+  color: var(--bubble-link);
+  overflow-wrap: anywhere;
+}
+
+.house-service-tariff,
+.house-service-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+}
+
+.house-service-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.house-service-select {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-8) var(--space-12);
+  color: var(--text-primary);
+  background: var(--input-background);
+  border: 0;
+  border-radius: var(--radius-8);
+  font: inherit;
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-color-scheme='light']) .app-shell {
     --tile-fill: 22%;

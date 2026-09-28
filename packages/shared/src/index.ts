@@ -191,6 +191,32 @@ export type Contact = {
   kind: 'dispatch' | 'emergency' | 'police' | 'other';
 };
 
+/** Тариф Услуги дома с явно указанными источником и датой проверки. */
+export type HouseServiceTariff = {
+  id: string;
+  amount: string;
+  currency: string;
+  billingPeriod: string;
+  conditions: string;
+  startsOn: string;
+  endsOn: string | null;
+  source: string;
+  checkedOn: string;
+};
+
+/** Услуга конкретного Дома и Поставщик, который её оказывает. */
+export type HouseService = {
+  id: string;
+  category: 'internet' | 'telecom' | 'utilities' | 'maintenance' | 'other';
+  provider: string;
+  title: string;
+  state: 'available' | 'limited' | 'unavailable' | 'discontinued';
+  contacts: { phone?: string; link?: string; details?: string };
+  note: string | null;
+  updatedAt: string;
+  tariffs: HouseServiceTariff[];
+};
+
 /** Место рядом: организация поблизости от Дома. */
 export type Place = {
   id: string;
