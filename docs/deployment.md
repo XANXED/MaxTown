@@ -6,32 +6,34 @@
 
 - GitHub-репозиторий MaxTown и доступ владельца к Render.
 - Созданные в VK Mini Apps приложение и сообщество с включённым Callback API и разрешёнными сообщениями сообщества.
-- Длинный пароль Модератора. В Render передаётся только bcrypt-хеш.
+- `VK_APP_ID`, `VK_APP_SECRET`, `VK_GROUP_ID` и `VK_GROUP_TOKEN` из созданных приложения и сообщества VK.
 
-До появления доступа к аккаунту VK владельца и Render можно проверять код локально и в CI. Без этих доступов нельзя подтвердить реальный запуск VK, Callback API или публичный Render URL.
+Render создаёт Web Service и базу по Blueprint. Render автоматически генерирует секрет Callback API, пароль Модератора и ключ анонимизации опросов. Код подтверждения Callback API выдаёт VK только после добавления адреса сервера, поэтому его нужно внести в Render после первого деплоя. Владелец Render всё ещё должен один раз применить Blueprint и передать реальные реквизиты VK: их невозможно создать на стороне Render.
 
 ## Настройка Render
 
-1. Опубликуйте релизную ветку в GitHub и дождитесь успешных обязательных checks на `main`.
-2. В Render Dashboard выберите **New → Blueprint**, подключите GitHub-репозиторий и примените `render.yaml`.
-3. Заполните предложенные Blueprint переменные `sync: false`: `VK_APP_ID`, `VK_APP_SECRET`, `VK_GROUP_ID`, `VK_GROUP_TOKEN`, `VK_CALLBACK_SECRET`, `VK_CALLBACK_CONFIRMATION_CODE`, `MODERATOR_PASSWORD_HASH` и `POLL_VOTER_NULLIFIER_SECRET`. Секрет опросов должен содержать не менее 32 случайных байтов; храните его постоянно, ротация позволит жильцам голосовать повторно.
-4. Установите адрес Mini App в настройках VK на `https://<имя-сервиса>.onrender.com/`. В настройках Callback API задайте этот же домен и путь `/api/vk/callback`, версию API из `VK_API_VERSION`, секрет и код подтверждения из переменных Render. Включите события `message_allow` и `message_deny`.
-5. Дождитесь статуса **Live** и проверьте `https://<имя-сервиса>.onrender.com/api/ready` — ожидается HTTP 200.
-6. Откройте Mini App из сообщества VK, проверьте вход и вручную протестируйте уведомление на разрешившем отправку тестовом аккаунте.
+1. В Render Dashboard выберите **New → Blueprint**, подключите GitHub-репозиторий `XANXED/MaxTown` и примените `render.yaml` из `main`.
+2. Заполните предложенные обязательные реквизиты VK: `VK_APP_ID`, `VK_APP_SECRET`, `VK_GROUP_ID`, `VK_GROUP_TOKEN`. Render сам задаст `VK_CALLBACK_SECRET`, `MODERATOR_PASSWORD` и `POLL_VOTER_NULLIFIER_SECRET`.
+3. Дождитесь первого деплоя **Live**. API запускается без кода подтверждения, который ещё не выдан VK. В настройках Callback API сообщества добавьте сервер `https://<имя-сервиса>.onrender.com/api/vk/callback`, вставьте `VK_CALLBACK_SECRET` из Render и сохраните настройки. VK покажет код подтверждения.
+4. Добавьте выданный VK код как `VK_CALLBACK_CONFIRMATION_CODE` в **Environment** сервиса Render и дождитесь успешного повторного деплоя. Затем вернитесь в настройки Callback API и нажмите подтверждение сервера. VK отправит confirmation event; API ответит точным выданным кодом. Включите события `message_allow` и `message_deny`, используя версию API из `VK_API_VERSION`.
+5. Установите адрес Mini App в настройках VK на `https://<имя-сервиса>.onrender.com/`.
+6. Проверьте `https://<имя-сервиса>.onrender.com/api/ready` — ожидается HTTP 200. Откройте Mini App из сообщества VK и вручную проверьте вход и уведомление на тестовом аккаунте, разрешившем сообщения.
 
-### Создание bcrypt-хеша
+### Доступ Модератора
 
-На машине с Docker запустите Caddy. Утилита запросит пароль интерактивно; не вставляйте пароль в командную строку и не сохраняйте хеш в репозитории:
+Render случайно создаёт `MODERATOR_PASSWORD`; API хеширует его через bcrypt при запуске. Когда понадобится открыть панель Модератора, скопируйте сгенерированное значение из переменных сервиса Render и используйте имя `moderator`. Не записывайте пароль в репозиторий или логи. Чтобы сменить пароль, обновите `MODERATOR_PASSWORD` в Render Dashboard. Существующие окружения с `MODERATOR_PASSWORD_HASH` продолжат работать.
+
+Для другого окружения, которое использует bcrypt-хеш, создайте его интерактивно через Caddy; пароль не попадёт в аргументы процесса.
 
 ```sh
 docker run --rm -it caddy:2-alpine caddy hash-password
 ```
 
-Скопируйте bcrypt-хеш в `MODERATOR_PASSWORD_HASH`. API проверяет Basic Auth и наличие включённой записи Модератора в базе. Пять неверных паролей с одного IP приводят к HTTP 429 на 15 минут; счётчик хранится в памяти процесса и сбрасывается при перезапуске или пробуждении Free-сервиса.
+Хеш можно положить в локальный `.env` как `MODERATOR_PASSWORD_HASH`. API проверяет Basic Auth и наличие включённой записи Модератора в базе. Пять неверных паролей с одного IP приводят к HTTP 429 на 15 минут; счётчик хранится в памяти процесса и сбрасывается при перезапуске или пробуждении Free-сервиса.
 
 ## Локальный Compose
 
-Скопируйте `.env.example` в `.env`, задайте значения VK, создайте bcrypt-хеш Модератора, замените пример пароля PostgreSQL и согласуйте `COMPOSE_DATABASE_URL` с `POSTGRES_DB`, `POSTGRES_USER` и `POSTGRES_PASSWORD`. Для хоста `DATABASE_URL` остаётся локальным (`localhost`), а API-контейнер использует `COMPOSE_DATABASE_URL` с host `postgres`. Контейнер базы не публикует порт наружу; API и база находятся во внутренней сети Compose.
+Скопируйте `.env.example` в `.env`, задайте значения VK, имя Модератора и пароль длиной не менее 32 ASCII-символов (либо bcrypt-хеш), замените пример пароля PostgreSQL и согласуйте `COMPOSE_DATABASE_URL` с `POSTGRES_DB`, `POSTGRES_USER` и `POSTGRES_PASSWORD`. Для хоста `DATABASE_URL` остаётся локальным (`localhost`), а API-контейнер использует `COMPOSE_DATABASE_URL` с host `postgres`. Контейнер базы не публикует порт наружу; API и база находятся во внутренней сети Compose.
 
 ```sh
 docker compose config

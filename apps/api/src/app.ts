@@ -78,7 +78,7 @@ export async function buildApp({ pool, env, staticAssets }: BuildAppOptions): Pr
   registerRepairModeRoutes(app, pool);
   registerServicesDirectoryRoutes(app, pool);
   registerNotificationRoutes(app, pool, groupId);
-  if (groupId && env.VK_CALLBACK_SECRET && env.VK_CALLBACK_CONFIRMATION_CODE) {
+  if (groupId && env.VK_CALLBACK_SECRET) {
     registerVkCallbackRoutes(app, pool, { groupId, secret: env.VK_CALLBACK_SECRET, confirmationCode: env.VK_CALLBACK_CONFIRMATION_CODE });
   }
 

@@ -20,9 +20,23 @@ describe('VK Callback API', () => {
 
   it('returns the confirmation code for a valid VK confirmation event', async () => {
     registerVkCallbackRoutes(app, pool, { groupId: 123, secret: 'callback-secret', confirmationCode: 'verify-me' });
-    const response = await app.inject({ method: 'POST', url: '/api/vk/callback', payload: { type: 'confirmation', group_id: 123, event_id: 'confirm-1', v: '5.199', secret: 'callback-secret' } });
+    const response = await app.inject({ method: 'POST', url: '/api/vk/callback', payload: { type: 'confirmation', group_id: 123 } });
     expect(response.statusCode).toBe(200);
     expect(response.body).toBe('verify-me');
+  });
+
+  it('keeps the callback available before the VK-issued confirmation code is configured', async () => {
+    registerVkCallbackRoutes(app, pool, { groupId: 123, secret: 'callback-secret' });
+    const response = await app.inject({ method: 'POST', url: '/api/vk/callback', payload: { type: 'confirmation', group_id: 123 } });
+    expect(response.statusCode).toBe(503);
+  });
+
+  it('rejects confirmation for a different group and a supplied invalid secret', async () => {
+    registerVkCallbackRoutes(app, pool, { groupId: 123, secret: 'callback-secret', confirmationCode: 'verify-me' });
+    const wrongGroup = await app.inject({ method: 'POST', url: '/api/vk/callback', payload: { type: 'confirmation', group_id: 999 } });
+    const wrongSecret = await app.inject({ method: 'POST', url: '/api/vk/callback', payload: { type: 'confirmation', group_id: 123, secret: 'bad' } });
+    expect(wrongGroup.statusCode).toBe(403);
+    expect(wrongSecret.statusCode).toBe(403);
   });
 
   it('rejects wrong secret and group without touching persistence', async () => {

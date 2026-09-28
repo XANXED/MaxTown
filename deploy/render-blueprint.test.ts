@@ -31,7 +31,7 @@ describe('Render Blueprint', () => {
     expect(service.region).toBe(database.region);
   });
 
-  it('uses Render database wiring and asks for deployment secrets', async () => {
+  it('uses Render database wiring, generates internal secrets, and asks only for VK credentials', async () => {
     const blueprint = parse(await readFile(new URL('../render.yaml', import.meta.url), 'utf8')) as {
       services: Array<{ envVars: Array<Record<string, unknown>> }>;
       databases: Array<{ name: string }>;
@@ -43,14 +43,14 @@ describe('Render Blueprint', () => {
       key: 'DATABASE_URL',
       fromDatabase: { name: blueprint.databases[0].name, property: 'connectionString' },
     });
-    for (const key of ['VK_APP_ID', 'VK_APP_SECRET', 'VK_GROUP_ID', 'VK_GROUP_TOKEN', 'VK_CALLBACK_SECRET', 'VK_CALLBACK_CONFIRMATION_CODE']) {
+    for (const key of ['VK_APP_ID', 'VK_APP_SECRET', 'VK_GROUP_ID', 'VK_GROUP_TOKEN']) {
       expect(variables.get(key)).toEqual({ key, sync: false });
     }
-    expect(variables.get('MODERATOR_PASSWORD_HASH')).toEqual({
-      key: 'MODERATOR_PASSWORD_HASH',
-      sync: false,
-    });
-    expect(variables.get('POLL_VOTER_NULLIFIER_SECRET')).toEqual({ key: 'POLL_VOTER_NULLIFIER_SECRET', sync: false });
+    for (const key of ['VK_CALLBACK_SECRET', 'MODERATOR_PASSWORD', 'POLL_VOTER_NULLIFIER_SECRET']) {
+      expect(variables.get(key)).toEqual({ key, generateValue: true });
+    }
+    expect(variables.has('VK_CALLBACK_CONFIRMATION_CODE')).toBe(false);
+    expect(variables.has('MODERATOR_PASSWORD_HASH')).toBe(false);
     expect(variables.get('MODERATOR_USERNAME')).toMatchObject({ key: 'MODERATOR_USERNAME' });
   });
 });

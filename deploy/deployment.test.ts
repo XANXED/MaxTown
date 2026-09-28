@@ -24,6 +24,8 @@ describe('production deployment contract', () => {
     expect(compose.services.web?.depends_on?.postgres?.condition).toBe('service_healthy');
     expect(compose.services.web?.environment?.PORT).toBe('3000');
     expect(compose.services.web?.environment?.DATABASE_URL).toBe('${COMPOSE_DATABASE_URL:-postgres://maxtown:change-me@postgres:5432/maxtown}');
+    expect(compose.services.web?.environment?.MODERATOR_PASSWORD).toBe('${MODERATOR_PASSWORD:-}');
+    expect(compose.services.web?.environment?.MODERATOR_PASSWORD_HASH).toBe('${MODERATOR_PASSWORD_HASH:-}');
     for (const key of ['VK_APP_ID', 'VK_APP_SECRET', 'VK_GROUP_ID', 'VK_GROUP_TOKEN', 'VK_CALLBACK_SECRET', 'VK_CALLBACK_CONFIRMATION_CODE', 'POLL_VOTER_NULLIFIER_SECRET']) {
       expect(compose.services.web?.environment?.[key]).toBeTruthy();
     }
