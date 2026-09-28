@@ -44,7 +44,7 @@ describe.skipIf(!databaseUrl)('house community and polls', () => {
     const foreignResident = await createPerson('community-foreign');
     foreignToken = foreignResident.token;
     await pool.query("INSERT INTO memberships (house_id, resident_id, role) VALUES ($1, $2, 'concierge')", [foreignHouseId, foreignResident.id]);
-    app = await buildApp({ pool, env: { NODE_ENV: 'test' } });
+    app = await buildApp({ pool, env: { NODE_ENV: 'test', POLL_VOTER_NULLIFIER_SECRET: 'test-only-poll-voter-nullifier-secret-32-bytes-minimum' } });
   });
 
   afterEach(async () => { await app.close(); });
@@ -76,25 +76,41 @@ describe.skipIf(!databaseUrl)('house community and polls', () => {
     expect((await app.inject({ method: 'GET', url: `/api/houses/${houseId}/polls`, headers })).statusCode).toBe(403);
   });
 
-  it('restricts poll creation to Headman and Responsible and rejects duplicate or invalid options', async () => {
+  it('allows every active member to create informal polls and rejects invalid options', async () => {
     const residentHeaders = { authorization: `Bearer ${residentToken}` };
     const responsibleHeaders = { authorization: `Bearer ${responsibleToken}` };
     const payload = { question: 'Какой день удобнее?', options: [{ label: 'Суббота' }, { label: 'Воскресенье' }] };
-    expect((await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers: residentHeaders, payload })).statusCode).toBe(403);
+    expect((await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers: residentHeaders, payload })).statusCode).toBe(201);
+    expect((await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers: residentHeaders, payload: { ...payload, question: '  ' } })).statusCode).toBe(400);
+    expect((await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers: residentHeaders, payload: { ...payload, options: [{ label: '   ' }, { label: 'Нет' }] } })).statusCode).toBe(400);
     expect((await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers: responsibleHeaders, payload: { ...payload, options: [{ label: 'Да' }, { label: 'да ' }] } })).statusCode).toBe(400);
     expect((await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers: responsibleHeaders, payload: { ...payload, closesAt: new Date(Date.now() - 1000).toISOString() } })).statusCode).toBe(400);
     expect((await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers: responsibleHeaders, payload })).statusCode).toBe(201);
   });
 
-  it('allows one immutable vote per membership, serializes concurrent votes, and returns aggregates', async () => {
-    const responsibleHeaders = { authorization: `Bearer ${responsibleToken}` };
-    const created = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers: responsibleHeaders, payload: { question: 'Проводить ли встречу?', options: [{ label: 'Да' }, { label: 'Нет' }] } });
-    const poll = created.json<{ poll: { id: string; options: Array<{ id: string }> } }>().poll;
+  it('allows one anonymous immutable vote per membership and exposes only own choice plus aggregates', async () => {
     const headers = { authorization: `Bearer ${residentToken}` };
+    const created = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers, payload: { question: 'Проводить ли встречу?', options: [{ label: 'Да' }, { label: 'Нет' }] } });
+    expect(JSON.stringify(created.json())).not.toContain(residentId);
+    expect(JSON.stringify(created.json())).not.toContain('author');
+    const poll = created.json<{ poll: { id: string; options: Array<{ id: string }> } }>().poll;
     const votes = await Promise.all([1, 2].map(() => app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls/${poll.id}/votes`, headers, payload: { optionId: poll.options[0]!.id } })));
     expect(votes.map(({ statusCode }) => statusCode).sort()).toEqual([201, 409]);
     const results = await app.inject({ method: 'GET', url: `/api/houses/${houseId}/polls/${poll.id}/results`, headers });
-    expect(results.json()).toMatchObject({ totalVotes: 1, options: [{ id: poll.options[0]!.id, votes: 1 }, { id: poll.options[1]!.id, votes: 0 }] });
+    expect(results.json()).toMatchObject({ totalVotes: 1, myVoteOptionId: poll.options[0]!.id, options: [{ id: poll.options[0]!.id, votes: 1 }, { id: poll.options[1]!.id, votes: 0 }] });
+    expect(JSON.stringify(results.json())).not.toContain(residentId);
+    expect(JSON.stringify(results.json())).not.toContain('author');
+    const ballots = await pool.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_name = 'poll_ballots'");
+    expect(ballots.rows.map(({ column_name }) => column_name).sort()).toEqual(['option_id', 'poll_id', 'voter_nullifier']);
+    const ballot = await pool.query<{ voter_nullifier: Buffer }>('SELECT voter_nullifier FROM poll_ballots WHERE poll_id = $1', [poll.id]);
+    expect(ballot.rows[0]?.voter_nullifier).toBeInstanceOf(Buffer);
+    expect(ballot.rows[0]?.voter_nullifier).toHaveLength(32);
+    const otherVoter = await app.inject({ method: 'GET', url: `/api/houses/${houseId}/polls`, headers: { authorization: `Bearer ${responsibleToken}` } });
+    expect(otherVoter.json<{ polls: Array<{ myVoteOptionId: string | null }> }>().polls[0]?.myVoteOptionId).toBeNull();
+    const foreignPoll = await app.inject({ method: 'POST', url: `/api/houses/${foreignHouseId}/polls`, headers: { authorization: `Bearer ${foreignToken}` }, payload: { question: 'Чужой опрос', options: [{ label: 'Да' }, { label: 'Нет' }] } });
+    const foreignPollId = foreignPoll.json<{ poll: { id: string } }>().poll.id;
+    const crossHouseVote = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls/${foreignPollId}/votes`, headers, payload: { optionId: poll.options[0]!.id } });
+    expect(crossHouseVote.statusCode).toBe(404);
     await pool.query('UPDATE polls SET closes_at = now() - interval \'1 second\' WHERE id = $1', [poll.id]);
     const closed = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls/${poll.id}/votes`, headers: { authorization: `Bearer ${responsibleToken}` }, payload: { optionId: poll.options[1]!.id } });
     expect(closed.statusCode).toBe(409);

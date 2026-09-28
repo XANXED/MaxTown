@@ -61,7 +61,7 @@ export async function buildApp({ pool, env, staticAssets }: BuildAppOptions): Pr
   registerAuthRoutes(app, pool, env);
   registerHouseRoutes(app, pool);
   registerModeratorRoutes(app, pool);
-  registerCommunityRoutes(app, pool);
+  registerCommunityRoutes(app, pool, env.POLL_VOTER_NULLIFIER_SECRET ?? 'development-only-poll-voter-nullifier-secret');
   registerRepairModeRoutes(app, pool);
 
   const assets = staticAssets ?? (env.NODE_ENV === 'production' ? {

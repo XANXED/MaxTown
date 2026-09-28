@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { hasValidModeratorBasicAuthConfiguration } from './auth/moderator-basic-auth.ts';
+import { isValidPollNullifierSecret } from './auth/poll-nullifier.ts';
 import { buildApp, type BuildAppOptions } from './app.ts';
 import { ensureBootstrapModerator } from './db/moderators.ts';
 import { runMigrations } from './db/migrate.ts';
@@ -43,10 +44,16 @@ function validateEnvironment(env: NodeJS.ProcessEnv): { databaseUrl: string; por
   const databaseUrl = env.DATABASE_URL?.trim();
   if (!databaseUrl) throw new Error('DATABASE_URL is required');
   const port = serverPort(env);
+  if (env.POLL_VOTER_NULLIFIER_SECRET && !isValidPollNullifierSecret(env.POLL_VOTER_NULLIFIER_SECRET)) {
+    throw new Error('POLL_VOTER_NULLIFIER_SECRET must contain at least 32 bytes');
+  }
   const hasModeratorSetting = Boolean(env.MODERATOR_USERNAME || env.MODERATOR_PASSWORD_HASH);
   if (env.NODE_ENV === 'production') {
     if (!env.VK_APP_ID?.trim()) throw new Error('VK_APP_ID is required in production');
     if (!env.VK_APP_SECRET?.trim()) throw new Error('VK_APP_SECRET is required in production');
+    if (!isValidPollNullifierSecret(env.POLL_VOTER_NULLIFIER_SECRET)) {
+      throw new Error('POLL_VOTER_NULLIFIER_SECRET must contain at least 32 bytes in production');
+    }
     if (!hasValidModeratorBasicAuthConfiguration(env)) {
       throw new Error('MODERATOR_USERNAME and MODERATOR_PASSWORD_HASH must contain valid Moderator credentials');
     }

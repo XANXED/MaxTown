@@ -9,6 +9,7 @@ const validProductionEnv = {
   DATABASE_URL: 'postgres://maxtown:test@localhost/maxtown',
   VK_APP_ID: '12345678',
   VK_APP_SECRET: 'vk-test-app-secret',
+  POLL_VOTER_NULLIFIER_SECRET: 'test-only-poll-voter-nullifier-secret-32-bytes-minimum',
   MODERATOR_USERNAME: 'moderator@example.org',
   MODERATOR_PASSWORD_HASH: `$2a$04$${'A'.repeat(53)}`,
 };
@@ -69,6 +70,13 @@ describe('API startup', () => {
 
     expect(dependencies.createPool).not.toHaveBeenCalled();
     expect(dependencies.listen).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing or short nullifier secret before creating the pool', async () => {
+    const { dependencies } = createDependencies();
+    await expect(startServer({ env: { ...validProductionEnv, POLL_VOTER_NULLIFIER_SECRET: 'short' }, dependencies }))
+      .rejects.toThrow(/POLL_VOTER_NULLIFIER_SECRET/);
+    expect(dependencies.createPool).not.toHaveBeenCalled();
   });
 
   it('uses API_PORT when PORT is absent and defaults to 3000', async () => {

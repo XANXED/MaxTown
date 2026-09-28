@@ -316,6 +316,7 @@ export type CommunityPollResults = {
   question: string;
   totalVotes: number;
   options: CommunityPollOption[];
+  myVoteOptionId: string | null;
 };
 
 /** Текущий объявленный режим ремонта в Доме и автор последнего изменения. */

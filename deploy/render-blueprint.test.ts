@@ -48,6 +48,7 @@ describe('Render Blueprint', () => {
       key: 'MODERATOR_PASSWORD_HASH',
       sync: false,
     });
+    expect(variables.get('POLL_VOTER_NULLIFIER_SECRET')).toEqual({ key: 'POLL_VOTER_NULLIFIER_SECRET', sync: false });
     expect(variables.get('MODERATOR_USERNAME')).toMatchObject({ key: 'MODERATOR_USERNAME' });
   });
 });

@@ -123,7 +123,7 @@ export function CommunityScreen({ houseId, role }: { houseId: string | null; rol
     );
   }
 
-  const canCreatePoll = resolvedRole === 'headman' || resolvedRole === 'responsible';
+  const canCreatePoll = Boolean(resolvedRole);
 
   return (
     <main className="screen screen--inner community-screen" id="main-content">
@@ -141,7 +141,7 @@ export function CommunityScreen({ houseId, role }: { houseId: string | null; rol
             <Typography.Text asChild variant="title"><h2 id="polls-heading">Опросы соседей</h2></Typography.Text>
             {canCreatePoll ? <Button size="small" variant="secondary" iconBefore={<Plus className="icon icon--small" aria-hidden />} onClick={() => setShowPollForm((value) => !value)}>Создать</Button> : null}
           </div>
-          <Typography.Text asChild variant="description" color="secondary"><p>Ответы помогают узнать мнение Дома и не заменяют собрание собственников.</p></Typography.Text>
+          <Typography.Text asChild variant="description" color="secondary"><p>Голоса анонимны: видны только суммарные результаты и ваш выбор. Опрос не заменяет собрание собственников.</p></Typography.Text>
           {showPollForm ? (
             <form className="community-form" onSubmit={submitPoll}>
               <Input mode="contrast" size="large" aria-label="Вопрос Опроса" placeholder="О чём спросить соседей?" value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={500} />

@@ -30,6 +30,7 @@ services:
       BOT_TOKEN: ${BOT_TOKEN:?set BOT_TOKEN for server-side MAX initData validation}
       MODERATOR_USERNAME: ${MODERATOR_USERNAME:?set MODERATOR_USERNAME}
       MODERATOR_PASSWORD_HASH: ${MODERATOR_PASSWORD_HASH:?set MODERATOR_PASSWORD_HASH to a bcrypt hash}
+      POLL_VOTER_NULLIFIER_SECRET: ${POLL_VOTER_NULLIFIER_SECRET:?set POLL_VOTER_NULLIFIER_SECRET to at least 32 random bytes}
     ports:
       - "${WEB_PUBLISH:-127.0.0.1:3000:3000}"
     depends_on:

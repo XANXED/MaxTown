@@ -18,6 +18,7 @@ POSTGRES_PASSWORD=maxtown-smoke-database-secret
 DATABASE_URL=postgres://maxtown:maxtown-smoke-database-secret@postgres:5432/maxtown
 BOT_TOKEN=maxtown-smoke-token
 MODERATOR_USERNAME=smoke-moderator
+POLL_VOTER_NULLIFIER_SECRET=maxtown-smoke-poll-voter-nullifier-secret-32-bytes
 WEB_PUBLISH=127.0.0.1:$port:3000
 EOF
 printf "MODERATOR_PASSWORD_HASH='%s'\n" "$password_hash" >> "$env_file"
