@@ -7,7 +7,9 @@
     "start": "node --env-file-if-exists=../../.env src/index.ts",
     "start:container": "node src/index.ts",
     "db:migrate": "node --env-file-if-exists=../../.env src/db/migrate.ts",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json",
+    "dev:link": "node --env-file-if-exists=../../.env src/dev/launch-link.ts",
+    "moderator:hash": "node src/dev/moderator-hash.ts"
   },
   "dependencies": {
     "@fastify/static": "^10.1.5",

@@ -13,6 +13,8 @@
     "dev:miniapp": "npm run dev -w @maxtown/miniapp",
     "dev:admin": "npm run dev -w @maxtown/admin",
     "dev:api": "npm run dev -w @maxtown/api",
+    "dev:link": "npm run dev:link -w @maxtown/api --silent --",
+    "moderator:hash": "npm run moderator:hash -w @maxtown/api --silent --",
     "mcp:project": "npm run start -w @maxtown/project-mcp",
     "smoke:mcp": "vitest run packages/project-mcp/src/stdio-smoke.test.ts",
     "build": "npm run build --workspaces --if-present",

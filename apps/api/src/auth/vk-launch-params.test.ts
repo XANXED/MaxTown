@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { validateVkLaunchParams } from './vk-launch-params.ts';
+import { signVkLaunchParams, validateVkLaunchParams } from './vk-launch-params.ts';
 
 const APP_ID = '12345678';
 const APP_SECRET = 'test-vk-client-secret';
@@ -44,5 +44,12 @@ describe('VK Mini App launch parameter validation', () => {
     expect(() => validateVkLaunchParams(`${signed}&sign=duplicate`, APP_SECRET, APP_ID)).toThrow();
     expect(() => validateVkLaunchParams(sign({ ...validLaunchParams, vk_user_id: '' }), APP_SECRET, APP_ID)).toThrow();
     expect(() => validateVkLaunchParams('x'.repeat(16_385), APP_SECRET, APP_ID)).toThrow();
+  });
+
+  it('accepts a link signed by signVkLaunchParams (npm run dev:link)', () => {
+    const params = { vk_app_id: APP_ID, vk_user_id: '2', vk_platform: 'desktop_web' };
+    const link = new URLSearchParams({ ...params, sign: signVkLaunchParams(params, APP_SECRET), house_id: 'h1' }).toString();
+    expect(validateVkLaunchParams(link, APP_SECRET, APP_ID)).toEqual({ vkUserId: '2' });
+    expect(() => validateVkLaunchParams(link, 'other-secret', APP_ID)).toThrow();
   });
 });

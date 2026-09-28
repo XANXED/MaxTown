@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { initializeVkPlatform, readVkCode } from './vk.ts';
+import { initializeVkPlatform, isStandaloneBrowser, readVkCode } from './vk.ts';
 
 describe('VK Mini App bootstrap', () => {
   it('initializes bridge and preserves signed URL launch parameters for server verification', async () => {
@@ -34,6 +34,21 @@ describe('VK Mini App bootstrap', () => {
 
     await expect(initializeVkPlatform(bridge, '?vk_app_id=123&vk_user_id=42&sign=signed', false))
       .resolves.toEqual({ launchParams: 'vk_app_id=123&vk_user_id=42&sign=signed', isEmbedded: false });
+  });
+
+  it('skips the bridge in a standalone local browser tab, where it never answers', async () => {
+    const bridge = { send: vi.fn(() => new Promise<unknown>(() => {})), isWebView: () => false };
+
+    await expect(initializeVkPlatform(bridge, '?vk_app_id=1&vk_user_id=7&sign=local', true, true))
+      .resolves.toEqual({ launchParams: 'vk_app_id=1&vk_user_id=7&sign=local', isEmbedded: false });
+    expect(bridge.send).not.toHaveBeenCalled();
+  });
+
+  it('treats only a top-level non-WebView page as standalone', () => {
+    const page = {};
+    expect(isStandaloneBrowser({ isWebView: () => false }, { self: page, top: page })).toBe(true);
+    expect(isStandaloneBrowser({ isWebView: () => false }, { self: page, top: {} })).toBe(false);
+    expect(isStandaloneBrowser({ isWebView: () => true }, { self: page, top: page })).toBe(false);
   });
 
   it('returns scanner content only when VK Bridge provides a code_data value', async () => {

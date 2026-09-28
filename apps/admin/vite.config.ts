@@ -12,5 +12,9 @@ export default defineConfig({
   },
   server: {
     port: 5174,
+    // /api → локальный API (npm run dev:api). Вход Модератора — Basic Auth, браузер спросит пароль сам.
+    proxy: {
+      '/api': `http://localhost:${process.env.API_PORT ?? 3000}`,
+    },
   },
 });

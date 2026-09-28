@@ -12,6 +12,13 @@ function canonicalSignaturePayload(values: Map<string, string>): string {
     .join('&');
 }
 
+/** Signature VK puts into `sign`: base64url HMAC-SHA256 of the sorted `vk_*` parameters. */
+export function signVkLaunchParams(params: Record<string, string>, appSecret: string): string {
+  return createHmac('sha256', appSecret)
+    .update(canonicalSignaturePayload(new Map(Object.entries(params))))
+    .digest('base64url');
+}
+
 /** Verifies VK's signed launch parameters. Launch params do not carry a documented expiry timestamp. */
 export function validateVkLaunchParams(
   launchParams: string,

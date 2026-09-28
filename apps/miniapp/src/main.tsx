@@ -14,7 +14,7 @@ import '@vkontakte/vkui/dist/vkui.css';
 import '@design/tokens.css';
 import './components/platform-ui.css';
 import { App } from './App.tsx';
-import { initializeVkPlatform, type VkBridgeClient } from './platform/vk.ts';
+import { initializeVkPlatform, isStandaloneBrowser, type VkBridgeClient } from './platform/vk.ts';
 
 function PlatformRoot() {
   const appearance = useAppearance();
@@ -51,12 +51,19 @@ if (!rootElement) throw new Error('#root не найден в index.html');
 const root = createRoot(rootElement);
 
 async function startMiniApp(): Promise<void> {
+  const localPreview = import.meta.env.DEV && isStandaloneBrowser(bridge, window);
   const initialized = await initializeVkPlatform(
     bridge as unknown as VkBridgeClient,
     window.location.search,
     import.meta.env.DEV,
+    localPreview,
   );
   window.__VK_LAUNCH_PARAMS__ = initialized.launchParams;
+  if (localPreview) {
+    // Вне VK профиль не спросить: Bridge не ответит, и приложение не отрисуется.
+    root.render(<StrictMode><PlatformRoot /></StrictMode>);
+    return;
+  }
   try {
     const user = await bridge.send('VKWebAppGetUserInfo');
     if (user && typeof user === 'object') window.__VK_USER_INFO__ = user as Window['__VK_USER_INFO__'];

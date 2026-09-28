@@ -24,11 +24,23 @@ function launchParamsFrom(search: string, bridgeParams: unknown): string {
   return values.toString();
 }
 
+/**
+ * Страница открыта сама по себе, а не внутри VK: не во фрейме и не в WebView.
+ * Там VK Bridge некому ответить — его запросы не отклоняются, а висят вечно.
+ */
+export function isStandaloneBrowser(bridge: Pick<VkBridgeClient, 'isWebView'>, win: { self: unknown; top: unknown }): boolean {
+  return win.self === win.top && !bridge.isWebView();
+}
+
 export async function initializeVkPlatform(
   bridge: VkBridgeClient,
   search: string,
   isDevelopment: boolean,
+  standalone = false,
 ): Promise<{ launchParams: string; isEmbedded: boolean }> {
+  // Локальный запуск: launch-параметры берём из адреса (их подписывает
+  // `npm run dev:link`), к Bridge не обращаемся — он не ответит.
+  if (isDevelopment && standalone) return { launchParams: launchParamsFrom(search, null), isEmbedded: false };
   try {
     await bridge.send('VKWebAppInit');
     const launchParams = await bridge.send('VKWebAppGetLaunchParams');
