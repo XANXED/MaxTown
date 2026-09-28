@@ -22,15 +22,15 @@ services:
       - key: VK_GROUP_TOKEN
         sync: false
       - key: VK_CALLBACK_SECRET
-        sync: false
+        generateValue: true
       - key: VK_CALLBACK_CONFIRMATION_CODE
-        sync: false
+        generateValue: true
       - key: VK_API_VERSION
         value: 5.199
-      - key: MODERATOR_PASSWORD_HASH
-        sync: false
+      - key: MODERATOR_PASSWORD
+        generateValue: true
       - key: POLL_VOTER_NULLIFIER_SECRET
-        sync: false
+        generateValue: true
       - key: DATABASE_URL
         fromDatabase:
           name: maxtown-db

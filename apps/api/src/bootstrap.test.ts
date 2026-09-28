@@ -55,6 +55,21 @@ describe('API startup', () => {
     ]);
   });
 
+  it('bootstraps the Moderator from a generated initial password', async () => {
+    const order: string[] = [];
+    const { app, dependencies } = createDependencies(order);
+    activeApp = app;
+    const { MODERATOR_PASSWORD_HASH: _legacyHash, ...productionEnv } = validProductionEnv;
+
+    await startServer({
+      env: { ...productionEnv, MODERATOR_PASSWORD: 'render-generated-secret-256-bit-value' },
+      dependencies,
+    });
+
+    expect(order).toContain('moderator:moderator@example.org');
+    expect(dependencies.listen).toHaveBeenCalled();
+  });
+
   it('closes the database pool and never listens when migration fails', async () => {
     const order: string[] = [];
     const { pool, dependencies } = createDependencies(order);

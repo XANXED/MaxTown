@@ -6,9 +6,7 @@ WEB_IMAGE=${1:?pass the combined API image tag}
 project="maxtown-smoke-$RANDOM-$$"
 temporary=$(mktemp -d)
 port=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
-password='maxtown-smoke-only-password'
-password_hash=$(docker run --rm --env SMOKE_PASSWORD="$password" --entrypoint node "$WEB_IMAGE" \
-  --input-type=module -e 'import bcrypt from "bcryptjs"; process.stdout.write(await bcrypt.hash(process.env.SMOKE_PASSWORD, 4))')
+password='maxtown-compose-smoke-generated-password'
 env_file="$temporary/.env"
 
 cat > "$env_file" <<EOF
@@ -25,10 +23,10 @@ VK_CALLBACK_SECRET=maxtown-smoke-callback-secret
 VK_CALLBACK_CONFIRMATION_CODE=maxtown-smoke-confirmation
 VK_API_VERSION=5.199
 MODERATOR_USERNAME=smoke-moderator
+MODERATOR_PASSWORD=$password
 POLL_VOTER_NULLIFIER_SECRET=maxtown-smoke-poll-voter-nullifier-secret-32-bytes
 WEB_PUBLISH=127.0.0.1:$port:3000
 EOF
-printf "MODERATOR_PASSWORD_HASH='%s'\n" "$password_hash" >> "$env_file"
 
 compose() {
   docker compose --project-name "$project" --env-file "$env_file" \

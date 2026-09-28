@@ -10,6 +10,9 @@ const maxFailedAttempts = 5;
 const failureWindowMs = 15 * 60 * 1000;
 const maxTrackedClients = 10_000;
 const maxConcurrentChecksPerClient = 5;
+const generatedPasswordBcryptRounds = 12;
+const minGeneratedPasswordBytes = 32;
+const maxGeneratedPasswordBytes = 128;
 
 type FailedAuthWindow = { count: number; inFlight: number; generation: number; resetAt: number };
 
@@ -18,13 +21,24 @@ type ModeratorCredentials = {
   passwordHash: string;
 };
 
+function isValidGeneratedPassword(password: string | undefined): password is string {
+  if (!password || !/^[\x21-\x7e]+$/.test(password)) return false;
+  const length = Buffer.byteLength(password);
+  return length >= minGeneratedPasswordBytes && length <= maxGeneratedPasswordBytes;
+}
+
 function readCredentials(env: NodeJS.ProcessEnv): ModeratorCredentials | null {
   const username = env.MODERATOR_USERNAME;
-  const passwordHash = env.MODERATOR_PASSWORD_HASH;
-  if (!username || !passwordHash) return null;
+  if (!username || !principalPattern.test(username)) return null;
 
+  const passwordHash = env.MODERATOR_PASSWORD_HASH;
+  if (!passwordHash) {
+    const password = env.MODERATOR_PASSWORD;
+    if (!isValidGeneratedPassword(password)) return null;
+    return { username, passwordHash: bcrypt.hashSync(password, generatedPasswordBcryptRounds) };
+  }
   const hashMatch = bcryptHashPattern.exec(passwordHash);
-  if (!principalPattern.test(username) || !hashMatch) return null;
+  if (!hashMatch) return null;
   const cost = Number(hashMatch[1]);
   if (cost < 4 || cost > 16) return null;
 
@@ -32,7 +46,16 @@ function readCredentials(env: NodeJS.ProcessEnv): ModeratorCredentials | null {
 }
 
 export function hasValidModeratorBasicAuthConfiguration(env: NodeJS.ProcessEnv): boolean {
-  return readCredentials(env) !== null;
+  const username = env.MODERATOR_USERNAME;
+  if (!username || !principalPattern.test(username)) return false;
+  const passwordHash = env.MODERATOR_PASSWORD_HASH;
+  if (passwordHash) {
+    const hashMatch = bcryptHashPattern.exec(passwordHash);
+    if (!hashMatch) return false;
+    const cost = Number(hashMatch[1]);
+    return cost >= 4 && cost <= 16;
+  }
+  return isValidGeneratedPassword(env.MODERATOR_PASSWORD);
 }
 
 function isModeratorPath(path: string): boolean {
@@ -60,7 +83,7 @@ function decodeBasicCredentials(header: string | undefined): { username: string;
 export function registerModeratorBasicAuth(app: FastifyInstance, env: NodeJS.ProcessEnv): void {
   const credentials = readCredentials(env);
   if (env.NODE_ENV === 'production' && !credentials) {
-    throw new Error('MODERATOR_USERNAME and MODERATOR_PASSWORD_HASH must contain valid Moderator credentials');
+    throw new Error('MODERATOR_USERNAME and a valid MODERATOR_PASSWORD_HASH or generated MODERATOR_PASSWORD are required');
   }
 
   app.decorateRequest('moderatorPrincipal', null);

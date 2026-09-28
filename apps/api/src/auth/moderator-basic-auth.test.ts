@@ -39,6 +39,35 @@ describe('Moderator Basic Authentication', () => {
     expect(response.json()).toEqual({ principal: 'moderator@example.org' });
   });
 
+  it('accepts a Render-generated Moderator password without storing a bcrypt hash in Blueprint', async () => {
+    app = Fastify();
+    const generatedPassword = 'render-generated-secret-256-bit-value';
+    registerModeratorBasicAuth(app, {
+      NODE_ENV: 'production',
+      MODERATOR_USERNAME: 'moderator',
+      MODERATOR_PASSWORD: generatedPassword,
+    });
+    app.get('/admin/', async (request) => ({ principal: request.moderatorPrincipal }));
+
+    const response = await app.inject({
+      url: '/admin/',
+      headers: { authorization: basic('moderator', generatedPassword) },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ principal: 'moderator' });
+  });
+
+  it('rejects a generated Moderator password that is too short', () => {
+    const app = Fastify();
+
+    expect(() => registerModeratorBasicAuth(app, {
+      NODE_ENV: 'production',
+      MODERATOR_USERNAME: 'moderator',
+      MODERATOR_PASSWORD: 'short-password',
+    })).toThrow(/MODERATOR_PASSWORD/);
+  });
+
   it.each([
     ['missing credentials', undefined],
     ['invalid base64', 'Basic !!!'],
