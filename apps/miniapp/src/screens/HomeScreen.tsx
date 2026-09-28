@@ -23,6 +23,7 @@ import type { ServiceIcon } from '../data/services.ts';
 import { greeting } from '../data/text.ts';
 import { currentProfileUser } from '../vkUser.ts';
 import { eventRoute, requestRoute, ROUTES } from '../routes.ts';
+import { membershipLine, useMembership } from '../auth/membership.tsx';
 import type { Navigate } from './types.ts';
 
 /** Сколько последних строк показывать на главной; остальное — на экране по «Все». */
@@ -207,9 +208,26 @@ function JoinCard({ navigate }: { navigate: Navigate }) {
 /** Жилец: Состояние дома одной фразой и Системы чипами; нажатие ведёт в подробности. */
 function HouseCard({ navigate }: { navigate: Navigate }) {
   const { status, data: house } = useHouseState();
+  const membership = useMembership();
 
   if (status === 'loading') return <SkeletonRows count={1} />;
-  if (!house) return null;
+  if (!house) {
+    // Человек в Доме, но Состояния дома в API ещё нет: показываем сам Дом.
+    if (!membership) return null;
+    return (
+      <section className="join-card" aria-labelledby="house-card-title">
+        <div className="join-card__body">
+          <span className="caps-label">Мой дом</span>
+          <Typography.Text asChild variant="subheader">
+            <h2 id="house-card-title">{membership.address}</h2>
+          </Typography.Text>
+          <Typography.Text asChild variant="detail" color="secondary">
+            <p>{membership.locality}. {membershipLine(membership)}</p>
+          </Typography.Text>
+        </div>
+      </section>
+    );
+  }
 
   const summary = houseSummary(house.systems);
   return (

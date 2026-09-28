@@ -178,17 +178,63 @@ export type UserNotification = {
   pollId?: string;
 };
 
+export type HouseContactKind =
+  | 'management'
+  | 'dispatch'
+  | 'house-emergency'
+  | 'plumber'
+  | 'electrician'
+  | 'elevator'
+  | 'intercom'
+  | 'security'
+  | 'district-police'
+  | 'other';
+
+export type ContactKind = HouseContactKind | 'emergency';
+
 /** Контакт: телефон или ссылка службы, полезной Жильцам Дома. Список ведёт Староста. */
 export type Contact = {
   id: string;
-  /** «Диспетчерская», «Аварийная служба», «Участковый». */
+  /** «Диспетчерская», «Сантехник», «Участковый». */
   title: string;
   /** Часы работы, имя, пояснение. */
   description?: string;
   /** Номер для показа: «+7 843 555-12-34». */
   phone?: string;
   link?: string;
-  kind: 'dispatch' | 'emergency' | 'police' | 'other';
+  kind: ContactKind;
+};
+
+export type HouseContact = Contact & {
+  kind: HouseContactKind;
+  source: 'manual' | 'data-mos';
+  sourceCheckedAt: string | null;
+  overridden: boolean;
+  updatedAt: string;
+};
+
+export type HouseContactImportStatus =
+  | 'ready'
+  | 'not-found'
+  | 'ambiguous'
+  | 'failed'
+  | 'not-configured'
+  | 'not-applicable';
+
+export type HouseContactsResponse = {
+  contacts: HouseContact[];
+  importState: {
+    status: HouseContactImportStatus;
+    checkedAt: string | null;
+  };
+};
+
+export type HouseContactInput = {
+  kind: HouseContactKind;
+  title: string;
+  description: string | null;
+  phone: string | null;
+  link: string | null;
 };
 
 /** Тариф Услуги дома с явно указанными источником и датой проверки. */
@@ -217,18 +263,181 @@ export type HouseService = {
   tariffs: HouseServiceTariff[];
 };
 
-/** Место рядом: организация поблизости от Дома. */
-export type Place = {
+/** Технология подключения домашнего интернета, если Поставщик её сообщил. */
+export type InternetTechnology = 'fttb' | 'gpon' | 'docsis' | 'xdsl' | 'wireless' | 'other';
+
+/** Откуда пришли сведения о Поставщике. Пока интерфейс создаёт только manual. */
+export type InternetProviderSource = 'manual' | 'partner-feed' | 'operator-api' | 'gis-zhkh';
+
+export type InternetProviderSyncStatus = 'not-configured' | 'ready' | 'running' | 'failed';
+
+/** Тариф интернет-Поставщика, проверенный для конкретного Дома. */
+export type InternetTariff = {
   id: string;
+  name: string;
+  speedMbps: number | null;
+  monthlyPrice: string;
+  promoPrice: string | null;
+  promoMonths: number | null;
+  technology: InternetTechnology | null;
+  hasTv: boolean;
+  conditions: string;
+  source: string;
+  checkedOn: string;
+};
+
+export type HouseInternetProviderRating = {
+  average: number | null;
+  count: number;
+  myScore: number | null;
+};
+
+/** Поставщик домашнего интернета с доступностью и рейтингом только этого Дома. */
+export type HouseInternetProvider = {
+  id: string;
+  name: string;
+  availability: 'available' | 'limited';
+  phone: string | null;
+  link: string | null;
+  note: string | null;
+  updatedAt: string;
+  source: InternetProviderSource;
+  sourceExternalId: string | null;
+  sourceCheckedAt: string | null;
+  manualOverride: boolean;
+  tariffs: InternetTariff[];
+  rating: HouseInternetProviderRating;
+};
+
+export type HouseInternetProviderImportState = {
+  status: InternetProviderSyncStatus;
+  source: InternetProviderSource | null;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  error: string | null;
+};
+
+export type HouseInternetProvidersResponse = {
+  providers: HouseInternetProvider[];
+  importState: HouseInternetProviderImportState;
+};
+
+export type InternetTariffInput = Omit<InternetTariff, 'id'>;
+
+export type HouseInternetProviderInput = {
+  name: string;
+  availability: HouseInternetProvider['availability'];
+  phone: string | null;
+  link: string | null;
+  note: string | null;
+  tariffs: InternetTariffInput[];
+};
+
+/** Точка на карте, градусы WGS 84. */
+export type GeoPoint = {
+  lat: number;
+  lon: number;
+};
+
+/**
+ * Вид Закреплённого места (CONTEXT.md): за ним Дом закреплён по адресу, и
+ * «ближайшее» тут не подходит — нужно «своё».
+ */
+export type AssignedPlaceKind =
+  | 'adult-clinic'
+  | 'children-clinic'
+  | 'womens-clinic'
+  | 'school'
+  | 'kindergarten'
+  | 'polling-station'
+  | 'magistrate'
+  | 'police-precinct'
+  | 'military-office'
+  | 'other';
+
+/** Закреплённое место: хранится у нас, список ведёт Староста. */
+export type AssignedPlace = {
+  id: string;
+  kind: AssignedPlaceKind;
   title: string;
-  category: 'clinic' | 'mfc' | 'pharmacy' | 'school' | 'kindergarten' | 'other';
   address: string;
-  /** Метров от Дома по прямой. */
-  distance: number;
   /** «Пн–пт 8:00–20:00». */
   hours?: string;
   phone?: string;
+  /** Пояснение Старосты: «кабинет 12», «приём по вторникам». */
+  note?: string;
+  /** Точка, которую Староста поставил на карте; без неё места нет на карте. */
+  point?: GeoPoint;
+  /** ISO 8601. */
+  updatedAt: string;
 };
+
+export type AssignedPlaceInput = {
+  kind: AssignedPlaceKind;
+  title: string;
+  address: string;
+  hours: string | null;
+  phone: string | null;
+  note: string | null;
+  point: GeoPoint | null;
+};
+
+/**
+ * Вид Ближайшего места (CONTEXT.md). Такие места ищутся в 2ГИС вокруг Дома
+ * при каждом открытии и не хранятся (docs/adr/0003).
+ */
+export type NearestPlaceKind =
+  | 'trauma'
+  | 'emergency-room'
+  | 'pharmacy-24'
+  | 'vet-24'
+  | 'mfc'
+  | 'social-services'
+  | 'social-fund'
+  | 'tax'
+  | 'registry-office'
+  | 'batteries';
+
+export const NEAREST_PLACE_KINDS: readonly NearestPlaceKind[] = [
+  'trauma',
+  'emergency-room',
+  'pharmacy-24',
+  'vet-24',
+  'mfc',
+  'social-services',
+  'social-fund',
+  'tax',
+  'registry-office',
+  'batteries',
+];
+
+/** Ближайшее место из 2ГИС, как его отдаёт наш API. */
+export type NearestPlace = {
+  /** id организации в 2ГИС. */
+  id: string;
+  title: string;
+  address?: string;
+  /** «3 этаж», «вход со двора». */
+  addressComment?: string;
+  point: GeoPoint;
+  /** Метров от Дома по прямой. */
+  distance: number;
+  open24x7: boolean;
+  /** Часы на сегодня: «9:30–21:00»; null — сегодня не работает; нет поля — часы неизвестны. */
+  hoursToday?: string | null;
+  /** Карточка организации в 2ГИС. */
+  url: string;
+};
+
+export type NearestPlacesResponse = {
+  kind: NearestPlaceKind;
+  /** Точка Дома — центр поиска и карты. */
+  house: GeoPoint;
+  places: NearestPlace[];
+};
+
+/** Где Дом на карте: для карты Закреплённых мест и выбора точки. */
+export type HouseLocationResponse = { house: GeoPoint };
 
 /** Прибор учёта Квартиры, с которого Жилец передаёт Показания. */
 export type Meter = {

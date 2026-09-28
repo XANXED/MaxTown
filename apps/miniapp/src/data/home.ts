@@ -1,9 +1,10 @@
 import type { HouseEventSummary, RequestSummary } from '@maxtown/shared';
-import { useLoadable, type LoadStatus } from './loadable.ts';
+import { useMembership } from '../auth/membership.tsx';
+import { demoMode, useLoadable, type LoadStatus } from './loadable.ts';
 
 export type HomeData = {
   status: LoadStatus;
-  /** Человек — Жилец хотя бы одной Квартиры. Без API всегда false, в dev-демо — true. */
+  /** У человека есть Дом — по членству из серверной сессии; в dev-демо — всегда. */
   isResident: boolean;
   requests: RequestSummary[];
   events: HouseEventSummary[];
@@ -24,5 +25,7 @@ export function useHomeData(): HomeData {
     requests: sampleRequests(),
     events: sampleEvents,
   }));
-  return { status, retry, ...data };
+  const membership = useMembership();
+  // Заявок и Событий в API ещё нет, но в Доме человек или нет — известно из сессии.
+  return { status, retry, ...data, isResident: demoMode() ? data.isResident : membership !== null };
 }

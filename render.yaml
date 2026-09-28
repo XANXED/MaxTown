@@ -31,6 +31,12 @@ services:
         sync: false
       - key: POLL_VOTER_NULLIFIER_SECRET
         sync: false
+      # Ключ 2ГИС: серверный — для Ближайших мест, VITE_ — для карты в мини-аппе.
+      # Запросы 2ГИС с иностранного IP не проходят (docs/adr/0003).
+      - key: DGIS_API_KEY
+        sync: false
+      - key: VITE_DGIS_API_KEY
+        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: maxtown-db

@@ -14,6 +14,7 @@ import {
 import { checkReading, formatReading, useReadingsWindow, windowState, type ReadingCheck } from '../data/readings.ts';
 import { hapticSuccess } from '../haptics.ts';
 import { ROUTES } from '../routes.ts';
+import { useMembership } from '../auth/membership.tsx';
 import type { Navigate } from './types.ts';
 
 /** Холодная и горячая вода — один значок разного цвета, день и ночь — разные значки. */
@@ -39,6 +40,7 @@ type ReadingsScreenProps = {
 /** Передача Показаний: по полю на прибор учёта, расход считается сразу. */
 export function ReadingsScreen({ navigate }: ReadingsScreenProps) {
   const { status, data: intake, retry } = useReadingsWindow();
+  const membership = useMembership();
 
   if (status === 'loading') {
     return (
@@ -54,6 +56,22 @@ export function ReadingsScreen({ navigate }: ReadingsScreenProps) {
       <main className="screen screen--inner inner-content" id="main-content">
         <ScreenHeading>Передать показания</ScreenHeading>
         <ErrorState onRetry={retry} />
+      </main>
+    );
+  }
+
+  if (!intake && membership) {
+    return (
+      <main className="screen screen--inner inner-content" id="main-content">
+        <ScreenHeading>Передать показания</ScreenHeading>
+        <div className="list-card">
+          <EmptyState
+            icon={Drop}
+            tone="blue"
+            title="Приём Показаний пока не подключён"
+            description={`Квартира ${membership.apartmentNumber ?? ''}: здесь появятся её приборы учёта`}
+          />
+        </div>
       </main>
     );
   }

@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import { Button, Spinner, Typography } from './components/platform-ui.tsx';
 import { CaretLeft, WifiSlash } from '@phosphor-icons/react';
 import { ContactsScreen } from './screens/ContactsScreen.tsx';
+import { ContactFormScreen } from './screens/ContactFormScreen.tsx';
 import { EventScreen } from './screens/EventScreen.tsx';
 import { HomeScreen } from './screens/HomeScreen.tsx';
 import { HouseEventsScreen } from './screens/HouseEventsScreen.tsx';
@@ -15,11 +16,19 @@ import { ReadingsScreen } from './screens/ReadingsScreen.tsx';
 import { RequestScreen } from './screens/RequestScreen.tsx';
 import { RequestsScreen } from './screens/RequestsScreen.tsx';
 import { ServicesScreen } from './screens/ServicesScreen.tsx';
+import { InternetProvidersScreen } from './screens/InternetProvidersScreen.tsx';
+import { InternetProviderFormScreen } from './screens/InternetProviderFormScreen.tsx';
 import { WelcomeScreen } from './screens/WelcomeScreen.tsx';
+import { AssignedPlaceFormScreen } from './screens/AssignedPlaceFormScreen.tsx';
+import { NearestPlacesScreen } from './screens/NearestPlacesScreen.tsx';
 import {
   hashForRoute,
   isRootRoute,
   matchCard,
+  matchContactEditor,
+  matchInternetProviderEditor,
+  matchNearestPlaces,
+  matchPlaceEditor,
   parentRoute,
   routeFromHash,
   ROUTES,
@@ -30,7 +39,8 @@ import { launchInviteCode } from './data/join.ts';
 import { useOnline } from './network.ts';
 import { hasSeenWelcome, markWelcomeSeen } from './welcome.ts';
 import { authenticateWithVk, getCurrentResident } from './auth/session.ts';
-import type { HouseRole } from '@maxtown/shared';
+import type { HouseMembershipSummary, HouseRole } from '@maxtown/shared';
+import { MembershipContext } from './auth/membership.tsx';
 import './app.css';
 
 const NOTICE_DURATION_MS = 3200;
@@ -69,6 +79,25 @@ export function App() {
   const [authAttempt, setAuthAttempt] = useState(0);
   const [activeHouseId, setActiveHouseId] = useState<string | null>(null);
   const [activeHouseRole, setActiveHouseRole] = useState<HouseRole | null>(null);
+  const [activeMembership, setActiveMembership] = useState<HouseMembershipSummary | null>(null);
+
+  /** Выбрать активный Дом: из ?house_id=, иначе первый. */
+  const applyMemberships = useCallback((memberships: HouseMembershipSummary[], preferredHouseId?: string | null) => {
+    const membership = memberships.find((item) => item.houseId === preferredHouseId) ?? memberships[0] ?? null;
+    setActiveMembership(membership);
+    setActiveHouseId(membership?.houseId ?? null);
+    setActiveHouseRole(membership?.role ?? null);
+  }, []);
+
+  const refreshMembership = useCallback(async () => {
+    if (!REQUIRE_SERVER_AUTH) return;
+    try {
+      const { memberships } = await getCurrentResident();
+      applyMemberships(memberships, activeHouseId);
+    } catch {
+      // Не вышло — останется прежнее членство; следующий вход перечитает.
+    }
+  }, [activeHouseId, applyMemberships]);
   const [communityPollId, setCommunityPollId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('poll_id'));
   /** Куда прокрутить после смены экрана: наверх или туда, где Жилец был до перехода. */
   const pendingScroll = useRef(0);
@@ -86,10 +115,7 @@ export function App() {
       .then(() => getCurrentResident())
       .then(({ memberships }) => {
         if (!active) return;
-        const requestedHouse = new URLSearchParams(window.location.search).get('house_id');
-        const membership = memberships.find((item) => item.houseId === requestedHouse) ?? memberships[0];
-        setActiveHouseId(membership?.houseId ?? null);
-        setActiveHouseRole(membership?.role ?? null);
+        applyMemberships(memberships, new URLSearchParams(window.location.search).get('house_id'));
         setAuthState('ready');
       })
       .catch(() => { if (active) setAuthState('error'); });
@@ -137,8 +163,7 @@ export function App() {
       const me = await getCurrentResident();
       const membership = me.memberships.find((item) => item.houseId === houseId);
       if (!membership) return;
-      setActiveHouseId(houseId);
-      setActiveHouseRole(membership.role);
+      applyMemberships(me.memberships, houseId);
       setCommunityPollId(pollId);
       navigate(ROUTES.community);
     } catch {
@@ -227,7 +252,13 @@ export function App() {
       screen = <HouseEventsScreen navigate={navigate} />;
       break;
     case ROUTES.services:
-      screen = <ServicesScreen navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />;
+      screen = <ServicesScreen navigate={navigate} />;
+      break;
+    case ROUTES.internet:
+      screen = <InternetProvidersScreen navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />;
+      break;
+    case ROUTES.newInternetProvider:
+      screen = <InternetProviderFormScreen navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />;
       break;
     case ROUTES.profile:
       screen = <ProfileScreen navigate={navigate} notify={notify} />;
@@ -242,10 +273,16 @@ export function App() {
       screen = <RepairModeScreen houseId={activeHouseId} role={activeHouseRole} />;
       break;
     case ROUTES.contacts:
-      screen = <ContactsScreen navigate={navigate} />;
+      screen = <ContactsScreen navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />;
+      break;
+    case ROUTES.newContact:
+      screen = <ContactFormScreen navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />;
       break;
     case ROUTES.places:
-      screen = <PlacesScreen navigate={navigate} />;
+      screen = <PlacesScreen navigate={navigate} houseId={activeHouseId} role={activeHouseRole} />;
+      break;
+    case ROUTES.newPlace:
+      screen = <AssignedPlaceFormScreen navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />;
       break;
     case ROUTES.notifications:
       screen = <NotificationsScreen navigate={navigate} openCommunityPoll={(houseId, pollId) => void openCommunityPoll(houseId, pollId)} />;
@@ -261,11 +298,23 @@ export function App() {
       break;
     default: {
       const card = matchCard(route);
+      const contactEditor = matchContactEditor(route);
+      const internetProviderEditor = matchInternetProviderEditor(route);
+      const placeEditor = matchPlaceEditor(route);
+      const nearest = matchNearestPlaces(route);
       screen =
         card?.kind === 'request' ? (
           <RequestScreen id={card.id} navigate={navigate} notify={notify} />
         ) : card?.kind === 'event' ? (
           <EventScreen id={card.id} navigate={navigate} />
+        ) : contactEditor ? (
+          <ContactFormScreen contactId={contactEditor.id} navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />
+        ) : internetProviderEditor ? (
+          <InternetProviderFormScreen providerId={internetProviderEditor.id} navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />
+        ) : placeEditor ? (
+          <AssignedPlaceFormScreen placeId={placeEditor.id} navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />
+        ) : nearest ? (
+          <NearestPlacesScreen kind={nearest.kind} houseId={activeHouseId} />
         ) : (
           <HomeScreen navigate={navigate} houseId={activeHouseId} />
         );
@@ -273,6 +322,7 @@ export function App() {
   }
 
   return (
+    <MembershipContext.Provider value={{ membership: activeMembership, refresh: refreshMembership }}>
     <div className="app-shell">
       <a
         className="skip-link"
@@ -316,5 +366,6 @@ export function App() {
         ) : null}
       </div>
     </div>
+    </MembershipContext.Provider>
   );
 }

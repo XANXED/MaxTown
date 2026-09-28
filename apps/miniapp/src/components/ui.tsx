@@ -332,6 +332,8 @@ export function SkeletonRows({ count = 3 }: { count?: number }) {
 
 type RowShellProps = {
   children: ReactNode;
+  /** id элемента списка: например, чтобы прокрутить к строке по метке на карте. */
+  id?: string;
   onOpen?: () => void;
   className?: string;
   /** Что стоит справа у открываемой строки; по умолчанию шеврон. */
@@ -339,17 +341,17 @@ type RowShellProps = {
 };
 
 /** Строка списка: кнопка, если её можно открыть, иначе просто элемент списка. */
-export function RowShell({ children, onOpen, className = '', trailing }: RowShellProps) {
+export function RowShell({ children, onOpen, className = '', trailing, id }: RowShellProps) {
   if (!onOpen) {
     return (
-      <div className={`list-row ${className}`} role="listitem">
+      <div className={`list-row ${className}`} role="listitem" id={id}>
         {children}
       </div>
     );
   }
 
   return (
-    <div role="listitem">
+    <div role="listitem" id={id}>
       <button className={`list-row list-row--interactive ${className}`} type="button" onClick={onOpen}>
         {children}
         {trailing ?? <CaretRight className="icon icon--small icon--mute" aria-hidden />}

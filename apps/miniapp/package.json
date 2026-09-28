@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@2gis/mapgl": "^1.78.1",
     "@maxtown/shared": "*",
     "@phosphor-icons/react": "^2.1.10",
     "@vkontakte/vk-bridge": "^3.0.2",

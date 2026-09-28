@@ -1,19 +1,39 @@
 // Примеры для `?demo=filled` в режиме разработки: посмотреть, как выглядят
 // списки и карточки. В сборку не попадают — см. loadable.ts.
 import type {
-  Contact,
+  HouseContact,
   HouseEventDetails,
   HouseEventSummary,
   HouseSearchResult,
   HouseState,
   InviteCheck,
-  Place,
+  AssignedPlace,
+  NearestPlace,
+  NearestPlaceKind,
   ReadingsWindow,
   RequestDetails,
   RequestSummary,
   UserNotification,
+  HouseInternetProvider,
 } from '@maxtown/shared';
 import buildingImage from '../assets/home-building.webp';
+
+export const sampleInternetProviders: HouseInternetProvider[] = [
+  {
+    id: 'internet-1', name: 'ДомСвязь', availability: 'available', phone: '+7 800 555-01-01', link: 'https://example.org/connect',
+    note: 'Подключение обычно занимает 2–3 рабочих дня.', updatedAt: '2026-09-28T09:00:00.000Z', source: 'manual', sourceExternalId: null, sourceCheckedAt: null, manualOverride: true,
+    rating: { average: 4.3, count: 12, myScore: 4 },
+    tariffs: [
+      { id: 'tariff-1', name: 'Дом 500', speedMbps: 500, monthlyPrice: '750.00', promoPrice: '500.00', promoMonths: 3, technology: 'fttb', hasTv: false, conditions: 'Роутер оплачивается отдельно', source: 'https://example.org/tariffs', checkedOn: '2026-09-20' },
+      { id: 'tariff-2', name: 'Дом 800 + ТВ', speedMbps: 800, monthlyPrice: '990.00', promoPrice: null, promoMonths: null, technology: 'gpon', hasTv: true, conditions: 'ТВ-приставка включена', source: 'https://example.org/tariffs', checkedOn: '2026-09-20' },
+    ],
+  },
+  {
+    id: 'internet-2', name: 'Город Онлайн', availability: 'limited', phone: null, link: 'https://example.com/check', note: null,
+    updatedAt: '2026-09-22T09:00:00.000Z', source: 'manual', sourceExternalId: null, sourceCheckedAt: null, manualOverride: true, rating: { average: 3.5, count: 2, myScore: null },
+    tariffs: [{ id: 'tariff-3', name: 'Старт', speedMbps: 200, monthlyPrice: '600.00', promoPrice: null, promoMonths: null, technology: 'fttb', hasTv: false, conditions: '', source: 'https://example.com/tariffs', checkedOn: '2026-09-22' }],
+  },
+];
 
 function hoursAgo(hours: number): string {
   return new Date(Date.now() - hours * 3_600_000).toISOString();
@@ -271,21 +291,44 @@ export function sampleNotifications(): UserNotification[] {
   ];
 }
 
-export const sampleContacts: Contact[] = [
-  { id: 'c1', title: 'Диспетчерская', description: 'Круглосуточно', phone: '+7 843 205-41-17', kind: 'dispatch' },
-  { id: 'c2', title: 'Аварийная служба', description: 'Вода, отопление, электричество', phone: '+7 843 205-41-90', kind: 'emergency' },
-  { id: 'c3', title: 'Лифтовая служба', description: 'Если застряли в лифте', phone: '+7 843 238-06-52', kind: 'emergency' },
-  { id: 'c4', title: 'Участковый', description: 'Рустам Галимов, приём по вторникам 18:00–20:00', phone: '+7 917 284-63-05', kind: 'police' },
+export const sampleContacts: HouseContact[] = [
+  { id: 'c0', title: 'Управляющая организация', description: 'ООО «Наш дом»', phone: '+7 495 000-00-00', kind: 'management', source: 'data-mos', sourceCheckedAt: '2026-09-28T09:00:00.000Z', overridden: false, updatedAt: '2026-09-28T09:00:00.000Z' },
+  { id: 'c1', title: 'Диспетчерская', description: 'Круглосуточно', phone: '+7 843 205-41-17', kind: 'dispatch', source: 'manual', sourceCheckedAt: null, overridden: false, updatedAt: '2026-09-28T10:00:00.000Z' },
+  { id: 'c5', title: 'Дежурный диспетчер', description: 'По вопросам общедомовых работ', phone: '+7 843 205-41-18', kind: 'dispatch', source: 'manual', sourceCheckedAt: null, overridden: false, updatedAt: '2026-09-28T10:00:00.000Z' },
+  { id: 'c2', title: 'Аварийная служба', description: 'Вода, отопление, электричество', phone: '+7 843 205-41-90', kind: 'house-emergency', source: 'manual', sourceCheckedAt: null, overridden: false, updatedAt: '2026-09-28T10:00:00.000Z' },
+  { id: 'c3', title: 'Лифтовая служба', description: 'Если застряли в лифте', phone: '+7 843 238-06-52', kind: 'elevator', source: 'manual', sourceCheckedAt: null, overridden: false, updatedAt: '2026-09-28T10:00:00.000Z' },
+  { id: 'c4', title: 'Участковый', description: 'Рустам Галимов, приём по вторникам 18:00–20:00', phone: '+7 917 284-63-05', kind: 'district-police', source: 'manual', sourceCheckedAt: null, overridden: false, updatedAt: '2026-09-28T10:00:00.000Z' },
 ];
 
-export const samplePlaces: Place[] = [
-  { id: 'p1', title: 'Поликлиника № 7', category: 'clinic', address: 'ул. Лесная, 31', distance: 640, hours: 'Пн–пт 7:30–20:00, сб 8:00–14:00', phone: '+7 843 221-10-07' },
-  { id: 'p2', title: 'МФЦ Советского района', category: 'mfc', address: 'пр. Победы, 17', distance: 1280, hours: 'Пн–сб 8:00–20:00' },
-  { id: 'p3', title: 'Аптека «Здоровье»', category: 'pharmacy', address: 'ул. Лесная, 16', distance: 120, hours: 'Круглосуточно' },
-  { id: 'p4', title: 'Аптека на Победы', category: 'pharmacy', address: 'пр. Победы, 5', distance: 450, hours: 'Ежедневно 8:00–22:00' },
-  { id: 'p5', title: 'Школа № 142', category: 'school', address: 'ул. Сосновая, 4', distance: 530 },
-  { id: 'p6', title: 'Детский сад № 51 «Берёзка»', category: 'kindergarten', address: 'ул. Лесная, 8', distance: 210 },
+/** Точка демо-Дома: ул. Лесная, 12 в Казани. */
+export const sampleHousePoint = { lat: 55.752, lon: 49.213 };
+
+/** Закреплённые места демо-Дома: их внёс Староста, он же поставил точки. */
+export const sampleAssignedPlaces: AssignedPlace[] = [
+  { id: 'a1', kind: 'adult-clinic', title: 'Поликлиника № 7', address: 'ул. Лесная, 31', hours: 'Пн–пт 7:30–20:00, сб 8:00–14:00', phone: '+7 843 221-10-07', note: 'Прикрепление — в регистратуре, 1 этаж', point: { lat: 55.7531, lon: 49.2159 }, updatedAt: '2026-09-20T09:00:00.000Z' },
+  { id: 'a2', kind: 'children-clinic', title: 'Детская поликлиника № 10', address: 'просп. Победы, 56', hours: 'Пн–пт 8:00–19:00', point: { lat: 55.7508, lon: 49.2126 }, updatedAt: '2026-09-20T09:00:00.000Z' },
+  { id: 'a3', kind: 'school', title: 'Гимназия № 21', address: 'ул. Рихарда Зорге, 71', note: 'Дом закреплён за гимназией: приоритет при записи в 1 класс', point: { lat: 55.7497, lon: 49.216 }, updatedAt: '2026-09-20T09:00:00.000Z' },
+  { id: 'a4', kind: 'polling-station', title: 'Избирательный участок № 1712', address: 'ул. Рихарда Зорге, 71, актовый зал', point: { lat: 55.7497, lon: 49.2161 }, updatedAt: '2026-09-20T09:00:00.000Z' },
+  { id: 'a5', kind: 'police-precinct', title: 'Участковый пункт полиции', address: 'ул. Лесная, 18', hours: 'Вт 18:00–20:00', note: 'Участковый Рустам Галимов', point: { lat: 55.7524, lon: 49.2138 }, updatedAt: '2026-09-20T09:00:00.000Z' },
 ];
+
+/** Ближайшие места для демо: в жизни их отдаёт 2ГИС и они не хранятся. */
+export function sampleNearestPlaces(kind: NearestPlaceKind): NearestPlace[] {
+  const samples: Partial<Record<NearestPlaceKind, NearestPlace[]>> = {
+    trauma: [
+      { id: 'n1', title: 'Травматологическое отделение', address: 'Камышовая улица, 50 к1', point: { lat: 55.7601, lon: 49.2311 }, distance: 2789, open24x7: true, hoursToday: 'Круглосуточно', url: 'https://2gis.ru/firm/1' },
+      { id: 'n2', title: 'Медицентр, платный травмпункт', address: 'аллея Поликарпова, 6 к2', point: { lat: 55.7466, lon: 49.2244 }, distance: 2038, open24x7: false, hoursToday: '9:00–21:00', url: 'https://2gis.ru/firm/2' },
+    ],
+    'pharmacy-24': [
+      { id: 'n3', title: 'Озерки, аптека', address: 'Комендантский проспект, 13 к1', point: { lat: 55.7534, lon: 49.2168 }, distance: 450, open24x7: true, hoursToday: 'Круглосуточно', url: 'https://2gis.ru/firm/3' },
+      { id: 'n4', title: 'Столички, социальная аптека', address: 'улица Шаврова, 5', point: { lat: 55.7489, lon: 49.2103 }, distance: 592, open24x7: true, hoursToday: 'Круглосуточно', url: 'https://2gis.ru/firm/4' },
+    ],
+    mfc: [
+      { id: 'n5', title: 'Мои документы', address: 'улица Ильюшина, 14', addressComment: '3 этаж', point: { lat: 55.7552, lon: 49.2201 }, distance: 865, open24x7: false, hoursToday: '9:30–21:00', url: 'https://2gis.ru/firm/5' },
+    ],
+  };
+  return (samples[kind] ?? []).sort((a, b) => a.distance - b.distance);
+}
 
 export function sampleReadingsWindow(): ReadingsWindow {
   return {

@@ -14,11 +14,19 @@ import { registerVkCallbackRoutes } from './routes/vk-callback.ts';
 import { createPgOutboxStore, startNotificationOutboxWorker } from './notifications/outbox.ts';
 import { createVkMessageClient } from './vk/client.ts';
 import { registerServicesDirectoryRoutes } from './routes/services-directory.ts';
+import { registerInternetProviderRoutes } from './routes/internet-providers.ts';
+import { registerContactRoutes } from './routes/contacts.ts';
+import { registerPlaceRoutes } from './routes/places.ts';
+import { createDgisClient, type DgisClient } from './places/dgis.ts';
+import { createDataMosContactSource, type HouseContactSource } from './contacts/data-mos.ts';
 
 export type BuildAppOptions = {
   pool: Pool;
   env: NodeJS.ProcessEnv;
   staticAssets?: { miniAppRoot: string; adminRoot: string };
+  contactSource?: HouseContactSource | null;
+  /** Клиент 2ГИС для Ближайших мест; без него берётся DGIS_API_KEY, без ключа — выключено. */
+  dgis?: DgisClient | null;
 };
 
 function isHtmlNavigation(request: { method: string; headers: { accept?: string } }, path: string): boolean {
@@ -27,7 +35,7 @@ function isHtmlNavigation(request: { method: string; headers: { accept?: string 
     && !path.split('/').some((segment) => segment.includes('.'));
 }
 
-export async function buildApp({ pool, env, staticAssets }: BuildAppOptions): Promise<FastifyInstance> {
+export async function buildApp({ pool, env, staticAssets, contactSource, dgis }: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger: env.NODE_ENV === 'production' });
   const groupId = env.VK_GROUP_ID && /^\d+$/.test(env.VK_GROUP_ID) ? Number(env.VK_GROUP_ID) : null;
   const worker = groupId && env.VK_GROUP_TOKEN && env.VK_APP_ID
@@ -77,6 +85,15 @@ export async function buildApp({ pool, env, staticAssets }: BuildAppOptions): Pr
   registerCommunityRoutes(app, pool, env.POLL_VOTER_NULLIFIER_SECRET ?? 'development-only-poll-voter-nullifier-secret');
   registerRepairModeRoutes(app, pool);
   registerServicesDirectoryRoutes(app, pool);
+  registerInternetProviderRoutes(app, pool);
+  registerContactRoutes(app, pool, {
+    source: contactSource === undefined
+      ? (env.DATA_MOS_API_KEY ? createDataMosContactSource({ apiKey: env.DATA_MOS_API_KEY }) : null)
+      : contactSource,
+  });
+  registerPlaceRoutes(app, pool, {
+    dgis: dgis === undefined ? (env.DGIS_API_KEY?.trim() ? createDgisClient({ key: env.DGIS_API_KEY.trim() }) : null) : dgis,
+  });
   registerNotificationRoutes(app, pool, groupId);
   if (groupId && env.VK_CALLBACK_SECRET && env.VK_CALLBACK_CONFIRMATION_CODE) {
     registerVkCallbackRoutes(app, pool, { groupId, secret: env.VK_CALLBACK_SECRET, confirmationCode: env.VK_CALLBACK_CONFIRMATION_CODE });

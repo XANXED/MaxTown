@@ -1,40 +1,43 @@
-import { useState } from 'react';
-import { Baby, Bank, FirstAidKit, GraduationCap, MapPin, Pill } from '@phosphor-icons/react';
+import { MapPin, Stethoscope } from '@phosphor-icons/react';
+import type { AssignedPlace, HouseRole } from '@maxtown/shared';
+import { useMembership } from '../auth/membership.tsx';
+import { PlacesMap } from '../components/PlacesMap.tsx';
+import { assignedVisuals, nearestVisuals } from '../components/placeVisuals.ts';
 import { Button, Typography } from '../components/platform-ui.tsx';
-import type { Place } from '@maxtown/shared';
 import {
   EmptyState,
   ErrorState,
-  FilterChips,
   IconTile,
   ListCard,
+  ListGroup,
   RowShell,
   ScreenHeading,
   SkeletonRows,
-  type IconComponent,
-  type TileTone,
 } from '../components/ui.tsx';
-import { formatDistance, mapLink, placeFilters, usePlaces, type PlaceFilter } from '../data/directory.ts';
+import { demoMode } from '../data/loadable.ts';
+import { addressLink, assignedKindLabels, nearestGroups, nearestKindLabels, useAssignedPlaces, useHouseLocation } from '../data/places.ts';
 import { glueNumberSign, glueRanges } from '../data/text.ts';
 import { openExternal } from '../links.ts';
-import { ROUTES } from '../routes.ts';
+import { nearestPlacesRoute, placeEditRoute, ROUTES } from '../routes.ts';
 import type { Navigate } from './types.ts';
 
-const categoryVisuals: Record<Place['category'], { icon: IconComponent; tone: TileTone }> = {
-  clinic: { icon: FirstAidKit, tone: 'pink' },
-  mfc: { icon: Bank, tone: 'blue' },
-  pharmacy: { icon: Pill, tone: 'green' },
-  school: { icon: GraduationCap, tone: 'coral' },
-  kindergarten: { icon: Baby, tone: 'teal' },
-  other: { icon: MapPin, tone: 'neutral' },
+type PlacesScreenProps = {
+  navigate: Navigate;
+  houseId: string | null;
+  role: HouseRole | null;
 };
 
-/** Места рядом: ближние сверху, нажатие открывает адрес на карте. */
-export function PlacesScreen({ navigate }: { navigate: Navigate }) {
-  const { status, data: places, retry } = usePlaces();
-  const [filter, setFilter] = useState<PlaceFilter>('all');
+/**
+ * Места рядом (CONTEXT.md): сверху Закреплённые места — «ваши» по адресу Дома,
+ * ниже Ближайшие места, которые ищутся в 2ГИС при открытии Вида.
+ */
+export function PlacesScreen({ navigate, houseId, role }: PlacesScreenProps) {
+  const membership = useMembership();
+  const isDemo = demoMode() === 'filled';
+  const inHouse = Boolean(houseId) || isDemo;
+  const canEdit = role === 'headman' || isDemo;
 
-  if (status === 'ready' && places === null) {
+  if (!inHouse) {
     return (
       <main className="screen screen--inner inner-content" id="main-content">
         <ScreenHeading>Места рядом</ScreenHeading>
@@ -42,7 +45,7 @@ export function PlacesScreen({ navigate }: { navigate: Navigate }) {
           <EmptyState
             icon={MapPin}
             tone="coral"
-            title="Поликлиника, МФЦ, аптеки и школы рядом"
+            title="Ваша поликлиника, школа и ближайший травмпункт"
             description="Покажем, когда вы станете Жильцом: так мы узнаем, где ваш Дом"
             action={
               <Button size="small" variant="primary" onClick={() => navigate(ROUTES.join)}>
@@ -55,58 +58,137 @@ export function PlacesScreen({ navigate }: { navigate: Navigate }) {
     );
   }
 
-  const visible = (places ?? []).filter((place) => filter === 'all' || place.category === filter);
-
   return (
     <main className="screen screen--inner" id="main-content">
       <div className="inner-content stagger">
-        <ScreenHeading description="Ближние сверху. Нажмите, чтобы открыть на карте">Места рядом</ScreenHeading>
-
-        {status === 'loading' ? (
-          <SkeletonRows count={5} />
-        ) : status === 'error' ? (
-          <ErrorState onRetry={retry} />
-        ) : places && places.length > 0 ? (
-          <>
-            <FilterChips label="Какие Места показать" value={filter} onChange={setFilter} options={placeFilters(places)} />
-            <ListCard label="Места рядом" key={filter}>
-              {visible.map((place) => {
-                const { icon, tone } = categoryVisuals[place.category];
+        <ScreenHeading description={membership?.address ?? 'То, что нужно редко, но срочно'}>Места рядом</ScreenHeading>
+        <AssignedSection houseId={houseId} locality={membership?.locality} canEdit={canEdit} navigate={navigate} />
+        {nearestGroups.map((group) => (
+          <ListGroup id={`nearest-${group.id}`} title={group.title} key={group.id}>
+            <div role="list">
+              {group.kinds.map((kind) => {
+                const { icon, tone } = nearestVisuals[kind];
+                const { title, description } = nearestKindLabels[kind];
                 return (
-                  <RowShell
-                    key={place.id}
-                    onOpen={() => openExternal(mapLink(place.address))}
-                    trailing={<span className="row-distance tabular">{formatDistance(place.distance)}</span>}
-                  >
+                  <RowShell key={kind} onOpen={() => navigate(nearestPlacesRoute(kind))}>
                     <IconTile icon={icon} tone={tone} size="small" />
                     <span className="list-row__copy">
                       <Typography.Text asChild variant="body-strong">
-                        <span>{glueNumberSign(place.title)}</span>
+                        <span>{title}</span>
                       </Typography.Text>
                       <Typography.Text asChild variant="description" color="secondary">
-                        <span>{place.address}</span>
+                        <span>{description}</span>
                       </Typography.Text>
-                      {place.hours ? (
-                        <Typography.Text asChild variant="description" color="tertiary">
-                          <span className="tabular">{glueRanges(place.hours)}</span>
-                        </Typography.Text>
-                      ) : null}
                     </span>
                   </RowShell>
                 );
               })}
-            </ListCard>
-            {/* Места рядом собираются из OpenStreetMap (docs/research, раздел 3): ODbL требует указать авторство. */}
-            <Typography.Text asChild variant="description" color="tertiary">
-              <p className="services-note">Данные © участники OpenStreetMap</p>
-            </Typography.Text>
-          </>
-        ) : (
-          <div className="list-card">
-            <EmptyState icon={MapPin} title="Мест пока нет" description="Рядом с Домом не нашлось поликлиник, аптек и школ" />
-          </div>
-        )}
+            </div>
+          </ListGroup>
+        ))}
+        <Typography.Text asChild variant="description" color="tertiary">
+          <p className="services-note">Ближайшие места ищем в 2ГИС, когда вы открываете раздел.</p>
+        </Typography.Text>
       </div>
     </main>
+  );
+}
+
+type AssignedSectionProps = {
+  houseId: string | null;
+  locality: string | undefined;
+  canEdit: boolean;
+  navigate: Navigate;
+};
+
+function AssignedSection({ houseId, locality, canEdit, navigate }: AssignedSectionProps) {
+  const { status, data: places, retry } = useAssignedPlaces(houseId);
+  const house = useHouseLocation(houseId);
+  const open = (place: AssignedPlace) => (canEdit ? navigate(placeEditRoute(place.id)) : openExternal(addressLink(locality, place.address)));
+  const onMap = (places ?? []).filter((place) => place.point);
+
+  return (
+    <section className="list-group" aria-labelledby="assigned-places">
+      <h2 className="caps-label list-group__title" id="assigned-places">
+        Закреплены за Домом
+      </h2>
+      {canEdit ? (
+        <div className="contacts-toolbar" aria-label="Управление Закреплёнными местами">
+          <Button size="medium" variant="secondary" onClick={() => navigate(ROUTES.newPlace)}>
+            Добавить место
+          </Button>
+        </div>
+      ) : null}
+      {status === 'loading' ? (
+        <SkeletonRows count={3} />
+      ) : status === 'error' ? (
+        <ErrorState onRetry={retry} />
+      ) : !places || places.length === 0 ? (
+        <div className="list-card">
+          <EmptyState
+            icon={Stethoscope}
+            tone="pink"
+            title="Поликлиника по прикреплению, школа, участок"
+            description={
+              canEdit
+                ? 'Добавьте места, за которыми закреплён Дом: поликлинику, школу, избирательный участок, участковый пункт'
+                : 'Их добавляет Староста Дома'
+            }
+          />
+        </div>
+      ) : (
+        <>
+          <PlacesMap
+            label="Дом и Закреплённые места на карте"
+            house={house}
+            markers={onMap.map((place) => ({
+              id: place.id,
+              point: place.point!,
+              label: `${assignedKindLabels[place.kind]}: ${place.title}`,
+              ...assignedVisuals[place.kind],
+            }))}
+            onSelect={(id) => {
+              const place = onMap.find((item) => item.id === id);
+              if (place) open(place);
+            }}
+          />
+          <ListCard label="Закреплённые места">
+            {places.map((place) => (
+              <AssignedRow place={place} key={place.id} onOpen={() => open(place)} />
+            ))}
+          </ListCard>
+        </>
+      )}
+    </section>
+  );
+}
+
+function AssignedRow({ place, onOpen }: { place: AssignedPlace; onOpen: () => void }) {
+  const { icon, tone } = assignedVisuals[place.kind];
+  return (
+    <RowShell onOpen={onOpen}>
+      <IconTile icon={icon} tone={tone} size="small" />
+      <span className="list-row__copy">
+        <Typography.Text asChild variant="description" color="tertiary">
+          <span>{assignedKindLabels[place.kind]}</span>
+        </Typography.Text>
+        <Typography.Text asChild variant="body-strong">
+          <span>{glueNumberSign(place.title)}</span>
+        </Typography.Text>
+        <Typography.Text asChild variant="description" color="secondary">
+          <span>{place.address}</span>
+        </Typography.Text>
+        {place.hours ? (
+          <Typography.Text asChild variant="description" color="tertiary">
+            <span className="tabular">{glueRanges(place.hours)}</span>
+          </Typography.Text>
+        ) : null}
+        {place.note ? (
+          <Typography.Text asChild variant="description" color="tertiary">
+            <span>{place.note}</span>
+          </Typography.Text>
+        ) : null}
+      </span>
+    </RowShell>
   );
 }

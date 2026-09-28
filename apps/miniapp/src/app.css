@@ -1566,6 +1566,110 @@ time,
   text-decoration: none;
 }
 
+.contacts-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.contact-categories,
+.contact-category {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.contact-category + .contact-category {
+  margin-top: var(--space-8);
+}
+
+.contact-category__title {
+  margin: var(--space-0) var(--space-16);
+}
+
+.contact-group-toggle {
+  align-self: flex-start;
+  margin-inline-start: var(--space-16);
+}
+
+.contact-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.contact-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10);
+  border-radius: var(--radius-48);
+  background: var(--accent-fade);
+  color: var(--icon-themed);
+}
+
+.contacts-source-note {
+  margin: var(--space-8) var(--space-0) var(--space-0);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+}
+
+.contact-form {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+}
+
+.contact-form > .inner-content {
+  flex: 1;
+}
+
+.contact-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.contact-form__field > span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+}
+
+.contact-warning {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: start;
+  padding: var(--space-12);
+  border-radius: var(--radius-12);
+  background: var(--background-card);
+}
+
+.contact-warning > p,
+.contact-delete-confirm > h2,
+.contact-delete-confirm > p {
+  margin: var(--space-0);
+}
+
+.contact-delete-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-16);
+  border: 1px solid var(--divider-secondary);
+  border-radius: var(--radius-16);
+  background: var(--background-card);
+}
+
+.contact-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-8);
+}
+
 /* Экстренный номер вместо значка: 112 узнаётся быстрее любой иконки. */
 .number-tile {
   font-size: var(--font-size-action-xsmall);
@@ -2226,6 +2330,221 @@ time,
   font: inherit;
 }
 
+.internet-disclaimer {
+  padding: var(--space-12) var(--space-16);
+  background: var(--background-secondary);
+  border-left: 2px solid var(--stroke-themed);
+  border-radius: var(--radius-8);
+}
+
+.internet-disclaimer p,
+.internet-provider h2,
+.internet-provider p,
+.internet-tariff p {
+  margin: 0;
+}
+
+.internet-toolbar {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.internet-provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.internet-provider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  min-width: 0;
+  padding: var(--space-16);
+  background: var(--background-card);
+  border-radius: var(--radius-12);
+}
+
+.internet-provider__header,
+.internet-provider__title,
+.internet-rating-summary,
+.internet-provider__actions {
+  display: flex;
+  align-items: center;
+}
+
+.internet-provider__header {
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-12);
+}
+
+.internet-provider__title {
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.internet-rating-summary {
+  flex: 0 0 auto;
+  gap: var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+}
+
+.internet-rating-summary > .icon {
+  color: var(--text-attention);
+}
+
+.internet-tariffs {
+  border-top: 1px solid var(--divider-secondary);
+  border-bottom: 1px solid var(--divider-secondary);
+}
+
+.internet-tariff {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-6) var(--space-12);
+  padding: var(--space-12) 0;
+}
+
+.internet-tariff + .internet-tariff {
+  border-top: 1px solid var(--divider-secondary);
+}
+
+.internet-tariff__main,
+.internet-tariff__price {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.internet-tariff__price {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.internet-tariff > p,
+.internet-tariff__source {
+  grid-column: 1 / -1;
+}
+
+.internet-tariff__source {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.internet-provider__note {
+  white-space: pre-wrap;
+}
+
+.internet-provider__provenance {
+  display: block;
+  margin-top: calc(var(--space-4) * -1);
+}
+
+.internet-provider__actions {
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.internet-rating {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-12) 0 0;
+  border: 0;
+  border-top: 1px solid var(--divider-secondary);
+}
+
+.internet-rating legend,
+.internet-tariff-form legend {
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+}
+
+.internet-rating__buttons {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-6);
+  margin-top: var(--space-8);
+}
+
+.internet-rating__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: calc(var(--space-20) * 2 + var(--space-4));
+  padding: var(--space-8);
+  color: var(--text-secondary);
+  background: var(--controls-inactive);
+  border: 1px solid transparent;
+  border-radius: var(--radius-8);
+  font: inherit;
+}
+
+.internet-rating__button--selected {
+  color: var(--text-primary);
+  background: var(--accent-fade);
+  border-color: var(--stroke-themed);
+}
+
+.internet-rating__button > .icon {
+  color: var(--text-attention);
+}
+
+.internet-rating:disabled {
+  opacity: 0.65;
+}
+
+.internet-tariff-editor,
+.internet-tariff-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-width: 0;
+}
+
+.internet-tariff-form {
+  margin: 0;
+  padding: var(--space-16) 0 0;
+  border: 0;
+  border-top: 1px solid var(--divider-primary);
+}
+
+.internet-tariff-form__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-12);
+}
+
+@media (max-width: 380px) {
+  .internet-provider__header,
+  .internet-tariff {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .internet-provider__header {
+    flex-direction: column;
+  }
+
+  .internet-tariff__price {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .internet-tariff-form__pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-color-scheme='light']) .app-shell {
     --tile-fill: 22%;
@@ -2256,5 +2575,97 @@ time,
 
   .pressable:active {
     transform: none;
+  }
+}
+
+/*
+ * Карта 2ГИС в Местах рядом (components/PlacesMap.tsx). Высота — от ширины,
+ * метки — наши плитки поверх карты: цвета только из токенов. Атрибуцию 2ГИС
+ * карта рисует сама, её не прячем.
+ */
+.places-map {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-16);
+  background: var(--background-tertiary);
+}
+
+.places-map__canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* Прицел выбора точки: центр карты — это и есть точка места. */
+.places-map__crosshair {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(var(--space-12) * 2);
+  height: calc(var(--space-12) * 2);
+  border: 1px solid var(--stroke-themed);
+  border-radius: var(--radius-48);
+  outline: var(--space-2) solid var(--background-primary);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.places-map__crosshair::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: var(--radius-48);
+  background: var(--stroke-themed);
+  content: '';
+  transform: translate(-50%, -50%);
+}
+
+/* Якорь метки стоит ровно в точке; сама метка центрируется на нём. */
+.map-marker-anchor {
+  width: 0;
+  height: 0;
+}
+
+.map-marker {
+  width: calc(var(--space-16) * 2);
+  height: calc(var(--space-16) * 2);
+  padding: var(--space-0);
+  border: 0;
+  outline: var(--space-2) solid var(--background-primary);
+  transform: translate(-50%, -50%);
+  transition: transform var(--motion-base) var(--motion-ease), outline-color var(--motion-base) var(--motion-ease);
+  cursor: pointer;
+}
+
+.map-marker--selected {
+  outline-color: var(--stroke-themed);
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.map-marker--house {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-48);
+  background: var(--button-primary);
+  color: var(--button-primary-contrast);
+  cursor: default;
+}
+
+/* Строка, чью метку нажали на карте. */
+.list-row--selected {
+  background: var(--accent-fade);
+}
+
+.place-point .contact-form__actions {
+  justify-content: flex-start;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-marker {
+    transition: none;
   }
 }

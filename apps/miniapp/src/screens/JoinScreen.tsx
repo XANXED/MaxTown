@@ -3,6 +3,7 @@ import { Buildings, HourglassMedium, House, LinkSimple, MagnifyingGlass, QrCode,
 import { Button, Input, Spinner, Typography } from '../components/platform-ui.tsx';
 import bridge from '@vkontakte/vk-bridge';
 import { readVkCode } from '../platform/vk.ts';
+import { useRefreshMembership } from '../auth/membership.tsx';
 import type { HouseRegistration, HouseSearchResult } from '@maxtown/shared';
 import { IconTile, ListCard, RowShell, ScreenHeading, Segmented, SkeletonRows } from '../components/ui.tsx';
 import {
@@ -40,6 +41,7 @@ export function JoinScreen({ navigate, notify }: JoinScreenProps) {
   const [launchCode] = useState(launchInviteCode);
   const [mode, setMode] = useState<Mode>('invite');
   const [joined, setJoined] = useState<{ apartment: string; address: string } | null>(null);
+  const refreshMembership = useRefreshMembership();
 
   if (joined) {
     return (
@@ -73,6 +75,8 @@ export function JoinScreen({ navigate, notify }: JoinScreenProps) {
             onJoined={(apartment, address) => {
               hapticSuccess();
               setJoined({ apartment, address });
+              // Главная, Профиль и Роль берут членство из сессии — перечитываем её.
+              void refreshMembership();
             }}
           />
         ) : mode === 'register' ? (

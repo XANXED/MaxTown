@@ -14,6 +14,7 @@ import {
 import { useHouseState } from '../data/houseState.ts';
 import { currentProfileUser } from '../vkUser.ts';
 import { ROUTES } from '../routes.ts';
+import { membershipLine, useMembership } from '../auth/membership.tsx';
 import type { Navigate, Notify } from './types.ts';
 
 type ProfileScreenProps = {
@@ -26,6 +27,7 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
   const platform = new URLSearchParams(window.__VK_LAUNCH_PARAMS__ ?? '').get('vk_platform');
   const soon = (title: string) => () => notify(`«${title}» появится позже`);
   const { status: houseStatus, data: house, retry: retryHouse } = useHouseState();
+  const membership = useMembership();
 
   return (
     <div className="screen screen--home">
@@ -71,6 +73,14 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
               description="Проверьте интернет и попробуйте ещё раз"
               actionLabel="Повторить"
               onAction={retryHouse}
+            />
+          ) : membership ? (
+            <ProfileRow
+              icon={House}
+              color="green"
+              title={membership.address}
+              description={membershipLine(membership)}
+              onOpen={() => navigate(ROUTES.house)}
             />
           ) : house ? (
             <ProfileRow

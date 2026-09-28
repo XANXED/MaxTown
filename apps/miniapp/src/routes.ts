@@ -1,3 +1,6 @@
+import type { NearestPlaceKind } from '@maxtown/shared';
+import { NEAREST_PLACE_KINDS } from '@maxtown/shared';
+
 export const ROUTES = {
   welcome: '/welcome',
   home: '/',
@@ -10,21 +13,36 @@ export const ROUTES = {
   join: '/join',
   notifications: '/notifications',
   contacts: '/contacts',
+  newContact: '/contacts/new',
   places: '/places',
+  newPlace: '/places/new',
   readings: '/readings',
   community: '/community',
   repairMode: '/repair-mode',
+  internet: '/internet',
+  newInternetProvider: '/internet/new',
 } as const;
 
 export type StaticRoute = (typeof ROUTES)[keyof typeof ROUTES];
 
 /** Карточки открываются по id: `/requests/2458`, `/events/e4`. */
-export type AppRoute = StaticRoute | `/requests/${string}` | `/events/${string}`;
+export type AppRoute =
+  | StaticRoute
+  | `/requests/${string}`
+  | `/events/${string}`
+  | `/contacts/${string}/edit`
+  | `/internet/${string}/edit`
+  | `/places/${string}/edit`
+  | `/places/nearest/${string}`;
 
 const staticRoutes = new Set<string>(Object.values(ROUTES));
 
 /** id карточки: буквы, цифры, дефис и подчёркивание — без слешей и пробелов. */
 const cardPattern = /^\/(requests|events)\/([\w-]+)$/;
+const contactEditorPattern = /^\/contacts\/([\w-]+)\/edit$/;
+const internetProviderEditorPattern = /^\/internet\/([\w-]+)\/edit$/;
+const placeEditorPattern = /^\/places\/([\w-]+)\/edit$/;
+const nearestPattern = /^\/places\/nearest\/([\w-]+)$/;
 
 export function requestRoute(id: string): AppRoute {
   return `/requests/${id}`;
@@ -32,6 +50,46 @@ export function requestRoute(id: string): AppRoute {
 
 export function eventRoute(id: string): AppRoute {
   return `/events/${id}`;
+}
+
+export function contactEditRoute(id: string): AppRoute {
+  return `/contacts/${id}/edit`;
+}
+
+export function matchContactEditor(route: AppRoute): { id: string } | null {
+  if (staticRoutes.has(route)) return null;
+  const [, id] = contactEditorPattern.exec(route) ?? [];
+  return id ? { id } : null;
+}
+
+export function internetProviderEditRoute(id: string): AppRoute {
+  return `/internet/${id}/edit`;
+}
+
+export function matchInternetProviderEditor(route: AppRoute): { id: string } | null {
+  if (staticRoutes.has(route)) return null;
+  const [, id] = internetProviderEditorPattern.exec(route) ?? [];
+  return id ? { id } : null;
+}
+
+export function placeEditRoute(id: string): AppRoute {
+  return `/places/${id}/edit`;
+}
+
+export function matchPlaceEditor(route: AppRoute): { id: string } | null {
+  if (staticRoutes.has(route)) return null;
+  const [, id] = placeEditorPattern.exec(route) ?? [];
+  return id ? { id } : null;
+}
+
+export function nearestPlacesRoute(kind: NearestPlaceKind): AppRoute {
+  return `/places/nearest/${kind}`;
+}
+
+/** Ближайшие места одного Вида; незнакомый Вид — не маршрут. */
+export function matchNearestPlaces(route: AppRoute): { kind: NearestPlaceKind } | null {
+  const [, kind] = nearestPattern.exec(route) ?? [];
+  return kind && (NEAREST_PLACE_KINDS as readonly string[]).includes(kind) ? { kind: kind as NearestPlaceKind } : null;
 }
 
 /** Карточка Заявки или События дома, если маршрут на неё указывает. */
@@ -44,7 +102,8 @@ export function matchCard(route: AppRoute): { kind: 'request' | 'event'; id: str
 
 export function routeFromHash(hash: string): AppRoute {
   const candidate = hash.replace(/^#/, '') || ROUTES.home;
-  if (staticRoutes.has(candidate) || cardPattern.test(candidate)) return candidate as AppRoute;
+  if (staticRoutes.has(candidate) || cardPattern.test(candidate) || contactEditorPattern.test(candidate) || internetProviderEditorPattern.test(candidate)) return candidate as AppRoute;
+  if (placeEditorPattern.test(candidate) || matchNearestPlaces(candidate as AppRoute)) return candidate as AppRoute;
   return ROUTES.home;
 }
 
@@ -62,8 +121,12 @@ export function isRootRoute(route: AppRoute): boolean {
 const parents: Partial<Record<StaticRoute, AppRoute>> = {
   [ROUTES.newRequest]: ROUTES.requests,
   [ROUTES.contacts]: ROUTES.services,
+  [ROUTES.newContact]: ROUTES.contacts,
   [ROUTES.places]: ROUTES.services,
+  [ROUTES.newPlace]: ROUTES.places,
   [ROUTES.repairMode]: ROUTES.services,
+  [ROUTES.internet]: ROUTES.services,
+  [ROUTES.newInternetProvider]: ROUTES.internet,
 };
 
 /**
@@ -71,6 +134,9 @@ const parents: Partial<Record<StaticRoute, AppRoute>> = {
  * открыли по ссылке из Уведомления бота. Карточка возвращает к своему списку.
  */
 export function parentRoute(route: AppRoute): AppRoute {
+  if (matchContactEditor(route)) return ROUTES.contacts;
+  if (matchInternetProviderEditor(route)) return ROUTES.internet;
+  if (matchPlaceEditor(route) || matchNearestPlaces(route)) return ROUTES.places;
   const card = matchCard(route);
   if (card) return card.kind === 'request' ? ROUTES.requests : ROUTES.events;
   return parents[route as StaticRoute] ?? ROUTES.home;

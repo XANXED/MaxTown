@@ -4,6 +4,9 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react()],
+  // Общий .env в корне репозитория. В клиент попадают только VITE_* — сейчас
+  // это ключ карты 2ГИС (VITE_DGIS_API_KEY), он и так виден в коде страницы.
+  envDir: fileURLToPath(new URL('../..', import.meta.url)),
   resolve: {
     alias: {
       '@design': fileURLToPath(new URL('../../design', import.meta.url)),

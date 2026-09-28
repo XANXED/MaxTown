@@ -7,6 +7,9 @@ COPY packages ./packages
 COPY design ./design
 COPY tsconfig.base.json ./tsconfig.base.json
 RUN npm ci --workspace=@maxtown/miniapp --workspace=@maxtown/admin --workspace=@maxtown/shared --include-workspace-root=false
+# Ключ карты 2ГИС встраивается в сборку мини-аппа (он и так виден клиенту).
+# Render передаёт переменные окружения сервиса в сборку как build-аргументы.
+ARG VITE_DGIS_API_KEY
 RUN npm run build --workspace=@maxtown/miniapp && npm run build --workspace=@maxtown/admin
 
 FROM node:24-alpine AS dependencies

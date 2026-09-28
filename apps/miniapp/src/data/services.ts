@@ -2,7 +2,7 @@ import type { AppRoute } from '../routes.ts';
 import { ROUTES } from '../routes.ts';
 
 /** Ключ иконки: сами иконки подставляет экран, чтобы данные не зависели от React. */
-export type ServiceIcon = 'new-request' | 'requests' | 'house-state' | 'events' | 'readings' | 'contacts' | 'places' | 'community' | 'repair-mode';
+export type ServiceIcon = 'new-request' | 'requests' | 'house-state' | 'events' | 'readings' | 'contacts' | 'places' | 'community' | 'repair-mode' | 'internet';
 
 export type Service = {
   id: string;
@@ -95,20 +95,28 @@ export const serviceGroups: ServiceGroup[] = [
     title: 'Справочник',
     services: [
       {
+        id: 'internet',
+        title: 'Интернет в Доме',
+        description: 'Доступные Поставщики, Тарифы и оценки соседей',
+        icon: 'internet',
+        route: ROUTES.internet,
+        keywords: 'провайдер тариф скорость подключить wifi вайфай связь рейтинг',
+      },
+      {
         id: 'contacts',
-        title: 'Контакты',
-        description: 'Диспетчерская, аварийная служба, участковый',
+        title: 'Полезные контакты',
+        description: 'Экстренные номера, диспетчерская, службы Дома',
         icon: 'contacts',
         route: ROUTES.contacts,
-        keywords: 'телефон позвонить 112 скорая полиция',
+        keywords: 'контакты телефон позвонить 112 скорая полиция диспетчерская',
       },
       {
         id: 'places',
         title: 'Места рядом',
-        description: 'Поликлиника, МФЦ, аптека, школа',
+        description: 'Ваша поликлиника и школа, ближайший травмпункт и МФЦ',
         icon: 'places',
         route: ROUTES.places,
-        keywords: 'карта адрес',
+        keywords: 'карта адрес поликлиника травмпункт больница дежурная аптека мфц загс налоговая школа детский сад избирательный участок ветклиника батарейки',
       },
     ],
   },

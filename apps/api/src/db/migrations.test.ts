@@ -80,6 +80,50 @@ it('defines house scoped services and sourced tariffs', () => {
   expect(migration).toContain('FOREIGN KEY (service_id, house_id)');
 });
 
+it('defines editable House Contacts and their import state', () => {
+  const migration = readFileSync(new URL('./migrations/0007_house_contacts.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('CREATE TABLE house_contacts');
+  expect(migration).toContain('CREATE TABLE house_contact_syncs');
+  expect(migration).toContain("source IN ('manual', 'data-mos')");
+  expect(migration).toContain('overridden_at');
+  expect(migration).toContain('deleted_at');
+  expect(migration).toContain('CREATE UNIQUE INDEX house_contacts_external_key');
+  expect(migration).toContain("status IN ('ready', 'not-found', 'ambiguous', 'failed', 'not-configured', 'not-applicable')");
+});
+
+it('defines Assigned places kept by the Староста', () => {
+  const migration = readFileSync(new URL('./migrations/0008_house_assigned_places.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('CREATE TABLE house_assigned_places');
+  expect(migration).toContain("'adult-clinic', 'children-clinic', 'womens-clinic', 'school', 'kindergarten'");
+  expect(migration).toContain('deleted_at');
+  // Ближайшие места из 2ГИС хранить нельзя (docs/adr/0003): таблицы под них нет.
+  expect(migration).not.toMatch(/CREATE TABLE \w*nearest/);
+});
+
+it('stores a map point of an Assigned place only as a complete pair', () => {
+  const migration = readFileSync(new URL('./migrations/0009_assigned_place_points.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('ADD COLUMN lat double precision');
+  expect(migration).toContain('ADD COLUMN lon double precision');
+  expect(migration).toContain('CHECK ((lat IS NULL) = (lon IS NULL))');
+});
+
+it('defines House-specific internet tariffs and one rating per membership', () => {
+  const migration = readFileSync(new URL('./migrations/0010_house_internet_providers.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('ALTER TABLE house_service_tariffs');
+  expect(migration).toContain('CREATE TABLE house_internet_provider_ratings');
+  expect(migration).toContain('CHECK (score BETWEEN 1 AND 5)');
+  expect(migration).toContain('PRIMARY KEY (service_id, membership_id)');
+  expect(migration).toContain('FOREIGN KEY (membership_id, house_id)');
+});
+
+it('leaves provenance and sync state for a future provider import', () => {
+  const migration = readFileSync(new URL('./migrations/0011_internet_provider_sources.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('source_external_id');
+  expect(migration).toContain('manual_override');
+  expect(migration).toContain('CREATE TABLE house_internet_provider_syncs');
+  expect(migration).toContain("status IN ('not-configured', 'ready', 'running', 'failed')");
+});
+
 it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent', async () => {
   expect(pool).not.toBeNull();
   if (!pool) return;
@@ -88,7 +132,7 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('6');
+  expect(result.rows[0]?.count).toBe('11');
 });
 
 it.skipIf(!databaseUrl)('preserves old public totals while deleting every historical voter link', async () => {

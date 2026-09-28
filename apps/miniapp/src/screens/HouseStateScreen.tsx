@@ -16,6 +16,7 @@ import {
 import { houseSummary, systemStatusLine, useHouseState, type HouseSummary } from '../data/houseState.ts';
 import { formatUpdatedAt } from '../data/labels.ts';
 import { eventRoute, ROUTES } from '../routes.ts';
+import { useMembership } from '../auth/membership.tsx';
 import type { Navigate } from './types.ts';
 
 const summaryVisuals: Record<HouseSummary['tone'], { icon: IconComponent; tone: TileTone }> = {
@@ -34,6 +35,7 @@ const statusIcons: Record<HouseSystemState['status'], IconComponent> = {
 /** Состояние дома: работает ли каждая Система прямо сейчас. */
 export function HouseStateScreen({ navigate }: { navigate: Navigate }) {
   const { status, data: house, retry } = useHouseState();
+  const membership = useMembership();
 
   if (status === 'loading') {
     return (
@@ -49,6 +51,22 @@ export function HouseStateScreen({ navigate }: { navigate: Navigate }) {
       <main className="screen screen--inner inner-content" id="main-content">
         <ScreenHeading>Состояние дома</ScreenHeading>
         <ErrorState onRetry={retry} />
+      </main>
+    );
+  }
+
+  if (!house && membership) {
+    return (
+      <main className="screen screen--inner inner-content" id="main-content">
+        <ScreenHeading description={membership.address}>Состояние дома</ScreenHeading>
+        <div className="list-card">
+          <EmptyState
+            icon={House}
+            tone="green"
+            title="Сводка пока не подключена"
+            description="Здесь будет видно, работают ли электричество, вода, отопление, лифты и интернет"
+          />
+        </div>
       </main>
     );
   }

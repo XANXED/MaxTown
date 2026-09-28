@@ -12,7 +12,7 @@ describe('filterServiceGroups', () => {
   it('matches title, description and keywords case-insensitively', () => {
     expect(titles('ЗАЯВК')).toEqual(['Подать заявку', 'Мои заявки']);
     expect(titles('МФЦ')).toEqual(['Места рядом']);
-    expect(titles('позвонить')).toEqual(['Контакты']);
+    expect(titles('позвонить')).toEqual(['Полезные контакты']);
   });
 
   it('treats ё and е as the same letter', () => {
@@ -31,5 +31,9 @@ describe('filterServiceGroups', () => {
 
   it('makes repair mode discoverable from the service directory', () => {
     expect(titles('режим ремонта')).toEqual(['Режим ремонта']);
+  });
+
+  it('makes House internet providers discoverable from the service directory', () => {
+    expect(titles('провайдер тариф')).toEqual(['Интернет в Доме']);
   });
 });
