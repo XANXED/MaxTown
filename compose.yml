@@ -18,7 +18,7 @@ services:
     stop_grace_period: 1m
 
   web:
-    image: ${WEB_IMAGE:?set WEB_IMAGE to the combined API image}
+    image: ${WEB_IMAGE:-maxtown-api:local}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -26,7 +26,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
-      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgres://maxtown:change-me@postgres:5432/maxtown}
       VK_APP_ID: ${VK_APP_ID:?set VK_APP_ID}
       VK_APP_SECRET: ${VK_APP_SECRET:?set VK_APP_SECRET}
       VK_GROUP_ID: ${VK_GROUP_ID:?set VK_GROUP_ID}

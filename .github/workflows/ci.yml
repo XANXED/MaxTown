@@ -59,11 +59,11 @@ jobs:
       - name: Build production workspaces
         run: npm run build
 
+      - name: Smoke-test project knowledge MCP
+        run: npm run smoke:mcp
+
       - name: Build combined API and frontend image
         run: docker build --file apps/api/Dockerfile --tag maxtown-api:ci .
-
-      - name: Build optional Bot image
-        run: docker build --file apps/bot/Dockerfile --tag maxtown-bot:ci .
 
       - name: Validate deployment shell scripts
         run: bash -n deploy/compose-smoke.sh deploy/smoke.sh

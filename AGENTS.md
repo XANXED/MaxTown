@@ -18,13 +18,15 @@ apps/
   miniapp/    VK Mini App жильцов: React + Vite + VKUI + VK Bridge
   admin/      панель Модератора: React + Vite
   api/        бэкенд: Fastify (Node исполняет TypeScript напрямую, без сборки)
-  bot/        бот VK: @vkontakte/vk-io
 packages/
   shared/     типы и контракты, общие для фронтендов и бэкенда
 design/       токены оформления и материалы для Stitch
 docs/         agents/ — настройка скиллов, adr/ — архитектурные решения,
               research/ — исследования и источники
 ```
+
+VK Callback API и отправка уведомлений размещены в `apps/api/`; отдельный
+бот-процесс не запускается.
 
 ## Команды
 
@@ -35,7 +37,6 @@ npm install
 npm run dev:miniapp    # http://localhost:5173
 npm run dev:admin      # http://localhost:5174
 npm run dev:api        # GET /health на API_PORT (по умолчанию 3000)
-npm run dev:bot        # нужен BOT_TOKEN в .env
 npm run typecheck      # tsc по всем пакетам
 npm test               # vitest по всему репозиторию
 ```
@@ -55,7 +56,8 @@ npm test               # vitest по всему репозиторию
 - Типы, которые нужны и фронтенду, и бэкенду, живут в `packages/shared`.
 - TypeScript строгий; в коде для Node — только стираемый синтаксис
   (без `enum`, `namespace`, параметров-свойств), относительные импорты с `.ts`.
-- Секреты — только в `.env`, в git не попадают.
+- Секреты — только в `.env`, в git не попадают. VK Callback API и outbox
+  работают внутри единственного API web-процесса; отдельный bot worker не запускать.
 - Весь текст интерфейса — на русском.
 
 ## Agent skills

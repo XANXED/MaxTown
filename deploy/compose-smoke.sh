@@ -7,7 +7,8 @@ project="maxtown-smoke-$RANDOM-$$"
 temporary=$(mktemp -d)
 port=$(node -e "const s=require('node:net').createServer();s.listen(0,'127.0.0.1',()=>{console.log(s.address().port);s.close()})")
 password='maxtown-smoke-only-password'
-password_hash=$(SMOKE_PASSWORD="$password" node --input-type=module -e 'import bcrypt from "bcryptjs"; process.stdout.write(await bcrypt.hash(process.env.SMOKE_PASSWORD, 4))')
+password_hash=$(docker run --rm --env SMOKE_PASSWORD="$password" --entrypoint node "$WEB_IMAGE" \
+  --input-type=module -e 'import bcrypt from "bcryptjs"; process.stdout.write(await bcrypt.hash(process.env.SMOKE_PASSWORD, 4))')
 env_file="$temporary/.env"
 
 cat > "$env_file" <<EOF
@@ -15,7 +16,7 @@ WEB_IMAGE=$WEB_IMAGE
 POSTGRES_DB=maxtown
 POSTGRES_USER=maxtown
 POSTGRES_PASSWORD=maxtown-smoke-database-secret
-DATABASE_URL=postgres://maxtown:maxtown-smoke-database-secret@postgres:5432/maxtown
+COMPOSE_DATABASE_URL=postgres://maxtown:maxtown-smoke-database-secret@postgres:5432/maxtown
 VK_APP_ID=12345678
 VK_APP_SECRET=maxtown-smoke-vk-app-secret
 VK_GROUP_ID=123

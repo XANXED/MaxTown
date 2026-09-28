@@ -10,12 +10,11 @@ VK-бот и мини-апп — помощник жильцов многокв�
 
 ```bash
 npm install
-cp .env.example .env     # токен VK-бота добавьте после настройки VK
+cp .env.example .env     # заполните параметры VK и базы
 
 npm run dev:miniapp      # мини-апп жильцов, http://localhost:5173
 npm run dev:admin        # панель Модератора, http://localhost:5174
 npm run dev:api          # API, http://localhost:3000/health
-npm run dev:bot          # VK-бот
 ```
 
 Проверки: `npm run typecheck`, `npm test` и `npm run smoke:mcp`.
@@ -34,7 +33,7 @@ Render деплоит только после успешных checks. Free Web 
 
 ## Где что лежит
 
-- `apps/` — приложения: `miniapp`, `admin`, `api`, `bot`.
+- `apps/` — приложения: `miniapp`, `admin`, `api` (в API размещены Callback API и отправка VK-уведомлений).
 - `packages/shared/` — общие типы.
 - `design/` — токены оформления и материалы для Stitch.
 - `docs/` — архитектурные решения, исследования и настройка агентов.

@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
@@ -19,14 +19,20 @@ describe('production deployment contract', () => {
     };
 
     expect(Object.keys(compose.services).sort()).toEqual(['postgres', 'web']);
-    expect(compose.services.web?.image).toBe('${WEB_IMAGE:?set WEB_IMAGE to the combined API image}');
+    expect(compose.services.web?.image).toBe('${WEB_IMAGE:-maxtown-api:local}');
     expect(compose.services.web?.build?.dockerfile).toMatch(/apps\/api\/Dockerfile$/);
     expect(compose.services.web?.depends_on?.postgres?.condition).toBe('service_healthy');
     expect(compose.services.web?.environment?.PORT).toBe('3000');
+    expect(compose.services.web?.environment?.DATABASE_URL).toBe('${COMPOSE_DATABASE_URL:-postgres://maxtown:change-me@postgres:5432/maxtown}');
+    for (const key of ['VK_APP_ID', 'VK_APP_SECRET', 'VK_GROUP_ID', 'VK_GROUP_TOKEN', 'VK_CALLBACK_SECRET', 'VK_CALLBACK_CONFIRMATION_CODE', 'POLL_VOTER_NULLIFIER_SECRET']) {
+      expect(compose.services.web?.environment?.[key]).toBeTruthy();
+    }
     expect(compose.services.web?.ports).toEqual(['${WEB_PUBLISH:-127.0.0.1:3000:3000}']);
     expect(compose.services.postgres?.ports).toBeUndefined();
     expect(compose.services.postgres?.networks).toEqual(['database']);
     expect(compose.networks?.database?.internal).toBe(true);
+    expect(compose.services.postgres?.environment).toMatchObject({ POSTGRES_DB: '${POSTGRES_DB:?set POSTGRES_DB}', POSTGRES_USER: '${POSTGRES_USER:?set POSTGRES_USER}', POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}' });
+    expect(await readProjectFile('deploy/compose-smoke.sh')).toContain('COMPOSE_DATABASE_URL=postgres://maxtown:maxtown-smoke-database-secret@postgres:5432/maxtown');
   });
 
   it('uses only CI as the release gate and runs required Render checks', async () => {
@@ -44,7 +50,9 @@ describe('production deployment contract', () => {
     expect(ci).toContain('npm test');
     expect(ci).toContain('npm run build');
     expect(ci).toContain('docker build --file apps/api/Dockerfile --tag maxtown-api:ci .');
-    expect(ci).toContain('docker build --file apps/bot/Dockerfile --tag maxtown-bot:ci .');
+    expect(ci).toContain('npm run smoke:mcp');
+    expect(ci).not.toContain('apps/bot');
+    await expect(access(new URL('../apps/bot', import.meta.url))).rejects.toThrow();
     expect(ci).toContain('./deploy/compose-smoke.sh maxtown-api:ci');
     expect(ci).not.toContain('packages: write');
     expect(ci).not.toMatch(/VPS_|GHCR|ssh-keyscan|workflow_run/);
