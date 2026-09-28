@@ -43,7 +43,9 @@ describe('Render Blueprint', () => {
       key: 'DATABASE_URL',
       fromDatabase: { name: blueprint.databases[0].name, property: 'connectionString' },
     });
-    expect(variables.get('BOT_TOKEN')).toEqual({ key: 'BOT_TOKEN', sync: false });
+    for (const key of ['VK_APP_ID', 'VK_APP_SECRET', 'VK_GROUP_ID', 'VK_GROUP_TOKEN', 'VK_CALLBACK_SECRET', 'VK_CALLBACK_CONFIRMATION_CODE']) {
+      expect(variables.get(key)).toEqual({ key, sync: false });
+    }
     expect(variables.get('MODERATOR_PASSWORD_HASH')).toEqual({
       key: 'MODERATOR_PASSWORD_HASH',
       sync: false,

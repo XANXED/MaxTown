@@ -2012,6 +2012,17 @@ time,
   gap: var(--space-12);
 }
 
+.community-permission,
+.community-permission__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.community-permission > p {
+  margin: 0;
+}
+
 .community-panel__heading h2,
 .community-poll h3 {
   margin: 0;

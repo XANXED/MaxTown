@@ -9,6 +9,10 @@ import { registerHouseRoutes } from './routes/houses.ts';
 import { registerModeratorRoutes } from './routes/moderator.ts';
 import { registerCommunityRoutes } from './routes/community.ts';
 import { registerRepairModeRoutes } from './routes/repair-mode.ts';
+import { registerNotificationRoutes } from './routes/notifications.ts';
+import { registerVkCallbackRoutes } from './routes/vk-callback.ts';
+import { createPgOutboxStore, startNotificationOutboxWorker } from './notifications/outbox.ts';
+import { createVkMessageClient } from './vk/client.ts';
 
 export type BuildAppOptions = {
   pool: Pool;
@@ -24,8 +28,16 @@ function isHtmlNavigation(request: { method: string; headers: { accept?: string 
 
 export async function buildApp({ pool, env, staticAssets }: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({ logger: env.NODE_ENV === 'production' });
-
+  const groupId = env.VK_GROUP_ID && /^\d+$/.test(env.VK_GROUP_ID) ? Number(env.VK_GROUP_ID) : null;
+  const worker = groupId && env.VK_GROUP_TOKEN && env.VK_APP_ID
+    ? startNotificationOutboxWorker(
+      createPgOutboxStore(pool, Number(env.VK_APP_ID)),
+      createVkMessageClient({ token: env.VK_GROUP_TOKEN, groupId, apiVersion: env.VK_API_VERSION }),
+      { intervalMs: 15_000, setInterval: (callback, delay) => setInterval(callback, delay), clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) },
+    )
+    : null;
   app.addHook('onClose', async () => {
+    await worker?.stop();
     await pool.end();
   });
 
@@ -63,6 +75,10 @@ export async function buildApp({ pool, env, staticAssets }: BuildAppOptions): Pr
   registerModeratorRoutes(app, pool);
   registerCommunityRoutes(app, pool, env.POLL_VOTER_NULLIFIER_SECRET ?? 'development-only-poll-voter-nullifier-secret');
   registerRepairModeRoutes(app, pool);
+  registerNotificationRoutes(app, pool, groupId);
+  if (groupId && env.VK_CALLBACK_SECRET && env.VK_CALLBACK_CONFIRMATION_CODE) {
+    registerVkCallbackRoutes(app, pool, { groupId, secret: env.VK_CALLBACK_SECRET, confirmationCode: env.VK_CALLBACK_CONFIRMATION_CODE });
+  }
 
   const assets = staticAssets ?? (env.NODE_ENV === 'production' ? {
     miniAppRoot: fileURLToPath(new URL('../../miniapp/dist', import.meta.url)),

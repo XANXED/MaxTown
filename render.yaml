@@ -13,8 +13,20 @@ services:
         value: production
       - key: MODERATOR_USERNAME
         value: moderator
-      - key: BOT_TOKEN
+      - key: VK_APP_ID
         sync: false
+      - key: VK_APP_SECRET
+        sync: false
+      - key: VK_GROUP_ID
+        sync: false
+      - key: VK_GROUP_TOKEN
+        sync: false
+      - key: VK_CALLBACK_SECRET
+        sync: false
+      - key: VK_CALLBACK_CONFIRMATION_CODE
+        sync: false
+      - key: VK_API_VERSION
+        value: 5.199
       - key: MODERATOR_PASSWORD_HASH
         sync: false
       - key: POLL_VOTER_NULLIFIER_SECRET

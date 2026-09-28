@@ -163,7 +163,7 @@ export type InviteCheck =
 export type UserNotification = {
   id: string;
   /** Что именно изменилось — от этого зависит значок. */
-  kind: 'request-status' | 'request-comment' | 'request-visit' | 'join-approved' | 'join-declined';
+  kind: 'request-status' | 'request-comment' | 'request-visit' | 'join-approved' | 'join-declined' | 'community-poll';
   /** Готовая строка: «Заявка № 2431 выполнена». */
   title: string;
   /** Подробность: текст Комментария, время Визита. */
@@ -173,6 +173,9 @@ export type UserNotification = {
   read: boolean;
   /** Заявка, которую открывает Уведомление; у Запроса на вступление нет. */
   requestId?: string;
+  /** Дом и Опрос для перехода из уведомления. */
+  houseId?: string;
+  pollId?: string;
 };
 
 /** Контакт: телефон или ссылка службы, полезной Жильцам Дома. Список ведёт Староста. */

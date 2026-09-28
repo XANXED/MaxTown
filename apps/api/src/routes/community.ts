@@ -3,6 +3,7 @@ import type { Pool, PoolClient } from 'pg';
 import type { CommunityMessage, CommunityPoll, CommunityPollResults } from '@maxtown/shared';
 import { findHouseAccess } from '../auth/house-access.ts';
 import { createPollVoterNullifier } from '../auth/poll-nullifier.ts';
+import { enqueuePollNotifications } from '../notifications/outbox.ts';
 import { requireAuthentication } from '../auth/sessions.ts';
 
 type HouseParams = { houseId: string };
@@ -198,6 +199,7 @@ export function registerCommunityRoutes(app: FastifyInstance, pool: Pool, nullif
           );
           options.push({ id: inserted.rows[0]!.id, label: inserted.rows[0]!.label, votes: 0 });
         }
+        await enqueuePollNotifications(client, request.params.houseId, row.id);
         return { id: row.id, question, createdAt: row.created_at.toISOString(), closesAt: row.closes_at?.toISOString() ?? null, options, myVoteOptionId: null } satisfies CommunityPoll;
       });
       return reply.code(201).send({ poll });

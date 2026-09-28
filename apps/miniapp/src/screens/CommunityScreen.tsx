@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import bridge from '@vkontakte/vk-bridge';
 import { ArrowClockwise, ChatCircle, PaperPlaneRight, Plus } from '@phosphor-icons/react';
 import { Button, Input, Spinner, Textarea, Typography } from '../components/platform-ui.tsx';
 import type { CommunityMessage, CommunityPoll, HouseRole } from '@maxtown/shared';
 import { getCurrentResident } from '../auth/session.ts';
+import { loadVkMessagePermission, requestVkMessagesPermission, setVkMessagePermission } from '../data/notifications.ts';
 import {
   createCommunityPoll,
   loadCommunityMessages,
@@ -15,7 +17,7 @@ import {
 
 const timeFormat = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' });
 
-export function CommunityScreen({ houseId, role }: { houseId: string | null; role: HouseRole | null }) {
+export function CommunityScreen({ houseId, role, selectedPollId }: { houseId: string | null; role: HouseRole | null; selectedPollId?: string | null }) {
   const [resolvedHouseId, setResolvedHouseId] = useState(houseId);
   const [resolvedRole, setResolvedRole] = useState(role);
   const [messages, setMessages] = useState<CommunityMessage[]>([]);
@@ -28,6 +30,8 @@ export function CommunityScreen({ houseId, role }: { houseId: string | null; rol
   const [showPollForm, setShowPollForm] = useState(false);
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState('');
+  const [messagePermission, setMessagePermission] = useState<{ status: 'unknown' | 'allowed' | 'denied' | 'opted_out'; groupId: number | null } | null>(null);
+  const [permissionSaving, setPermissionSaving] = useState(false);
 
   const refresh = useCallback(async (initial = false) => {
     if (!resolvedHouseId) return;
@@ -59,6 +63,19 @@ export function CommunityScreen({ houseId, role }: { houseId: string | null; rol
     const timer = window.setInterval(() => { void refresh(); }, 15_000);
     return () => window.clearInterval(timer);
   }, [refresh]);
+
+  useEffect(() => {
+    if (!resolvedHouseId) return;
+    let active = true;
+    void loadVkMessagePermission().then((permission) => { if (active) setMessagePermission(permission); })
+      .catch(() => { if (active) setMessagePermission(null); });
+    return () => { active = false; };
+  }, [resolvedHouseId]);
+
+  useEffect(() => {
+    if (status !== 'ready' || !selectedPollId) return;
+    document.getElementById(`community-poll-${selectedPollId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [polls, selectedPollId, status]);
 
   const submitMessage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -111,6 +128,34 @@ export function CommunityScreen({ houseId, role }: { houseId: string | null; rol
     finally { setSending(false); }
   };
 
+  const allowVkMessages = async () => {
+    const groupId = messagePermission?.groupId;
+    if (!groupId) return;
+    setPermissionSaving(true);
+    setNotice('');
+    try {
+      const allowed = await requestVkMessagesPermission(bridge, groupId);
+      if (!allowed) throw new Error('VK не подтвердил разрешение');
+      setMessagePermission({ status: 'allowed', groupId });
+      setNotice('Уведомления VK включены. Уведомления в приложении доступны всегда.');
+    } catch {
+      setNotice('Не удалось включить сообщения VK. Уведомления в приложении останутся доступны.');
+    } finally { setPermissionSaving(false); }
+  };
+
+  const optOutOfVkMessages = async () => {
+    const groupId = messagePermission?.groupId;
+    if (!groupId) return;
+    setPermissionSaving(true);
+    try {
+      await setVkMessagePermission(false);
+      setMessagePermission({ status: 'opted_out', groupId });
+      setNotice('Сообщения VK отключены. Уведомления в приложении останутся доступны.');
+    } catch {
+      setNotice('Не удалось сохранить настройку уведомлений. Попробуйте ещё раз.');
+    } finally { setPermissionSaving(false); }
+  };
+
   if (!resolvedHouseId) {
     return (
       <main className="screen screen--inner inner-content" id="main-content">
@@ -142,6 +187,21 @@ export function CommunityScreen({ houseId, role }: { houseId: string | null; rol
             {canCreatePoll ? <Button size="small" variant="secondary" iconBefore={<Plus className="icon icon--small" aria-hidden />} onClick={() => setShowPollForm((value) => !value)}>Создать</Button> : null}
           </div>
           <Typography.Text asChild variant="description" color="secondary"><p>Голоса анонимны: видны только суммарные результаты и ваш выбор. Опрос не заменяет собрание собственников.</p></Typography.Text>
+          <div className="community-permission">
+            <Typography.Text asChild variant="description" color="secondary"><p>Уведомления в приложении приходят всем Жильцам. Ссылки на новые Опросы можно дополнительно получать в сообщениях VK.</p></Typography.Text>
+            {messagePermission?.groupId ? (
+              messagePermission.status === 'allowed' ? (
+                <Button size="small" variant="secondary" loading={permissionSaving} onClick={() => void optOutOfVkMessages()}>Отключить сообщения VK</Button>
+              ) : (
+                <div className="community-permission__actions">
+                  <Button size="small" variant="secondary" loading={permissionSaving} onClick={() => void allowVkMessages()}>
+                    {messagePermission.status === 'opted_out' || messagePermission.status === 'denied' ? 'Разрешить сообщения VK' : 'Включить уведомления VK'}
+                  </Button>
+                  {messagePermission.status !== 'opted_out' ? <Button size="small" variant="ghost" disabled={permissionSaving} onClick={() => void optOutOfVkMessages()}>Оставить только уведомления в приложении</Button> : null}
+                </div>
+              )
+            ) : null}
+          </div>
           {showPollForm ? (
             <form className="community-form" onSubmit={submitPoll}>
               <Input mode="contrast" size="large" aria-label="Вопрос Опроса" placeholder="О чём спросить соседей?" value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={500} />
@@ -155,7 +215,7 @@ export function CommunityScreen({ houseId, role }: { houseId: string | null; rol
               const closed = poll.closesAt !== null && Date.parse(poll.closesAt) <= Date.now();
               const total = poll.options.reduce((sum, option) => sum + option.votes, 0);
               return (
-                <article className="community-poll" key={poll.id}>
+                <article className="community-poll" key={poll.id} id={`community-poll-${poll.id}`}>
                   <span className="caps-label">Неформальный Опрос</span>
                   <Typography.Text asChild variant="body-strong"><h3>{poll.question}</h3></Typography.Text>
                   {poll.closesAt ? <Typography.Text asChild variant="description" color="secondary"><p>{closed ? 'Опрос закрыт' : `До ${timeFormat.format(new Date(poll.closesAt))}`}</p></Typography.Text> : null}

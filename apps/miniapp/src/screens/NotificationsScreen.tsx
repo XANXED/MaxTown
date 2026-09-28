@@ -14,7 +14,7 @@ import {
   type TileTone,
 } from '../components/ui.tsx';
 import { formatUpdatedAt } from '../data/labels.ts';
-import { groupByDay, markAllRead, markRead, unreadCount, useNotifications } from '../data/notifications.ts';
+import { groupByDay, markAllNotificationsRead, markAllRead, markNotificationRead, markRead, unreadCount, useNotifications } from '../data/notifications.ts';
 import { glueNumberSign, plural } from '../data/text.ts';
 import { requestRoute, ROUTES } from '../routes.ts';
 import type { Navigate } from './types.ts';
@@ -25,10 +25,11 @@ const kindVisuals: Record<UserNotification['kind'], { icon: IconComponent; tone:
   'request-visit': { icon: CalendarCheck, tone: 'coral' },
   'join-approved': { icon: House, tone: 'green' },
   'join-declined': { icon: HouseLine, tone: 'neutral' },
+  'community-poll': { icon: ChatCircleText, tone: 'blue' },
 };
 
 /** Уведомления: что изменилось в Заявках и в Запросе на вступление. Новые — жирнее и с отметкой. */
-export function NotificationsScreen({ navigate }: { navigate: Navigate }) {
+export function NotificationsScreen({ navigate, openCommunityPoll }: { navigate: Navigate; openCommunityPoll?: (houseId: string, pollId: string) => void }) {
   const { status, data, retry } = useNotifications();
   // Прочитанность живёт на экране; с API отметка уйдёт на сервер.
   const [changed, setChanged] = useState<UserNotification[] | null>(null);
@@ -37,6 +38,11 @@ export function NotificationsScreen({ navigate }: { navigate: Navigate }) {
 
   const open = (item: UserNotification) => {
     setChanged(markRead(items, item.id));
+    void markNotificationRead(item.id).catch(() => undefined);
+    if (item.kind === 'community-poll' && item.houseId && item.pollId) {
+      openCommunityPoll?.(item.houseId, item.pollId);
+      return;
+    }
     navigate(item.requestId ? requestRoute(item.requestId) : ROUTES.house);
   };
 
@@ -56,7 +62,7 @@ export function NotificationsScreen({ navigate }: { navigate: Navigate }) {
             Уведомления
           </ScreenHeading>
           {unread > 0 ? (
-            <button className="text-action pressable" type="button" onClick={() => setChanged(markAllRead(items))}>
+            <button className="text-action pressable" type="button" onClick={() => { setChanged(markAllRead(items)); void markAllNotificationsRead().catch(() => undefined); }}>
               Прочитать все
             </button>
           ) : null}
@@ -72,7 +78,7 @@ export function NotificationsScreen({ navigate }: { navigate: Navigate }) {
               icon={BellSimple}
               tone="pink"
               title="Уведомлений пока нет"
-              description="Здесь появится, что изменилось в ваших Заявках и в Запросе на вступление"
+              description="Здесь появятся новости чата и изменения в ваших Заявках"
             />
           </div>
         ) : (

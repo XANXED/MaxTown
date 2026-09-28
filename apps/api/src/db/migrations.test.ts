@@ -57,6 +57,19 @@ it('migrates old votes to unlinkable aggregates and stores new ballots without i
   expect(ballotDefinition).toContain('FOREIGN KEY (option_id, poll_id)');
 });
 
+it('defines per-resident consent, in-app poll notifications, and idempotent direct delivery records', () => {
+  const migration = readFileSync(new URL('./migrations/0005_vk_notification_outbox.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('CREATE TABLE resident_message_permissions');
+  expect(migration).toContain("status IN ('allowed', 'denied', 'opted_out')");
+  expect(migration).toContain('CREATE TABLE vk_callback_events');
+  expect(migration).toContain('event_id text PRIMARY KEY');
+  expect(migration).toContain('CREATE TABLE in_app_notifications');
+  expect(migration).toContain('UNIQUE (resident_id, poll_id)');
+  expect(migration).toContain('CREATE TABLE vk_notification_outbox');
+  expect(migration).toContain('UNIQUE (poll_id, membership_id)');
+  expect(migration).toContain('provider_random_id integer GENERATED ALWAYS AS IDENTITY UNIQUE');
+});
+
 it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent', async () => {
   expect(pool).not.toBeNull();
   if (!pool) return;
@@ -65,7 +78,7 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('4');
+  expect(result.rows[0]?.count).toBe('5');
 });
 
 it.skipIf(!databaseUrl)('preserves old public totals while deleting every historical voter link', async () => {

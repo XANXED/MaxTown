@@ -21,9 +21,9 @@ grep -q '"status":"ok"' "$temporary/health.json" || { echo 'API health check fai
 curl --fail --silent --show-error --max-time 15 "$BASE_URL/api/ready" -o "$temporary/ready.json"
 grep -q '"status":"ok"' "$temporary/ready.json" || { echo 'API readiness check failed' >&2; exit 1; }
 
-auth_status=$(curl --silent --show-error --max-time 15 --output "$temporary/max-auth.json" --write-out '%{http_code}' \
-  --header 'Content-Type: application/json' --data '{"initData":"invalid-smoke-data"}' "$BASE_URL/api/auth/max")
-[[ "$auth_status" == 401 ]] || { echo "MAX authentication rejection returned HTTP $auth_status, expected 401" >&2; exit 1; }
+auth_status=$(curl --silent --show-error --max-time 15 --output "$temporary/vk-auth.json" --write-out '%{http_code}' \
+  --header 'Content-Type: application/json' --data '{"launchParams":"invalid-smoke-data"}' "$BASE_URL/api/auth/vk")
+[[ "$auth_status" == 401 ]] || { echo "VK authentication rejection returned HTTP $auth_status, expected 401" >&2; exit 1; }
 
 admin_status=$(curl --silent --show-error --max-time 15 --output /dev/null --write-out '%{http_code}' \
   --header 'X-MaxTown-Moderator: smoke-moderator' "$BASE_URL/admin/")
@@ -44,4 +44,4 @@ curl --fail --silent --show-error --max-time 30 --user "$MODERATOR_SMOKE_USER:$M
   "$BASE_URL/api/moderator/registrations" -o "$temporary/registrations.json"
 grep -q '"registrations"' "$temporary/registrations.json" || { echo 'Authenticated Moderator API did not return registrations' >&2; exit 1; }
 
-printf 'MaxTown smoke: Mini App assets, API health/readiness, MAX auth rejection, and Moderator access passed\n'
+printf 'MaxTown smoke: Mini App assets, API health/readiness, VK auth rejection, and Moderator access passed\n'

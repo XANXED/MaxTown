@@ -44,6 +44,7 @@ const RepairModeScreen = lazy(() => import('./screens/RepairModeScreen.tsx').the
 function initialRoute(): AppRoute {
   // Открыли по ссылке-приглашению — сразу к вступлению, приветствие не нужно.
   if (launchInviteCode()) return ROUTES.join;
+  if (new URLSearchParams(window.location.search).has('poll_id')) return ROUTES.community;
   return startRoute(window.location.hash, hasSeenWelcome());
 }
 
@@ -68,6 +69,7 @@ export function App() {
   const [authAttempt, setAuthAttempt] = useState(0);
   const [activeHouseId, setActiveHouseId] = useState<string | null>(null);
   const [activeHouseRole, setActiveHouseRole] = useState<HouseRole | null>(null);
+  const [communityPollId, setCommunityPollId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('poll_id'));
   /** Куда прокрутить после смены экрана: наверх или туда, где Жилец был до перехода. */
   const pendingScroll = useRef(0);
 
@@ -84,8 +86,10 @@ export function App() {
       .then(() => getCurrentResident())
       .then(({ memberships }) => {
         if (!active) return;
-        setActiveHouseId(memberships[0]?.houseId ?? null);
-        setActiveHouseRole(memberships[0]?.role ?? null);
+        const requestedHouse = new URLSearchParams(window.location.search).get('house_id');
+        const membership = memberships.find((item) => item.houseId === requestedHouse) ?? memberships[0];
+        setActiveHouseId(membership?.houseId ?? null);
+        setActiveHouseRole(membership?.role ?? null);
         setAuthState('ready');
       })
       .catch(() => { if (active) setAuthState('error'); });
@@ -127,6 +131,20 @@ export function App() {
       window.setTimeout(() => setNotice(null), NOTICE_DURATION_MS + NOTICE_EXIT_MS),
     ];
   }, []);
+
+  const openCommunityPoll = useCallback(async (houseId: string, pollId: string) => {
+    try {
+      const me = await getCurrentResident();
+      const membership = me.memberships.find((item) => item.houseId === houseId);
+      if (!membership) return;
+      setActiveHouseId(houseId);
+      setActiveHouseRole(membership.role);
+      setCommunityPollId(pollId);
+      navigate(ROUTES.community);
+    } catch {
+      notify('Не удалось открыть Опрос. Обновите экран и попробуйте снова.');
+    }
+  }, [navigate, notify]);
 
   useEffect(() => {
     // «Назад» и «Вперёд» браузера, ручная правка адреса. Оба события приходят
@@ -218,7 +236,7 @@ export function App() {
       screen = <ReadingsScreen navigate={navigate} />;
       break;
     case ROUTES.community:
-      screen = <CommunityScreen houseId={activeHouseId} role={activeHouseRole} />;
+      screen = <CommunityScreen houseId={activeHouseId} role={activeHouseRole} selectedPollId={communityPollId} />;
       break;
     case ROUTES.repairMode:
       screen = <RepairModeScreen houseId={activeHouseId} role={activeHouseRole} />;
@@ -230,7 +248,7 @@ export function App() {
       screen = <PlacesScreen navigate={navigate} />;
       break;
     case ROUTES.notifications:
-      screen = <NotificationsScreen navigate={navigate} />;
+      screen = <NotificationsScreen navigate={navigate} openCommunityPoll={(houseId, pollId) => void openCommunityPoll(houseId, pollId)} />;
       break;
     case ROUTES.join:
       screen = <JoinScreen navigate={navigate} notify={notify} />;

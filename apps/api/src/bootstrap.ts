@@ -49,8 +49,12 @@ function validateEnvironment(env: NodeJS.ProcessEnv): { databaseUrl: string; por
   }
   const hasModeratorSetting = Boolean(env.MODERATOR_USERNAME || env.MODERATOR_PASSWORD_HASH);
   if (env.NODE_ENV === 'production') {
-    if (!env.VK_APP_ID?.trim()) throw new Error('VK_APP_ID is required in production');
+    if (!env.VK_APP_ID || !/^\d+$/.test(env.VK_APP_ID) || !Number.isSafeInteger(Number(env.VK_APP_ID)) || Number(env.VK_APP_ID) < 1) throw new Error('VK_APP_ID must be a positive integer in production');
     if (!env.VK_APP_SECRET?.trim()) throw new Error('VK_APP_SECRET is required in production');
+    if (!env.VK_GROUP_ID || !/^\d+$/.test(env.VK_GROUP_ID) || !Number.isSafeInteger(Number(env.VK_GROUP_ID)) || Number(env.VK_GROUP_ID) < 1) throw new Error('VK_GROUP_ID must be a positive integer in production');
+    if (!env.VK_GROUP_TOKEN?.trim()) throw new Error('VK_GROUP_TOKEN is required in production');
+    if (!env.VK_CALLBACK_SECRET?.trim() || Buffer.byteLength(env.VK_CALLBACK_SECRET) > 50) throw new Error('VK_CALLBACK_SECRET must be set and at most 50 bytes in production');
+    if (!env.VK_CALLBACK_CONFIRMATION_CODE?.trim()) throw new Error('VK_CALLBACK_CONFIRMATION_CODE is required in production');
     if (!isValidPollNullifierSecret(env.POLL_VOTER_NULLIFIER_SECRET)) {
       throw new Error('POLL_VOTER_NULLIFIER_SECRET must contain at least 32 bytes in production');
     }
