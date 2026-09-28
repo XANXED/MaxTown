@@ -21,6 +21,19 @@ npm run dev:api          # API, http://localhost:3000/health
 
 ### Локальный запуск без VK
 
+Одной командой, после того как Postgres установлен (см. ниже):
+
+```bash
+npm run local            # создаст .env, если его нет, проверит Postgres,
+                         # запустит API, мини-апп и панель, напечатает ссылки входа
+npm run local -- --users 5   # ссылок входа — на пять Жильцов
+```
+
+Если порты заняты: `MINIAPP_PORT=5183 ADMIN_PORT=5184 API_PORT=3100 npm run local`.
+Модератор в созданном `.env` — `moderator` / `moderator`.
+
+Вручную то же самое:
+
 Нужен PostgreSQL 13+. На Manjaro/Arch один раз:
 
 ```bash

@@ -10,6 +10,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "local": "node scripts/dev-local.ts",
     "dev:miniapp": "npm run dev -w @maxtown/miniapp",
     "dev:admin": "npm run dev -w @maxtown/admin",
     "dev:api": "npm run dev -w @maxtown/api",
