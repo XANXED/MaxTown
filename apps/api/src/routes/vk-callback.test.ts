@@ -25,6 +25,12 @@ describe('VK Callback API', () => {
     expect(response.body).toBe('verify-me');
   });
 
+  it('keeps the callback available before the VK-issued confirmation code is configured', async () => {
+    registerVkCallbackRoutes(app, pool, { groupId: 123, secret: 'callback-secret' });
+    const response = await app.inject({ method: 'POST', url: '/api/vk/callback', payload: { type: 'confirmation', group_id: 123, event_id: 'confirm-before-config', v: '5.199', secret: 'callback-secret' } });
+    expect(response.statusCode).toBe(503);
+  });
+
   it('rejects wrong secret and group without touching persistence', async () => {
     const query = vi.mocked(pool.query);
     const connect = vi.mocked(pool.connect);

@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 
-export type VkCallbackConfig = { groupId: number; secret: string; confirmationCode: string };
+export type VkCallbackConfig = { groupId: number; secret: string; confirmationCode?: string };
 type VkCallbackEvent = { type: string; group_id: number; event_id: string; v: string; secret: string; object?: unknown };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -31,7 +31,10 @@ export function registerVkCallbackRoutes(app: FastifyInstance, pool: Pool, confi
     if (body.group_id !== config.groupId || !matchesSecret(body.secret, config.secret)) {
       return reply.code(403).send({ error: 'invalid_callback_credentials' });
     }
-    if (body.type === 'confirmation') return reply.type('text/plain').send(config.confirmationCode);
+    if (body.type === 'confirmation') {
+      if (!config.confirmationCode?.trim()) return reply.code(503).send({ error: 'callback_confirmation_not_configured' });
+      return reply.type('text/plain').send(config.confirmationCode);
+    }
     if (!['message_allow', 'message_deny'].includes(body.type)) return reply.type('text/plain').send('ok');
     if (!isRecord(body.object) || !Number.isSafeInteger(body.object.user_id) || Number(body.object.user_id) < 1) {
       return reply.code(400).send({ error: 'invalid_callback_event' });

@@ -46,9 +46,10 @@ describe('Render Blueprint', () => {
     for (const key of ['VK_APP_ID', 'VK_APP_SECRET', 'VK_GROUP_ID', 'VK_GROUP_TOKEN']) {
       expect(variables.get(key)).toEqual({ key, sync: false });
     }
-    for (const key of ['VK_CALLBACK_SECRET', 'VK_CALLBACK_CONFIRMATION_CODE', 'MODERATOR_PASSWORD', 'POLL_VOTER_NULLIFIER_SECRET']) {
+    for (const key of ['VK_CALLBACK_SECRET', 'MODERATOR_PASSWORD', 'POLL_VOTER_NULLIFIER_SECRET']) {
       expect(variables.get(key)).toEqual({ key, generateValue: true });
     }
+    expect(variables.has('VK_CALLBACK_CONFIRMATION_CODE')).toBe(false);
     expect(variables.has('MODERATOR_PASSWORD_HASH')).toBe(false);
     expect(variables.get('MODERATOR_USERNAME')).toMatchObject({ key: 'MODERATOR_USERNAME' });
   });

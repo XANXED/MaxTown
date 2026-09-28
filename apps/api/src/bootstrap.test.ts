@@ -55,6 +55,14 @@ describe('API startup', () => {
     ]);
   });
 
+  it('starts without the VK-issued Callback API confirmation code for first deployment', async () => {
+    const { VK_CALLBACK_CONFIRMATION_CODE: _code, ...firstDeployEnv } = validProductionEnv;
+    const { app, dependencies } = createDependencies();
+    activeApp = app;
+    await startServer({ env: firstDeployEnv, dependencies });
+    expect(dependencies.listen).toHaveBeenCalled();
+  });
+
   it('bootstraps the Moderator from a generated initial password', async () => {
     const order: string[] = [];
     const { app, dependencies } = createDependencies(order);

@@ -23,8 +23,6 @@ services:
         sync: false
       - key: VK_CALLBACK_SECRET
         generateValue: true
-      - key: VK_CALLBACK_CONFIRMATION_CODE
-        generateValue: true
       - key: VK_API_VERSION
         value: 5.199
       - key: MODERATOR_PASSWORD

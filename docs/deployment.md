@@ -8,15 +8,16 @@
 - Созданные в VK Mini Apps приложение и сообщество с включённым Callback API и разрешёнными сообщениями сообщества.
 - `VK_APP_ID`, `VK_APP_SECRET`, `VK_GROUP_ID` и `VK_GROUP_TOKEN` из созданных приложения и сообщества VK.
 
-Render создаёт Web Service и базу по Blueprint. Секреты приложения, код подтверждения Callback API, пароль Модератора и ключ анонимизации опросов генерируются автоматически. Владелец Render всё ещё должен один раз применить Blueprint и передать реальные реквизиты VK: их невозможно создать на стороне Render.
+Render создаёт Web Service и базу по Blueprint. Render автоматически генерирует секрет Callback API, пароль Модератора и ключ анонимизации опросов. Код подтверждения Callback API выдаёт VK только после добавления адреса сервера, поэтому его нужно внести в Render после первого деплоя. Владелец Render всё ещё должен один раз применить Blueprint и передать реальные реквизиты VK: их невозможно создать на стороне Render.
 
 ## Настройка Render
 
 1. В Render Dashboard выберите **New → Blueprint**, подключите GitHub-репозиторий `XANXED/MaxTown` и примените `render.yaml` из `main`.
-2. Заполните только предложенные обязательные значения VK: `VK_APP_ID`, `VK_APP_SECRET`, `VK_GROUP_ID`, `VK_GROUP_TOKEN`. Render сам задаст `VK_CALLBACK_SECRET`, `VK_CALLBACK_CONFIRMATION_CODE`, `MODERATOR_PASSWORD` и `POLL_VOTER_NULLIFIER_SECRET`.
-3. Дождитесь первого деплоя **Live**. Возьмите сгенерированные `VK_CALLBACK_SECRET` и `VK_CALLBACK_CONFIRMATION_CODE` из переменных сервиса Render и задайте их в настройках Callback API сообщества. Укажите URL `https://<имя-сервиса>.onrender.com/api/vk/callback`, версию API из `VK_API_VERSION` и включите события `message_allow` и `message_deny`.
-4. Установите адрес Mini App в настройках VK на `https://<имя-сервиса>.onrender.com/`.
-5. Проверьте `https://<имя-сервиса>.onrender.com/api/ready` — ожидается HTTP 200. Откройте Mini App из сообщества VK и вручную проверьте вход и уведомление на тестовом аккаунте, разрешившем сообщения.
+2. Заполните предложенные обязательные реквизиты VK: `VK_APP_ID`, `VK_APP_SECRET`, `VK_GROUP_ID`, `VK_GROUP_TOKEN`. Render сам задаст `VK_CALLBACK_SECRET`, `MODERATOR_PASSWORD` и `POLL_VOTER_NULLIFIER_SECRET`.
+3. Дождитесь первого деплоя **Live**. API запускается без кода подтверждения, который ещё не выдан VK. В настройках Callback API сообщества добавьте сервер `https://<имя-сервиса>.onrender.com/api/vk/callback`, вставьте `VK_CALLBACK_SECRET` из Render и сохраните настройки. VK покажет код подтверждения.
+4. Добавьте выданный VK код как `VK_CALLBACK_CONFIRMATION_CODE` в **Environment** сервиса Render и дождитесь успешного повторного деплоя. Затем вернитесь в настройки Callback API и нажмите подтверждение сервера. VK отправит confirmation event; API ответит точным выданным кодом. Включите события `message_allow` и `message_deny`, используя версию API из `VK_API_VERSION`.
+5. Установите адрес Mini App в настройках VK на `https://<имя-сервиса>.onrender.com/`.
+6. Проверьте `https://<имя-сервиса>.onrender.com/api/ready` — ожидается HTTP 200. Откройте Mini App из сообщества VK и вручную проверьте вход и уведомление на тестовом аккаунте, разрешившем сообщения.
 
 ### Доступ Модератора
 
