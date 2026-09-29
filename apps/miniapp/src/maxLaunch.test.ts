@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { launchInviteCode } from './data/join.ts';
 import {
   currentMaxInitData,
+  isMaxRuntime,
   launchPoll,
   launchStartParam,
   maxNavigationHash,
@@ -10,7 +11,17 @@ import {
 import { launchSetupChatId } from './houseSetup.ts';
 
 describe('запуск внутри MAX', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it('считает production-сборку средой MAX до появления initData', () => {
+    vi.stubEnv('PROD', true);
+    vi.stubGlobal('window', { location: { hash: '', search: '' } });
+
+    expect(isMaxRuntime()).toBe(true);
+  });
 
   it.each(['#', '?', '&'])('читает данные MAX после маршрута и разделителя %s', (separator) => {
     const signed = new URLSearchParams({

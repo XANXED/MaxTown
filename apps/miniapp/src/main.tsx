@@ -5,7 +5,7 @@ import '@vkontakte/vkui/dist/vkui.css';
 import '@design/tokens.css';
 import './components/platform-ui.css';
 import { App } from './App.tsx';
-import { currentMaxInitData } from './maxLaunch.ts';
+import { isMaxRuntime } from './maxLaunch.ts';
 
 // Мини-апп MAX. Интерфейс — на VKUI (MAX сделан VK и выглядит так же), мост —
 // window.WebApp из скрипта MAX в index.html. Отступы вырезов экрана VKUI берёт
@@ -34,7 +34,7 @@ function PlatformRoot() {
   }, [colorScheme]);
 
   return (
-    <ConfigProvider colorScheme={colorScheme} isWebView={Boolean(currentMaxInitData())}>
+    <ConfigProvider colorScheme={colorScheme} isWebView={isMaxRuntime()}>
       <AdaptivityProvider>
         <AppRoot mode="full">
           <App />

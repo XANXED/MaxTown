@@ -181,7 +181,7 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
           size="large"
           inputMode="url"
           autoComplete="off"
-          placeholder="https://vk.com/app…"
+          placeholder="https://max.ru/…"
           value={link}
           withClearButton
           aria-invalid={Boolean(error)}

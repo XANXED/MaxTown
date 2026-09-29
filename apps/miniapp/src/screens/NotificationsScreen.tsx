@@ -33,12 +33,16 @@ export function NotificationsScreen({ navigate, openCommunityPoll }: { navigate:
   const { status, data, retry } = useNotifications();
   // Прочитанность живёт на экране; с API отметка уйдёт на сервер.
   const [changed, setChanged] = useState<UserNotification[] | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
+  const [markingAll, setMarkingAll] = useState(false);
   const items = changed ?? data;
   const unread = unreadCount(items);
 
   const open = (item: UserNotification) => {
-    setChanged(markRead(items, item.id));
-    void markNotificationRead(item.id).catch(() => undefined);
+    setReadError(null);
+    void markNotificationRead(item.id)
+      .then(() => setChanged((current) => markRead(current ?? data, item.id)))
+      .catch(() => setReadError('Не удалось отметить уведомление. Попробуйте ещё раз.'));
     if (item.kind === 'community-poll' && item.houseId && item.pollId) {
       openCommunityPoll?.(item.houseId, item.pollId);
       return;
@@ -62,11 +66,19 @@ export function NotificationsScreen({ navigate, openCommunityPoll }: { navigate:
             Уведомления
           </ScreenHeading>
           {unread > 0 ? (
-            <button className="text-action pressable" type="button" onClick={() => { setChanged(markAllRead(items)); void markAllNotificationsRead().catch(() => undefined); }}>
+            <button className="text-action pressable" type="button" disabled={markingAll} onClick={() => {
+              setReadError(null);
+              setMarkingAll(true);
+              void markAllNotificationsRead()
+                .then(() => setChanged((current) => markAllRead(current ?? data)))
+                .catch(() => setReadError('Не удалось отметить уведомления. Попробуйте ещё раз.'))
+                .finally(() => setMarkingAll(false));
+            }}>
               Прочитать все
             </button>
           ) : null}
         </div>
+        {readError ? <p className="field-error" role="alert">{readError}</p> : null}
 
         {status === 'loading' ? (
           <SkeletonRows count={4} />

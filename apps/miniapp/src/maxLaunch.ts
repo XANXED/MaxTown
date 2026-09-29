@@ -40,6 +40,14 @@ export function currentMaxInitData(): string | undefined {
   return fromUrl ?? nonEmpty(window.WebApp?.initData);
 }
 
+/**
+ * Production MaxTown запускается только как мини-приложение MAX. В dev
+ * сохраняем браузерный demo-режим, пока запуск не содержит данных MAX.
+ */
+export function isMaxRuntime(): boolean {
+  return import.meta.env.PROD || Boolean(currentMaxInitData());
+}
+
 /** Оставляем переданные MAX параметры во фрагменте URL при навигации.
  * Они не уходят HTTP-серверу и остаются доступны после перезагрузки WebView. */
 export function maxNavigationHash(routeHash: string): string {

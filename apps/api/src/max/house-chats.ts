@@ -75,17 +75,17 @@ async function setMembership(db: Pool | PoolClient, residentId: string, houseId:
  * Пересчитать Дома человека по его участию в Домовых чатах. Если MAX не
  * ответил про какой-то чат, прежнее членство в этом Доме остаётся как было:
  * вход не должен ломаться от сбоя MAX. Возвращает чаты, где человек может
- * выбрать Адрес Дома.
+ * выбрать Адрес Дома. pendingSetupChatId фильтрует только этот список:
+ * действующие членства всегда перепроверяются полностью.
  */
 export async function syncResidentHouses(
   deps: HouseChatDeps,
   resident: { id: string; maxUserId: number },
-  onlyChatId: number | null = null,
+  pendingSetupChatId: number | null = null,
 ): Promise<PendingHouseSetup[]> {
   const chats = await deps.pool.query<HouseChatRow>(
     `SELECT chat_id, house_id, created_by_max_user_id, management_company_max_user_id, disconnected_at
-       FROM house_chats WHERE disconnected_at IS NULL AND ($1::bigint IS NULL OR chat_id = $1)`,
-    [onlyChatId],
+       FROM house_chats WHERE disconnected_at IS NULL`,
   );
   await Promise.all(chats.rows.map(async (chat) => {
     let member: MaxChatMember | null;
@@ -103,7 +103,7 @@ export async function syncResidentHouses(
        FROM house_chat_onboardings onboarding
       WHERE onboarding.address_required_at IS NOT NULL AND ($1::bigint IS NULL OR onboarding.chat_id = $1)
         AND NOT EXISTS (SELECT 1 FROM house_chats chat WHERE chat.chat_id = onboarding.chat_id)`,
-    [onlyChatId],
+    [pendingSetupChatId],
   );
   const setups = await Promise.all(onboardings.rows.map(async (onboarding): Promise<PendingHouseSetup | null> => {
     try {

@@ -45,13 +45,10 @@ export function launchInviteCode(): string | null {
   return inviteFromStartParam(launchStartParam());
 }
 
-/** Результат проверки на экране: к ответам сервера добавляется «вступить пока нельзя». */
+/** Результат проверки на экране: к ответам сервера добавляется ошибка доступности API. */
 export type InviteResult = InviteCheck | { status: 'unavailable' };
 
-/**
- * Проверить Приглашение. API ещё нет: в сборке честно отвечаем, что вступить
- * пока нельзя. В dev-демо ответ даёт fixtures.ts.
- */
+/** Проверить Приглашение; в dev-демо ответ даёт fixtures.ts. */
 export async function checkInvite(code: string): Promise<InviteResult> {
   const fixtures = demoMode() ? loadFixtures() : null;
   if (fixtures) return (await fixtures).sampleInviteCheck(code);
@@ -69,4 +66,3 @@ export async function redeemInvite(code: string): Promise<void> {
   const response = await apiFetch(`/api/invitations/${encodeURIComponent(code)}/redeem`, { method: 'POST' });
   if (!response.ok) throw new Error('Не удалось вступить по Приглашению');
 }
-

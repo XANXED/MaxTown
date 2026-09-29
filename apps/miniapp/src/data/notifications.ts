@@ -37,11 +37,13 @@ export function markAllRead(items: UserNotification[]): UserNotification[] {
 }
 
 export async function markNotificationRead(id: string): Promise<void> {
-  await apiFetch(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' });
+  const response = await apiFetch(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' });
+  if (!response.ok) throw new Error('Не удалось отметить уведомления прочитанными');
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
-  await apiFetch('/api/notifications/read-all', { method: 'PATCH' });
+  const response = await apiFetch('/api/notifications/read-all', { method: 'PATCH' });
+  if (!response.ok) throw new Error('Не удалось отметить уведомления прочитанными');
 }
 
 /** Уведомления человека, новые сверху. Без API — пусто; примеры для dev — см. loadable.ts. */

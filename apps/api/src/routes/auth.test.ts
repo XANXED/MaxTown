@@ -96,6 +96,19 @@ describe.skipIf(!databaseUrl)('вход через MAX', () => {
     expect((await me(response.json<{ token: string }>().token)).json()).toMatchObject({ memberships: [{ role: 'resident' }] });
   });
 
+  it('перепроверяет все Дома, даже если в запуске передан другой chatId', async () => {
+    const house = await pool.query<{ id: string }>("INSERT INTO houses (address, locality) VALUES ('ул. Защитная, 1', 'Казань') RETURNING id");
+    await pool.query('INSERT INTO house_chats (chat_id, house_id) VALUES ($1, $2)', [-503, house.rows[0]!.id]);
+    max.chats.set(-503, { title: 'Защитная 1', botIsAdmin: true, members: [member(14)] });
+    await login(14);
+
+    max.chats.get(-503)!.members = [];
+    const response = await login(14, { chatId: -999 });
+    const profile = await me(response.json<{ token: string }>().token);
+
+    expect(profile.json()).toMatchObject({ memberships: [] });
+  });
+
   it('показывает выбор адреса только администратору чата', async () => {
     await pool.query("INSERT INTO house_chat_onboardings (chat_id, chat_title, address_required_at) VALUES (-502, 'Наш дом', now())");
     max.chats.set(-502, { title: 'Наш дом', botIsAdmin: true, members: [member(12, { isOwner: true }), member(13)] });

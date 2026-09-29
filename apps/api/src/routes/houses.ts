@@ -138,11 +138,9 @@ export function registerHouseRoutes(app: FastifyInstance, pool: Pool): void {
           }
           return { id: existing.id, houseId: invite.house_id };
         }
-        const inserted = await client.query<{ id: string }>(
-          `INSERT INTO memberships (resident_id, house_id, apartment_id, role) VALUES ($1, $2, $3, 'resident') RETURNING id`,
-          [request.authSession!.resident.id, invite.house_id, invite.apartment_id],
-        );
-        return { id: inserted.rows[0]!.id, houseId: invite.house_id };
+        // Приглашение связывает с Квартирой только участника Домового чата.
+        // Доступ к Дому создаётся при входе после проверки состава чата MAX.
+        return null;
       });
       if (!membership) return reply.code(404).send({ error: 'invitation_unavailable' });
       return { membership };

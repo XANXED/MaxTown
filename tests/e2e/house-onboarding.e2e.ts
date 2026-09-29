@@ -49,6 +49,80 @@ test('зависшая проверка доступа заканчиваетс�
   await expect(page.getByText('Проверяем участие в чате')).toHaveCount(0);
 });
 
+test('поздний MAX Bridge сохраняет маршрут и подключает системную кнопку Назад', async ({ page }) => {
+  const signed = initData();
+  await page.route('https://st.max.ru/js/max-web-app.js', (route) => route.fulfill({
+    contentType: 'application/javascript',
+    body: `setTimeout(() => {
+      window.__maxBackButtonCalls = [];
+      window.WebApp = {
+        initData: ${JSON.stringify(signed)},
+        BackButton: {
+          show() { window.__maxBackButtonCalls.push('show'); },
+          hide() { window.__maxBackButtonCalls.push('hide'); },
+          onClick() {},
+          offClick() {}
+        }
+      };
+    }, 100);`,
+  }));
+  await page.route('**/api/auth/max', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ token: 'Q'.repeat(43), expiresAt: '2030-01-01T00:00:00.000Z', pendingHouseSetups: [] }),
+  }));
+  await page.route('**/api/me', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ resident: { id: 'resident-1', maxUserId: String(userId), displayName: 'Анна', username: null }, memberships: [] }),
+  }));
+
+  await page.goto('/#/join');
+
+  await expect(page.getByRole('heading', { name: 'Стать Жильцом' })).toBeVisible();
+  await expect(page.getByPlaceholder('https://max.ru/…')).toBeVisible();
+  await expect(page).toHaveURL(/#\/join/);
+  await expect(page.getByText('Ваш дом в MAX')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Назад' })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (window as Window & { __maxBackButtonCalls?: string[] }).__maxBackButtonCalls ?? [])).toContain('show');
+});
+
+test('production preview отдаёт оба favicon', async ({ request }) => {
+  for (const path of ['/favicon.svg', '/favicon.ico']) {
+    const response = await request.get(path);
+    expect(response.status(), path).toBe(200);
+    expect((await response.body()).byteLength, path).toBeGreaterThan(0);
+  }
+});
+
+test('ошибка отметки уведомлений не создаёт ложную прочитанность', async ({ page }) => {
+  await maxBridge(page);
+  await page.route('**/api/**', (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    if (pathname === '/api/auth/max') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ token: 'Q'.repeat(43), expiresAt: '2030-01-01T00:00:00.000Z', pendingHouseSetups: [] }) });
+    }
+    if (pathname === '/api/me') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ resident: { id: 'resident-1', maxUserId: String(userId), displayName: 'Анна', username: null }, memberships: [] }) });
+    }
+    if (pathname === '/api/notifications' && request.method() === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: [{ id: 'notice-1', kind: 'request-status', title: 'Заявка обновлена', at: new Date().toISOString(), read: false, requestId: 'request-1' }] }) });
+    }
+    if (pathname === '/api/notifications/read-all') {
+      return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'failed' }) });
+    }
+    return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+  });
+
+  await page.goto('/#/notifications');
+  await expect(page.getByText('1 новое')).toBeVisible();
+  await page.getByRole('button', { name: 'Прочитать все' }).click();
+
+  await expect(page.getByRole('alert')).toHaveText('Не удалось отметить уведомления. Попробуйте ещё раз.');
+  await expect(page.getByText('1 новое')).toBeVisible();
+});
+
 test.describe('подключение Дома', () => {
   test.skip(!databaseUrl, 'Нужен TEST_DATABASE_URL: e2e ходит в настоящий API на Postgres');
 

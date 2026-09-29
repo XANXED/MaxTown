@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { UserNotification } from '@maxtown/shared';
-import { groupByDay, markAllRead, markRead, unreadCount } from './notifications.ts';
+import { groupByDay, markAllNotificationsRead, markAllRead, markNotificationRead, markRead, unreadCount } from './notifications.ts';
 
 const now = new Date(2026, 8, 25, 15, 0);
+
+afterEach(() => vi.unstubAllGlobals());
 
 function notification(id: string, at: Date, read = false): UserNotification {
   return { id, kind: 'request-status', title: id, at: at.toISOString(), read, requestId: 'r1' };
@@ -41,5 +43,14 @@ describe('read state', () => {
   it('marks one or all as read', () => {
     expect(unreadCount(markRead(list, 'a'))).toBe(1);
     expect(unreadCount(markAllRead(list))).toBe(0);
+  });
+
+  it.each([
+    ['одно уведомление', () => markNotificationRead('notice-1')],
+    ['все уведомления', () => markAllNotificationsRead()],
+  ])('не принимает ошибку API за успешное прочтение: %s', async (_label, request) => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 500 })));
+
+    await expect(request()).rejects.toThrow('Не удалось отметить уведомления прочитанными');
   });
 });

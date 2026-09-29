@@ -41,7 +41,7 @@ import {
 import { launchInviteCode } from './data/join.ts';
 import { demoMode } from './data/loadable.ts';
 import { demoPendingHouseSetup, launchSetupChatId } from './houseSetup.ts';
-import { currentMaxInitData, launchPoll, maxNavigationHash, waitForMaxInitData } from './maxLaunch.ts';
+import { isMaxRuntime, launchPoll, maxNavigationHash, waitForMaxInitData } from './maxLaunch.ts';
 import { useOnline } from './network.ts';
 import { hasSeenWelcome, markWelcomeSeen } from './welcome.ts';
 import { authenticateWithMax, AuthRequestError, getCurrentResident } from './auth/session.ts';
@@ -52,8 +52,8 @@ const NOTICE_DURATION_MS = 3200;
 /** Столько длится анимация исчезновения уведомления в app.css (--motion-base). */
 const NOTICE_EXIT_MS = 240;
 /** Внутри MAX (или по ссылке npm run dev:link) — вход через сервер; в dev без MAX — примеры. */
-const INSIDE_MAX = Boolean(currentMaxInitData());
-const REQUIRE_SERVER_AUTH = !import.meta.env.DEV || INSIDE_MAX;
+const INSIDE_MAX = isMaxRuntime();
+const REQUIRE_SERVER_AUTH = INSIDE_MAX;
 const CommunityScreen = lazy(() => import('./screens/CommunityScreen.tsx').then(({ CommunityScreen: Screen }) => ({ default: Screen })));
 const RepairModeScreen = lazy(() => import('./screens/RepairModeScreen.tsx').then(({ RepairModeScreen: Screen }) => ({ default: Screen })));
 
@@ -248,7 +248,7 @@ export function App() {
     backButton.show();
     backButton.onClick(goBack);
     return () => backButton.offClick(goBack);
-  }, [goBack, route]);
+  }, [authState.status, goBack, route]);
 
   useEffect(
     () => () => {

@@ -52,7 +52,7 @@ describe.skipIf(!databaseUrl)('house onboarding routes', () => {
 
   afterEach(async () => { await app.close(); });
 
-  it('hashes invite codes, invalidates replaced links, and accepts only the latest invitation', async () => {
+  it('hashes invite codes, invalidates replaced links, and does not grant House access to an outsider', async () => {
     const headers = { authorization: `Bearer ${headmanToken}` };
     const first = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/invitations`, headers, payload: { apartmentId } });
     expect(first.statusCode).toBe(201);
@@ -67,8 +67,9 @@ describe.skipIf(!databaseUrl)('house onboarding routes', () => {
     expect((await app.inject({ method: 'GET', url: `/api/invitations/${secondCode}`, headers })).json()).toMatchObject({ invitation: { status: 'valid', apartment: '1' } });
 
     const redeem = await app.inject({ method: 'POST', url: `/api/invitations/${secondCode}/redeem`, headers: { authorization: `Bearer ${otherToken}` } });
-    expect(redeem.statusCode).toBe(200);
-    expect((await pool.query('SELECT id FROM memberships WHERE resident_id = $1 AND house_id = $2 AND ended_at IS NULL', [otherResidentId, houseId])).rowCount).toBe(1);
+    expect(redeem.statusCode).toBe(404);
+    expect(redeem.json()).toEqual({ error: 'invitation_unavailable' });
+    expect((await pool.query('SELECT id FROM memberships WHERE resident_id = $1 AND house_id = $2 AND ended_at IS NULL', [otherResidentId, houseId])).rowCount).toBe(0);
   });
 
   it('serializes concurrent invite replacements so only the last code stays active', async () => {
@@ -80,7 +81,19 @@ describe.skipIf(!databaseUrl)('house onboarding routes', () => {
     expect(valid.filter((reply) => reply.json<{ invitation: { status: string } }>().invitation.status === 'valid')).toHaveLength(1);
   });
 
+  it('attaches an active House member to the invited Apartment', async () => {
+    await pool.query("INSERT INTO memberships (house_id, resident_id, role) VALUES ($1, $2, 'resident')", [houseId, otherResidentId]);
+    const issued = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/invitations`, headers: { authorization: `Bearer ${headmanToken}` }, payload: { apartmentId } });
+    const code = issued.json<{ code: string }>().code;
+
+    const redeem = await app.inject({ method: 'POST', url: `/api/invitations/${code}/redeem`, headers: { authorization: `Bearer ${otherToken}` } });
+
+    expect(redeem.statusCode).toBe(200);
+    expect((await pool.query<{ apartment_id: string | null }>('SELECT apartment_id FROM memberships WHERE resident_id = $1 AND house_id = $2 AND ended_at IS NULL', [otherResidentId, houseId])).rows[0]?.apartment_id).toBe(apartmentId);
+  });
+
   it('handles concurrent redemption of one invitation without duplicate membership', async () => {
+    await pool.query("INSERT INTO memberships (house_id, resident_id, role) VALUES ($1, $2, 'resident')", [houseId, otherResidentId]);
     const issued = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/invitations`, headers: { authorization: `Bearer ${headmanToken}` }, payload: { apartmentId } });
     const code = issued.json<{ code: string }>().code;
     const headers = { authorization: `Bearer ${otherToken}` };
