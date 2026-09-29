@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../app.ts';
+import { signMaxContact } from '../auth/max-contact.ts';
 import { signMaxInitData } from '../auth/max-init-data.ts';
 import { runMigrations } from '../db/migrate.ts';
 import { createPool } from '../db/pool.ts';
@@ -82,6 +83,58 @@ describe.skipIf(!databaseUrl)('вход через MAX', () => {
 
     max.chats.get(-500)!.members = [member(7), member(8, { isAdmin: true })];
     expect(await roles(9)).toEqual([]);
+  });
+
+  it('сохраняет обязательный профиль первого входа и подтверждённый телефон MAX', async () => {
+    const house = await pool.query<{ id: string }>("INSERT INTO houses (address, locality) VALUES ('ул. Лесная, 12', 'Казань') RETURNING id");
+    await pool.query('INSERT INTO house_chats (chat_id, house_id) VALUES ($1, $2)', [-503, house.rows[0]!.id]);
+    max.chats.set(-503, { title: 'Лесная 12', botIsAdmin: true, members: [member(20)] });
+    const { token } = (await login(20)).json<{ token: string }>();
+
+    expect((await me(token)).json()).toMatchObject({
+      memberships: [{ apartmentNumber: null, profileCompleted: false, phoneVisibleToNeighbors: false,
+        neighborApartments: { left: null, right: null, below: null, above: null } }],
+    });
+
+    const baseProfile = {
+      apartmentNumber: '42а',
+      phoneVisibleToNeighbors: true,
+      neighborApartments: { left: '41', right: '43', below: '32', above: null },
+    };
+    const withoutContact = await app.inject({
+      method: 'PUT', url: `/api/me/houses/${house.rows[0]!.id}/profile`,
+      headers: { authorization: `Bearer ${token}` }, payload: baseProfile,
+    });
+    expect(withoutContact.statusCode).toBe(400);
+    expect(withoutContact.json()).toEqual({ error: 'phone_contact_required' });
+
+    const authDate = String(Math.floor(Date.now() / 1000));
+    const saved = await app.inject({
+      method: 'PUT', url: `/api/me/houses/${house.rows[0]!.id}/profile`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { ...baseProfile, phoneContact: signMaxContact({ phone: '+79991234567', authDate }, '20', BOT_TOKEN) },
+    });
+    expect(saved.statusCode, saved.body).toBe(200);
+    expect(saved.json()).toMatchObject({
+      resident: { phone: '+79991234567', phoneVerified: true },
+      memberships: [{
+        apartmentNumber: '42А', profileCompleted: true, phoneVisibleToNeighbors: true,
+        neighborApartments: { left: '41', right: '43', below: '32', above: null },
+      }],
+    });
+
+    const stored = await pool.query(
+      `SELECT r.phone, r.phone_verified, m.phone_visible_to_neighbors, m.profile_completed_at,
+              m.neighbor_apartment_left, m.neighbor_apartment_right,
+              m.neighbor_apartment_below, m.neighbor_apartment_above
+         FROM residents r JOIN memberships m ON m.resident_id = r.id
+        WHERE r.max_user_id = '20'`,
+    );
+    expect(stored.rows[0]).toMatchObject({
+      phone: '+79991234567', phone_verified: true, phone_visible_to_neighbors: true,
+      profile_completed_at: expect.any(Date), neighbor_apartment_left: '41',
+      neighbor_apartment_right: '43', neighbor_apartment_below: '32', neighbor_apartment_above: null,
+    });
   });
 
   it('не выкидывает человека из Дома, если MAX не ответил', async () => {

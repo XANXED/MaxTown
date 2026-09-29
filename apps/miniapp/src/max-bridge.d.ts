@@ -28,6 +28,11 @@ interface MaxWebApp {
   openLink?(url: string): void;
   /** Сканер QR-кода; fileSelect — можно выбрать картинку из галереи. Отдаёт содержимое кода. */
   openCodeReader?(fileSelect?: boolean): Promise<string>;
+  /** Нативный запрос подтверждённого номера аккаунта MAX. */
+  requestContact?(): Promise<
+    | { phone: string; authDate: string; hash: string }
+    | { error: { code: string } }
+  >;
   HapticFeedback?: {
     impactOccurred(style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft', disableVibrationFallback?: boolean): void;
     notificationOccurred(type: 'error' | 'success' | 'warning', disableVibrationFallback?: boolean): void;

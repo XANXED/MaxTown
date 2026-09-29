@@ -54,6 +54,12 @@ type SessionRow = {
   house_address: string | null;
   house_locality: string | null;
   role: HouseMembershipSummary['role'] | null;
+  phone_visible_to_neighbors: boolean | null;
+  neighbor_apartment_left: string | null;
+  neighbor_apartment_right: string | null;
+  neighbor_apartment_below: string | null;
+  neighbor_apartment_above: string | null;
+  profile_completed_at: Date | null;
 };
 
 export async function getSession(pool: Pool, token: string, now = new Date()): Promise<AuthenticatedSession | null> {
@@ -63,7 +69,9 @@ export async function getSession(pool: Pool, token: string, now = new Date()): P
        s.id AS session_id, s.expires_at,
        r.id AS resident_id, r.max_user_id, r.display_name, r.username, r.phone, r.phone_verified,
        m.id AS membership_id, m.house_id AS membership_house_id, m.apartment_id,
-       a.number AS apartment_number, h.address AS house_address, h.locality AS house_locality, m.role
+       a.number AS apartment_number, h.address AS house_address, h.locality AS house_locality, m.role,
+       m.phone_visible_to_neighbors, m.neighbor_apartment_left, m.neighbor_apartment_right,
+       m.neighbor_apartment_below, m.neighbor_apartment_above, m.profile_completed_at
      FROM sessions s
      JOIN residents r ON r.id = s.resident_id
      LEFT JOIN memberships m ON m.resident_id = r.id AND m.ended_at IS NULL
@@ -99,6 +107,14 @@ export async function getSession(pool: Pool, token: string, now = new Date()): P
         address: membership.house_address,
         locality: membership.house_locality,
         role: membership.role,
+        profileCompleted: membership.profile_completed_at !== null,
+        phoneVisibleToNeighbors: membership.phone_visible_to_neighbors ?? false,
+        neighborApartments: {
+          left: membership.neighbor_apartment_left,
+          right: membership.neighbor_apartment_right,
+          below: membership.neighbor_apartment_below,
+          above: membership.neighbor_apartment_above,
+        },
       }];
     }),
   };

@@ -153,6 +153,16 @@ it('adds request subcategories checked by code, not by a fixed list', () => {
   expect(migration).toContain("subcategory ~ '^[a-z0-9-]{1,40}$'");
 });
 
+it('stores the first-run House profile on membership', () => {
+  const migration = readFileSync(new URL('./migrations/0015_resident_house_profiles.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('phone_visible_to_neighbors boolean NOT NULL DEFAULT false');
+  expect(migration).toContain('neighbor_apartment_left text');
+  expect(migration).toContain('neighbor_apartment_right text');
+  expect(migration).toContain('neighbor_apartment_below text');
+  expect(migration).toContain('neighbor_apartment_above text');
+  expect(migration).toContain('profile_completed_at timestamptz');
+});
+
 it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent', async () => {
   expect(pool).not.toBeNull();
   if (!pool) return;
@@ -161,7 +171,7 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('14');
+  expect(result.rows[0]?.count).toBe('15');
 });
 
 it.skipIf(!databaseUrl)('preserves old public totals while deleting every historical voter link', async () => {

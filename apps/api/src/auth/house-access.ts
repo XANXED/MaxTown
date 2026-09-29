@@ -1,7 +1,10 @@
 import type { Pool, PoolClient } from 'pg';
 import type { HouseMembershipSummary } from '@maxtown/shared';
 
-export type HouseAccess = HouseMembershipSummary & { residentId: string };
+export type HouseAccess = Pick<
+  HouseMembershipSummary,
+  'id' | 'houseId' | 'apartmentId' | 'apartmentNumber' | 'address' | 'locality' | 'role'
+> & { residentId: string };
 
 export async function findHouseAccess(
   db: Pool | PoolClient,

@@ -609,6 +609,34 @@ export type HouseMembershipSummary = {
   address: string;
   locality: string;
   role: HouseRole;
+  /** Обязательная форма первого входа в этот Дом уже заполнена. */
+  profileCompleted: boolean;
+  /** Подтверждённый номер телефона разрешено показывать Жильцам этого Дома. */
+  phoneVisibleToNeighbors: boolean;
+  neighborApartments: NeighborApartments;
+};
+
+/** Номера Квартир рядом с Квартирой Жильца. Пустое направление неизвестно. */
+export type NeighborApartments = {
+  left: string | null;
+  right: string | null;
+  below: string | null;
+  above: string | null;
+};
+
+/** Подписанный MAX результат window.WebApp.requestContact(). */
+export type MaxPhoneContact = {
+  phone: string;
+  authDate: string;
+  hash: string;
+};
+
+/** Обязательные сведения первого входа Жильца в конкретный Дом. */
+export type ResidentHouseProfileInput = {
+  apartmentNumber: string;
+  phoneVisibleToNeighbors: boolean;
+  neighborApartments: NeighborApartments;
+  phoneContact?: MaxPhoneContact;
 };
 
 /** Проверенные данные человека из текущей серверной сессии. */

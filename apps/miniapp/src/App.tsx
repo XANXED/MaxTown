@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button, Spinner } from './components/platform-ui.tsx';
 import { CaretLeft, HouseLine, LockKey, WifiSlash } from '@phosphor-icons/react';
-import type { HouseMembershipSummary, HouseRole, PendingHouseSetup } from '@maxtown/shared';
+import type { AuthResident, HouseMembershipSummary, HouseRole, MeResponse, PendingHouseSetup } from '@maxtown/shared';
 import { EmptyState, ScreenHeading } from './components/ui.tsx';
 import { ContactsScreen } from './screens/ContactsScreen.tsx';
 import { ContactFormScreen } from './screens/ContactFormScreen.tsx';
@@ -25,6 +25,7 @@ import { WelcomeScreen } from './screens/WelcomeScreen.tsx';
 import { HouseSetupScreen } from './screens/HouseSetupScreen.tsx';
 import { AssignedPlaceFormScreen } from './screens/AssignedPlaceFormScreen.tsx';
 import { NearestPlacesScreen } from './screens/NearestPlacesScreen.tsx';
+import { ResidentProfileSetupScreen } from './screens/ResidentProfileSetupScreen.tsx';
 import {
   hashForRoute,
   isRootRoute,
@@ -118,6 +119,7 @@ export function App() {
   const [activeHouseId, setActiveHouseId] = useState<string | null>(null);
   const [activeHouseRole, setActiveHouseRole] = useState<HouseRole | null>(null);
   const [activeMembership, setActiveMembership] = useState<HouseMembershipSummary | null>(null);
+  const [resident, setResident] = useState<AuthResident | null>(null);
 
   /** Выбрать активный Дом: из ?house_id=, иначе первый. */
   const applyMemberships = useCallback((memberships: HouseMembershipSummary[], preferredHouseId?: string | null) => {
@@ -127,15 +129,20 @@ export function App() {
     setActiveHouseRole(membership?.role ?? null);
   }, []);
 
+  const applyCurrentResident = useCallback((profile: MeResponse, preferredHouseId?: string | null) => {
+    setResident(profile.resident);
+    applyMemberships(profile.memberships, preferredHouseId);
+  }, [applyMemberships]);
+
   const refreshMembershipIn = useCallback(async (preferredHouseId: string | null) => {
     if (!REQUIRE_SERVER_AUTH) return;
     try {
-      const { memberships } = await getCurrentResident();
-      applyMemberships(memberships, preferredHouseId);
+      const profile = await getCurrentResident();
+      applyCurrentResident(profile, preferredHouseId);
     } catch {
       // Не вышло — останется прежнее членство; следующий вход перечитает.
     }
-  }, [applyMemberships]);
+  }, [applyCurrentResident]);
   const refreshMembership = useCallback(() => refreshMembershipIn(activeHouseId), [activeHouseId, refreshMembershipIn]);
   const [communityPollId, setCommunityPollId] = useState<string | null>(() => launchPoll()?.pollId ?? null);
   /** Куда прокрутить после смены экрана: наверх или туда, где Жилец был до перехода. */
@@ -149,10 +156,10 @@ export function App() {
     waitForMaxInitData()
       .then((initData) => authenticateWithMax(initData ?? '', launchSetupChatId()))
       .then(async ({ pendingHouseSetups }) => {
-        const { memberships } = await getCurrentResident();
+        const profile = await getCurrentResident();
         if (!active) return;
         setPendingSetups(pendingHouseSetups);
-        applyMemberships(memberships, launchPoll()?.houseId ?? null);
+        applyCurrentResident(profile, launchPoll()?.houseId ?? null);
         setAuthState({ status: 'ready' });
       })
       .catch((error: unknown) => {
@@ -160,7 +167,7 @@ export function App() {
         setAuthState({ status: 'error', message: error instanceof AuthRequestError ? error.message : 'Не удалось подтвердить вход через MAX' });
       });
     return () => { active = false; };
-  }, [authAttempt, applyMemberships]);
+  }, [authAttempt, applyCurrentResident]);
 
   const navigate = useCallback((nextRoute: AppRoute) => {
     // Параметры запуска MAX остаются во фрагменте: они нужны после перезагрузки WebView.
@@ -204,13 +211,13 @@ export function App() {
       const me = await getCurrentResident();
       const membership = me.memberships.find((item) => item.houseId === houseId);
       if (!membership) return;
-      applyMemberships(me.memberships, houseId);
+      applyCurrentResident(me, houseId);
       setCommunityPollId(pollId);
       navigate(ROUTES.community);
     } catch {
       notify('Не удалось открыть Опрос. Обновите экран и попробуйте снова.');
     }
-  }, [navigate, notify]);
+  }, [applyCurrentResident, navigate, notify]);
 
   useEffect(() => {
     // «Назад» и «Вперёд» браузера, ручная правка адреса. Оба события приходят
@@ -284,6 +291,18 @@ export function App() {
             markWelcomeSeen();
             void refreshMembershipIn(houseId).then(() => navigate(ROUTES.home));
           }}
+        />
+      </div>
+    );
+  }
+
+  if (activeMembership && resident && !activeMembership.profileCompleted) {
+    return (
+      <div className="app-shell">
+        <ResidentProfileSetupScreen
+          membership={activeMembership}
+          phoneVerified={resident.phoneVerified}
+          onComplete={(profile) => applyCurrentResident(profile, activeMembership.houseId)}
         />
       </div>
     );
