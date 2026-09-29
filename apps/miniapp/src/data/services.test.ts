@@ -29,7 +29,7 @@ describe('filterServiceGroups', () => {
     expect(titles('чат дома')).toEqual(['Чат Дома']);
   });
 
-  it('makes repair mode discoverable from the service directory', () => {
-    expect(titles('режим ремонта')).toEqual(['Режим ремонта']);
+  it('makes house repair works discoverable from the service directory', () => {
+    expect(titles('ремонтные работы')).toEqual(['Ремонтные работы']);
   });
 });

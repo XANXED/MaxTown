@@ -74,11 +74,11 @@ export const serviceGroups: ServiceGroup[] = [
       },
       {
         id: 'repair-mode',
-        title: 'Режим ремонта',
-        description: 'Работы в Доме и ожидаемый срок',
+        title: 'Ремонтные работы',
+        description: 'Сроки, подрядчики и влияние на жильцов',
         icon: 'repair-mode',
         route: ROUTES.repairMode,
-        keywords: 'ремонт работы сроки',
+        keywords: 'ремонт работы сроки подрядчик',
       },
       {
         id: 'readings',
