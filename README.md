@@ -36,6 +36,12 @@ Vite направляет `/api` в тот же Worker, который рабо�
 Мини-приложение, API авторизации и webhook бота работают в одном Cloudflare
 Worker: <https://maxtown.maxtown-bot.workers.dev>.
 
+В настройках мини-приложения MAX указывайте этот корневой URL без `#/welcome`
+и параметров запуска. MAX сам добавляет `WebAppData` и `WebAppStartParam`.
+Для ранее настроенных ссылок с маршрутом приложение также поддерживает
+формат `#/welcome?WebAppStartParam=…#WebAppData=…` и сохраняет параметры при
+навигации; данные входа всегда проверяются сервером.
+
 ```bash
 npm run build:cloudflare   # локальная проверка сборки Worker
 npm run deploy:cloudflare  # сборка мини-аппы и публикация Worker

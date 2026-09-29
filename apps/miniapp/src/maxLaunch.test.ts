@@ -1,9 +1,46 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { currentMaxInitData, waitForMaxInitData } from './maxLaunch.ts';
+import { currentMaxInitData, maxNavigationHash, waitForMaxInitData } from './maxLaunch.ts';
 import { launchSetupChatId } from './houseSetup.ts';
 
 describe('запуск внутри MAX', () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it.each(['#', '?', '&'])('читает данные MAX после маршрута и разделителя %s', (separator) => {
+    const signed = new URLSearchParams({
+      user: JSON.stringify({ id: 42, first_name: 'Анна + #?&%' }),
+      hash: 'test-signature',
+    }).toString();
+    const location = {
+      hash: `#/welcome?WebAppStartParam=setup_-42${separator}WebAppData=${encodeURIComponent(signed)}&WebAppPlatform=web`,
+      search: '',
+    };
+    vi.stubGlobal('window', { WebApp: { initData: '' }, location });
+
+    expect(currentMaxInitData()).toBe(signed);
+    expect(launchSetupChatId()).toBe(-42);
+
+    // После перехода и перезагрузки остаётся обычный hash, читаемый и SDK MAX.
+    const nextHash = maxNavigationHash('#/');
+    vi.stubGlobal('window', { location: { hash: nextHash, search: '' } });
+    expect(currentMaxInitData()).toBe(signed);
+    expect(launchSetupChatId()).toBe(-42);
+  });
+
+  it('не подменяет текущий запуск устаревшими данными из хранилища MAX Bridge', () => {
+    vi.stubGlobal('window', {
+      WebApp: { initData: 'previous-launch' },
+      location: { hash: '#/welcome#WebAppData=current-launch', search: '' },
+    });
+    expect(currentMaxInitData()).toBe('current-launch');
+  });
+
+  it('не принимает вложенный параметр внутри закодированного значения за данные запуска', () => {
+    vi.stubGlobal('window', {
+      location: { hash: '#/welcome?WebAppStartParam=' + encodeURIComponent('setup_-42#WebAppData=not-launch-data'), search: '' },
+    });
+    expect(currentMaxInitData()).toBeUndefined();
+    expect(launchSetupChatId()).toBeNull();
+  });
 
   it('сохраняет initData и стартовый чат при смене хеша роутером без готового MAX Bridge', () => {
     const location = { hash: '#WebAppData=signed&WebAppStartParam=setup_-42', search: '' };

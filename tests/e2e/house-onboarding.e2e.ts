@@ -39,8 +39,9 @@ test('зависшая проверка доступа заканчиваетс�
   await expect(page.getByText('Проверяем участие в чате')).toHaveCount(0);
 });
 
-for (const available of [true, false]) {
-test(`администратор создаёт Дом и видит его после перезагрузки (${available ? 'MAX Bridge' : 'WebAppData без моста'})`, async ({ page }) => {
+for (const launch of ['MAX Bridge', 'WebAppData без моста', 'вложенный hash из web MAX'] as const) {
+const available = launch === 'MAX Bridge';
+test(`администратор создаёт Дом и видит его после перезагрузки (${launch})`, async ({ page }) => {
   await maxBridge(page, available);
   const values = new Map<string, { value: string; metadata?: unknown }>();
   const store: HouseChatStore = {
@@ -72,7 +73,12 @@ test(`администратор создаёт Дом и видит его по
     const response = await handleRequest(new Request(request.url(), { method: request.method(), headers: request.headers(), body: request.postData() }), env, fetcher);
     await route.fulfill({ status: response.status, contentType: 'application/json', body: await response.text() });
   });
-  await page.goto(available ? '/' : '/#' + new URLSearchParams({ WebAppData: initData(), WebAppStartParam: `setup_${chatId}` }));
+  const launchUrl = available ? '/'
+    : launch === 'вложенный hash из web MAX'
+      // MAX дописывает свои данные после маршрута из настроек приложения.
+      ? `/#/welcome?WebAppStartParam=setup_${chatId}#WebAppData=${encodeURIComponent(initData())}&WebAppPlatform=web`
+      : '/#' + new URLSearchParams({ WebAppData: initData(), WebAppStartParam: `setup_${chatId}` });
+  await page.goto(launchUrl);
   await expect(page.getByRole('heading', { name: 'Укажите адрес Дома' })).toBeVisible();
   await page.getByRole('textbox', { name: 'Адрес', exact: true }).fill('Казань, Лесная, 12');
   await page.getByRole('list', { name: 'Подсказки адреса' }).getByText(address, { exact: true }).click();

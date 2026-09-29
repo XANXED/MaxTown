@@ -24,14 +24,13 @@ function setupChatId(value: unknown): number | null {
 }
 
 export function launchSetupChatId(): number | null {
-  const bridgeStartParam = window.WebApp?.initDataUnsafe?.start_param;
-  const bridgeChatId = setupChatId(bridgeStartParam);
-  if (bridgeChatId !== null) return bridgeChatId;
-
-  // MAX также передаёт payload запуска в GET-параметре WebAppStartParam.
-  // В некоторых клиентах он появляется раньше, чем initDataUnsafe заполняется мостом.
+  // Как и initData, чат берём из текущего запуска, а не из сохранённого
+  // предыдущего initDataUnsafe в SDK. URL — лишь подсказка; участие и права
+  // в этом чате сервер проверяет отдельно.
+  const initData = currentMaxInitData();
   return setupChatId(launchParameter('WebAppStartParam'))
-    ?? setupChatId(new URLSearchParams(currentMaxInitData()).get('start_param'));
+    ?? setupChatId(new URLSearchParams(initData).get('start_param'))
+    ?? (initData ? null : setupChatId(window.WebApp?.initDataUnsafe?.start_param));
 }
 
 async function setupRequest(path: string, body: Record<string, unknown>, fetcher: typeof fetch) {

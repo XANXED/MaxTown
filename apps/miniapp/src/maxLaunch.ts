@@ -10,6 +10,12 @@ export function launchParameter(name: string): string | undefined {
   const hash = window.location.hash?.startsWith('#')
     ? window.location.hash.slice(1)
     : window.location.hash;
+  // MAX дописывает параметры к настроенному URL мини-аппы. Если там уже был
+  // маршрут, фактический URL имеет вид #/welcome?WebAppStartParam=…#WebAppData=….
+  // Разделяем только внешние поля до URL-декодирования: %23/%3F внутри
+  // подписанного initData должны остаться нетронутыми.
+  const hashParams = new URLSearchParams(hash?.replace(/[?#](?=WebApp(?:Data|StartParam)=)/g, '&'));
+  const queryParams = new URLSearchParams(window.location.search);
   let cached = launchCache.get(window);
   if (!cached) {
     cached = new Map();
@@ -18,20 +24,20 @@ export function launchParameter(name: string): string | undefined {
   // Запоминаем оба поля вместе: роутер может сменить hash до первого
   // обращения к start_param.
   for (const key of ['WebAppData', 'WebAppStartParam']) {
-    const value = nonEmpty(new URLSearchParams(hash).get(key)) ?? nonEmpty(new URLSearchParams(window.location.search).get(key));
+    const value = nonEmpty(hashParams.get(key)) ?? nonEmpty(queryParams.get(key));
     if (value) cached.set(key, value);
   }
   return cached.get(name);
 }
 
 /**
- * Подписанные данные запуска MAX. Мост остаётся основным источником, а URL —
- * резервным: клиент MAX передаёт те же данные в параметре WebAppData ещё до
- * того, как внешний скрипт успевает заполнить window.WebApp.
+ * Подписанные данные текущего запуска MAX. Явные параметры URL приоритетнее
+ * моста: если SDK не разобрал вложенный hash, он может вернуть из sessionStorage
+ * данные предыдущего запуска. Подлинность в любом случае проверяет сервер.
  */
 export function currentMaxInitData(): string | undefined {
   const fromUrl = launchParameter('WebAppData');
-  return nonEmpty(window.WebApp?.initData) ?? fromUrl;
+  return fromUrl ?? nonEmpty(window.WebApp?.initData);
 }
 
 /** Оставляем переданные MAX параметры во фрагменте URL при навигации.

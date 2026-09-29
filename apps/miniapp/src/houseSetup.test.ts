@@ -20,6 +20,22 @@ describe('настройка адреса Домового чата', () => {
     expect(launchSetupChatId()).toBe(-79477452194309);
   });
 
+  it('выбирает текущий чат, а не start_param предыдущего запуска в SDK', () => {
+    vi.stubGlobal('window', {
+      WebApp: { initData: 'start_param=setup_-99', initDataUnsafe: { start_param: 'setup_-99' } },
+      location: { hash: '#/welcome?WebAppStartParam=setup_-42#WebAppData=start_param%3Dsetup_-42', search: '' },
+    });
+    expect(launchSetupChatId()).toBe(-42);
+  });
+
+  it('не использует старый чат из SDK, когда текущий запуск не содержит чата', () => {
+    vi.stubGlobal('window', {
+      WebApp: { initData: 'start_param=setup_-99', initDataUnsafe: { start_param: 'setup_-99' } },
+      location: { hash: '#/welcome#WebAppData=hash%3Dcurrent-signature', search: '' },
+    });
+    expect(launchSetupChatId()).toBeNull();
+  });
+
   it('ищет адрес только с подписанным initData и идентификатором чата', async () => {
     const fetcher = vi.fn<typeof fetch>(async () => Response.json({ suggestions: [suggestion] }));
 
