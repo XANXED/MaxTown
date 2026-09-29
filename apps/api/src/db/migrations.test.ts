@@ -99,7 +99,7 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('6');
+  expect(result.rows[0]?.count).toBe('7');
 });
 
 it.skipIf(!databaseUrl)('preserves old public totals while deleting every historical voter link', async () => {
@@ -218,6 +218,7 @@ it.skipIf(!databaseUrl)('migrates active and completed repairs once while retain
     ]);
     expect(await scoped.query('SELECT house_id FROM repair_modes WHERE is_active')).toHaveProperty('rowCount', 1);
     expect(await scoped.query("SELECT id FROM audit_events WHERE event_type = 'repair_mode.completed'")).toHaveProperty('rowCount', 1);
+    expect(await scoped.query("SELECT id FROM audit_events WHERE event_type = 'house_repair.migrated'")).toHaveProperty('rowCount', 1);
   } finally {
     await scoped.end();
     await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);

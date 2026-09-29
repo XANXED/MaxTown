@@ -38,6 +38,30 @@ SELECT house_id, title, description,
  WHERE is_active
 ON CONFLICT (legacy_source_key) DO NOTHING;
 
+INSERT INTO audit_events (house_id, actor_membership_id, event_type, details, occurred_at)
+SELECT repair.house_id, repair.updated_by_membership_id, 'house_repair.migrated',
+       jsonb_build_object(
+         'repairId', repair.id,
+         'action', 'migrated',
+         'after', jsonb_build_object(
+           'title', repair.title,
+           'description', repair.description,
+           'status', repair.status,
+           'startsAt', repair.starts_at,
+           'expectedCompletionAt', repair.expected_completion_at,
+           'instructions', repair.instructions
+         )
+       ),
+       repair.updated_at
+  FROM house_repairs repair
+ WHERE repair.legacy_source_key LIKE 'repair_mode:%'
+   AND repair.updated_by_membership_id IS NOT NULL
+   AND NOT EXISTS (
+     SELECT 1 FROM audit_events existing
+      WHERE existing.event_type = 'house_repair.migrated'
+        AND existing.details ->> 'repairId' = repair.id::text
+   );
+
 INSERT INTO house_repairs (
   house_id, title, description, status, starts_at, expected_completion_at, instructions,
   created_by_membership_id, updated_by_membership_id, legacy_source_key, created_at, updated_at
