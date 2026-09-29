@@ -43,13 +43,13 @@ type QuickAction = {
 };
 
 export function HomeScreen({ navigate, houseId }: HomeScreenProps) {
-  const { status, isResident, requests, events, retry } = useHomeData();
+  const { status, isResident, processor, requests, events, retry } = useHomeData();
   const firstName = currentProfileUser()?.name.split(' ')[0];
   const unread = unreadCount(useNotifications().data);
 
   const quickActions: QuickAction[] = [
     { label: 'Подать заявку', service: 'new-request', onClick: () => navigate(ROUTES.newRequest) },
-    { label: 'Мои заявки', service: 'requests', onClick: () => navigate(ROUTES.requests) },
+    { label: processor ? 'Заявки Дома' : 'Мои заявки', service: 'requests', onClick: () => navigate(ROUTES.requests) },
     { label: 'События дома', service: 'events', onClick: () => navigate(ROUTES.events) },
     { label: 'Передать показания', service: 'readings', onClick: () => navigate(ROUTES.readings) },
     { label: 'Чат Дома', service: 'community', onClick: () => navigate(ROUTES.community) },
@@ -107,7 +107,7 @@ export function HomeScreen({ navigate, houseId }: HomeScreenProps) {
         <section className="home-section" aria-labelledby="requests-title">
           <SectionHeading
             id="requests-title"
-            title="Мои заявки"
+            title={processor ? 'Заявки Дома' : 'Мои заявки'}
             actionLabel={requests.length > 0 ? 'Все' : undefined}
             onAction={() => navigate(ROUTES.requests)}
           />
@@ -229,9 +229,11 @@ function HouseCard({ navigate }: { navigate: Navigate }) {
     );
   }
 
-  const summary = houseSummary(house.systems);
+  const summary = houseSummary(house.systems, house.problems);
+  // Авария или проблема Дома меняют плашку целиком: тревогу видно с первого взгляда.
+  const alarm = summary.tone === 'negative' || summary.tone === 'reported' ? ` join-card--${summary.tone}` : '';
   return (
-    <section className="join-card" aria-labelledby="house-card-title">
+    <section className={`join-card${alarm}`} aria-labelledby="house-card-title" aria-live="polite">
       <div className="join-card__body">
         <Typography.Text asChild variant="detail"><p>{house.address}</p></Typography.Text>
         {membership ? <Typography.Text asChild variant="description" color="secondary"><p>{membershipLine(membership)}</p></Typography.Text> : null}
@@ -257,7 +259,9 @@ function HouseCard({ navigate }: { navigate: Navigate }) {
               <li className={`system-chip system-chip--${system.status}`} key={system.name}>
                 {visual ? <MiniTile icon={visual.icon} tone={broken && system.status === 'accident' ? 'danger' : visual.tone} /> : null}
                 {system.name}
-                {broken ? <span className="visually-hidden">: не работает</span> : null}
+                {system.status === 'reported'
+                  ? <span className="visually-hidden">: сообщили о неполадке</span>
+                  : broken ? <span className="visually-hidden">: не работает</span> : null}
               </li>
             );
           })}

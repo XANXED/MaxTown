@@ -12,6 +12,7 @@ import { HouseStateScreen } from './screens/HouseStateScreen.tsx';
 import { JoinScreen } from './screens/JoinScreen.tsx';
 import { NotificationsScreen } from './screens/NotificationsScreen.tsx';
 import { NewRequestScreen } from './screens/NewRequestScreen.tsx';
+import { NewAccidentScreen } from './screens/NewAccidentScreen.tsx';
 import { PlacesScreen } from './screens/PlacesScreen.tsx';
 import { ProfileScreen } from './screens/ProfileScreen.tsx';
 import { ReadingsScreen } from './screens/ReadingsScreen.tsx';
@@ -312,6 +313,9 @@ export function App() {
     case ROUTES.events:
       screen = <HouseEventsScreen navigate={navigate} />;
       break;
+    case ROUTES.newAccident:
+      screen = <NewAccidentScreen navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />;
+      break;
     case ROUTES.services:
       screen = <ServicesScreen navigate={navigate} />;
       break;
@@ -367,7 +371,7 @@ export function App() {
         card?.kind === 'request' ? (
           <RequestScreen id={card.id} navigate={navigate} notify={notify} />
         ) : card?.kind === 'event' ? (
-          <EventScreen id={card.id} navigate={navigate} />
+          <EventScreen id={card.id} navigate={navigate} notify={notify} />
         ) : contactEditor ? (
           <ContactFormScreen contactId={contactEditor.id} navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />
         ) : internetProviderEditor ? (

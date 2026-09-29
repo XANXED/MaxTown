@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BellSimple, CalendarCheck, CaretRight, ChatCircleText, FileText, House, HouseLine } from '@phosphor-icons/react';
+import { BellSimple, CalendarCheck, CaretRight, ChatCircleText, FilePlus, FileText, House, HouseLine, Warning } from '@phosphor-icons/react';
 import { Typography } from '../components/platform-ui.tsx';
 import type { UserNotification } from '@maxtown/shared';
 import {
@@ -16,11 +16,13 @@ import {
 import { formatUpdatedAt } from '../data/labels.ts';
 import { groupByDay, markAllNotificationsRead, markAllRead, markNotificationRead, markRead, unreadCount, useNotifications } from '../data/notifications.ts';
 import { glueNumberSign, plural } from '../data/text.ts';
-import { requestRoute, ROUTES } from '../routes.ts';
+import { eventRoute, requestRoute, ROUTES } from '../routes.ts';
 import type { Navigate } from './types.ts';
 
 const kindVisuals: Record<UserNotification['kind'], { icon: IconComponent; tone: TileTone }> = {
+  'request-new': { icon: FilePlus, tone: 'teal' },
   'request-status': { icon: FileText, tone: 'teal' },
+  accident: { icon: Warning, tone: 'danger' },
   'request-comment': { icon: ChatCircleText, tone: 'blue' },
   'request-visit': { icon: CalendarCheck, tone: 'coral' },
   'join-approved': { icon: House, tone: 'green' },
@@ -47,7 +49,7 @@ export function NotificationsScreen({ navigate, openCommunityPoll }: { navigate:
       openCommunityPoll?.(item.houseId, item.pollId);
       return;
     }
-    navigate(item.requestId ? requestRoute(item.requestId) : ROUTES.house);
+    navigate(item.requestId ? requestRoute(item.requestId) : item.eventId ? eventRoute(item.eventId) : ROUTES.house);
   };
 
   return (

@@ -54,21 +54,27 @@ function isoDay(date: Date): string {
 
 export function sampleRequests(): RequestSummary[] {
   return [
-    { id: 'r5', number: 2461, category: 'Электричество', title: 'Мигает свет в подъезде', status: 'new', updatedAt: hoursAgo(1) },
-    { id: 'r4', number: 2458, category: 'Сантехника', title: 'Течёт кран на кухне', status: 'in-progress', updatedAt: hoursAgo(5) },
-    { id: 'r3', number: 2431, category: 'Уборка', title: 'Мусор на лестнице 3-го этажа', status: 'done', updatedAt: hoursAgo(27) },
-    { id: 'r2', number: 2390, category: 'Домофон', title: 'Не открывается дверь с ключа', status: 'closed', updatedAt: hoursAgo(24 * 9) },
-    { id: 'r1', number: 2344, category: 'Отопление', title: 'Холодная батарея в спальне', status: 'rejected', updatedAt: hoursAgo(24 * 20) },
+    { id: 'r5', number: 2461, category: 'Электричество', subcategory: 'stair-light', title: 'Мигает свет в подъезде', status: 'new', place: 'common-property', supportCount: 2, relation: 'author', updatedAt: hoursAgo(1) },
+    { id: 'r4', number: 2458, category: 'Сантехника', subcategory: 'faucet-leak', title: 'Течёт кран на кухне', status: 'in-progress', place: 'apartment', supportCount: 0, relation: 'author', updatedAt: hoursAgo(5) },
+    { id: 'r3', number: 2431, category: 'Уборка', subcategory: 'stairs-litter', title: 'Мусор на лестнице 3-го этажа', status: 'done', place: 'common-property', supportCount: 0, relation: 'author', updatedAt: hoursAgo(27) },
+    { id: 'r2', number: 2390, category: 'Домофон', subcategory: 'entrance-door', title: 'Не открывается дверь с ключа', status: 'closed', place: 'apartment', supportCount: 0, relation: 'author', updatedAt: hoursAgo(24 * 9) },
+    { id: 'r1', number: 2344, category: 'Отопление', subcategory: 'cold-radiator', title: 'Холодная батарея в спальне', status: 'rejected', place: 'apartment', supportCount: 0, relation: 'author', updatedAt: hoursAgo(24 * 20) },
   ];
 }
 
+/** Действия автора по статусу — как их считает сервер (packages/shared/src/requests.ts). */
+function authorActions(summary: RequestSummary): Pick<RequestDetails, 'actions' | 'canSupport' | 'supportedByMe' | 'canComment'> {
+  const actions: RequestDetails['actions'] = summary.status === 'done' ? ['confirm', 'not-fixed']
+    : summary.status === 'new' || summary.status === 'in-progress' ? ['cancel'] : [];
+  return { actions, canSupport: false, supportedByMe: false, canComment: summary.status !== 'closed' && summary.status !== 'cancelled' };
+}
+
 function detailsFor(summary: RequestSummary): RequestDetails {
-  const base = { ...summary, photos: [], comments: [] };
+  const base = { ...summary, ...authorActions(summary), photos: [], comments: [] };
   switch (summary.id) {
     case 'r5':
       return {
         ...base,
-        place: 'common-property',
         description: 'На площадке 5-го этажа второй день мигает лампа, вечером почти темно.',
         photos: [{ id: 'p1', url: buildingImage }],
         history: [{ status: 'new', at: hoursAgo(1) }],
@@ -76,7 +82,7 @@ function detailsFor(summary: RequestSummary): RequestDetails {
     case 'r4':
       return {
         ...base,
-        place: 'apartment',
+        apartment: '34',
         description: 'Из-под смесителя на кухне капает вода, подставили таз.',
         responsibleName: 'Сергей Лукин',
         visit: { preferredDate: isoDay(daysFromNow(1, 0)), scheduledAt: daysFromNow(1, 10, 30).toISOString() },
@@ -99,7 +105,6 @@ function detailsFor(summary: RequestSummary): RequestDetails {
     case 'r3':
       return {
         ...base,
-        place: 'common-property',
         description: 'После ремонта в 34-й квартире на лестнице оставили мешки со строительным мусором.',
         responsibleName: 'Ольга Нестерова',
         history: [
@@ -121,7 +126,7 @@ function detailsFor(summary: RequestSummary): RequestDetails {
     case 'r2':
       return {
         ...base,
-        place: 'apartment',
+        apartment: '34',
         description: 'Ключ прикладываю — домофон пищит, но дверь подъезда не открывается.',
         responsibleName: 'Андрей Галиев',
         visit: { preferredDate: isoDay(daysFromNow(-10, 0)), scheduledAt: daysFromNow(-10, 18).toISOString() },
@@ -135,7 +140,7 @@ function detailsFor(summary: RequestSummary): RequestDetails {
     default:
       return {
         ...base,
-        place: 'apartment',
+        apartment: '34',
         description: 'В спальне батарея ледяная, в остальных комнатах тёплые.',
         history: [
           { status: 'new', at: hoursAgo(24 * 21) },
@@ -154,26 +159,25 @@ export function sampleRequestDetails(id: string): RequestDetails | null {
   return summary ? detailsFor(summary) : null;
 }
 
-export const sampleEvents: HouseEventSummary[] = [
-  { id: 'e4', kind: 'accident', title: 'Не работает лифт во 2-м подъезде', period: 'с 08:40' },
-  { id: 'e3', kind: 'planned-outage', title: 'Отключение горячей воды', period: '12–14 октября' },
-  { id: 'e2', kind: 'announcement', title: 'Собрание жильцов во дворе', period: '16 октября, 19:00' },
-  { id: 'e1', kind: 'planned-outage', title: 'Отключение интернета', period: '20 октября, 10:00–16:00' },
-];
-
 function todayAt(hours: number, minutes = 0): string {
   return daysFromNow(0, hours, minutes).toISOString();
 }
 
-/** Даты примеров Плановых отключений и Объявления — октябрь 2026, как в sampleEvents. */
+/** Даты примеров Плановых отключений и Объявления — октябрь 2026. */
 function october(day: number, hours: number): string {
   return new Date(2026, 9, day, hours).toISOString();
 }
 
+export const sampleEvents: HouseEventSummary[] = [
+  { id: 'e4', kind: 'accident', title: 'Не работает лифт во 2-м подъезде', startsAt: todayAt(8, 40) },
+  { id: 'e3', kind: 'planned-outage', title: 'Отключение горячей воды', startsAt: october(12, 9), endsAt: october(14, 21) },
+  { id: 'e2', kind: 'announcement', title: 'Собрание жильцов во дворе', startsAt: october(16, 19) },
+  { id: 'e1', kind: 'planned-outage', title: 'Отключение интернета', startsAt: october(20, 10), endsAt: october(20, 16) },
+];
+
 const eventDetails: Record<string, Omit<HouseEventDetails, keyof HouseEventSummary>> = {
   e4: {
     description: 'Лифт остановился между 5-м и 6-м этажами, внутри никого нет. Лифтовая служба уже едет.',
-    startsAt: todayAt(8, 40),
     scope: '2-й подъезд',
     systems: ['Лифты'],
     advice: [
@@ -184,8 +188,6 @@ const eventDetails: Record<string, Omit<HouseEventDetails, keyof HouseEventSumma
   },
   e3: {
     description: 'Горячей воды не будет: плановая промывка труб перед отопительным сезоном.',
-    startsAt: october(12, 9),
-    endsAt: october(14, 21),
     scope: 'Весь Дом',
     systems: ['Вода'],
     advice: [
@@ -197,7 +199,6 @@ const eventDetails: Record<string, Omit<HouseEventDetails, keyof HouseEventSumma
   },
   e2: {
     description: 'Обсудим замену лифта во 2-м подъезде и график уборки лестниц. Нужен кворум, приходите.',
-    startsAt: october(16, 19),
     scope: 'Двор, у детской площадки',
     systems: [],
     advice: [],
@@ -205,8 +206,6 @@ const eventDetails: Record<string, Omit<HouseEventDetails, keyof HouseEventSumma
   },
   e1: {
     description: 'Провайдер меняет оборудование в подвале Дома.',
-    startsAt: october(20, 10),
-    endsAt: october(20, 16),
     scope: 'Весь Дом',
     systems: ['Интернет'],
     advice: ['Мобильный интернет будет работать', 'Скачайте нужное заранее'],
@@ -226,12 +225,13 @@ export function sampleHouseState(): HouseState {
     apartment: '34',
     updatedAt: hoursAgo(0.2),
     systems: [
-      { name: 'Электричество', status: 'working' },
-      { name: 'Вода', status: 'working', nextOutage: { eventId: 'e3', period: '12–14 октября' } },
+      { name: 'Электричество', status: 'reported', requestId: 'r5', since: hoursAgo(1) },
+      { name: 'Вода', status: 'working', nextOutage: { eventId: 'e3', startsAt: october(12, 9), endsAt: october(14, 21) } },
       { name: 'Отопление', status: 'working' },
-      { name: 'Лифты', status: 'accident', eventId: 'e4', detail: 'с 08:40' },
-      { name: 'Интернет', status: 'working', nextOutage: { eventId: 'e1', period: '20 октября' } },
+      { name: 'Лифты', status: 'accident', eventId: 'e4', since: todayAt(8, 40) },
+      { name: 'Интернет', status: 'working', nextOutage: { eventId: 'e1', startsAt: october(20, 10), endsAt: october(20, 16) } },
     ],
+    problems: sampleRequests().filter((request) => request.place === 'common-property' && request.status === 'new'),
   };
 }
 

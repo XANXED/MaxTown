@@ -193,9 +193,9 @@ test.describe('подключение Дома', () => {
       await expect(page.getByRole('button', { name: 'Стать Жильцом', exact: true })).toHaveCount(0);
       await page.reload();
       await expect(page.getByText(street, { exact: true })).toBeVisible();
-      await page.getByRole('button', { name: 'Дом подключён', exact: false }).click();
+      await page.getByRole('button', { name: /Всё работает/ }).click();
       await expect(page.getByRole('heading', { name: 'Состояние дома', exact: true })).toBeVisible();
-      await expect(page.getByText('Данные о системах дома ещё не добавлены', { exact: true })).toBeVisible();
+      await expect(page.getByText('Все 5 Систем Дома в порядке', { exact: true })).toBeVisible();
     });
   }
 });

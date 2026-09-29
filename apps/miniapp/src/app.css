@@ -111,6 +111,8 @@ time,
   --text-positive-readable: color-mix(in srgb, var(--text-positive), var(--text-primary) var(--signal-mix));
   --text-negative-readable: color-mix(in srgb, var(--text-negative), var(--text-primary) var(--signal-mix));
   --text-themed-readable: color-mix(in srgb, var(--text-themed), var(--text-primary) var(--signal-mix));
+  /* Оранжевый светлее красного: ему нужно больше основного текста для тех же 4.5:1. */
+  --text-warning-readable: color-mix(in srgb, var(--warning), var(--text-primary) 45%);
 
   position: relative;
   width: 100%;
@@ -1006,6 +1008,18 @@ time,
   background: var(--background-card);
 }
 
+/* «У меня тоже»: значок соседей рядом с заголовком, в тоне проблемы Дома. */
+.support-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.support-card__head > .icon {
+  flex: none;
+  color: var(--warning);
+}
+
 .decision-card__form {
   display: flex;
   flex-direction: column;
@@ -1397,6 +1411,23 @@ time,
   color: var(--text-negative-readable);
 }
 
+/* Проблема Дома: Жильцы сообщили о неполадке в Общем имуществе (docs/adr/0012). */
+.system-row__status--reported {
+  color: var(--warning);
+}
+
+.system-row__line--reported {
+  color: var(--text-warning-readable);
+}
+
+.house-summary--negative {
+  background: color-mix(in srgb, var(--text-negative) 8%, var(--background-card));
+}
+
+.house-summary--reported {
+  background: color-mix(in srgb, var(--warning) 10%, var(--background-card));
+}
+
 .house-hint {
   display: flex;
   flex-direction: column;
@@ -1443,6 +1474,24 @@ time,
 .system-chip--planned-outage {
   background: color-mix(in srgb, var(--warning) 16%, transparent);
   color: var(--text-primary);
+}
+
+.house-card__title--reported {
+  color: var(--text-warning-readable);
+}
+
+.system-chip--reported {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--text-warning-readable);
+}
+
+/* Плашка на главной меняется целиком: тревогу видно с первого взгляда. */
+.join-card--negative {
+  background: color-mix(in srgb, var(--text-negative) 8%, var(--background-card));
+}
+
+.join-card--reported {
+  background: color-mix(in srgb, var(--warning) 10%, var(--background-card));
 }
 
 /* Стать Жильцом */
@@ -1924,6 +1973,137 @@ time,
   filter: none;
 }
 
+/* Подкатегории Заявки: плитка с иллюстрацией, по которой Жилец узнаёт поломку. */
+.subcategory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-8);
+}
+
+.subcategory-tile {
+  position: relative;
+  display: flex;
+  min-width: var(--space-0);
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-6) var(--space-8);
+  border: 1px solid transparent;
+  border-radius: var(--radius-16);
+  background: var(--background-card);
+  color: var(--text-primary);
+  text-align: start;
+}
+
+.subcategory-tile--selected {
+  border-color: var(--chips-active);
+  background: color-mix(in srgb, var(--chips-active) 8%, var(--background-card));
+}
+
+.subcategory-tile__copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-inline: var(--space-4);
+}
+
+/* Галочка — слева: справа у сцен значки «не работает» и «опасно». */
+.subcategory-tile__check {
+  position: absolute;
+  inset-block-start: var(--space-10);
+  inset-inline-start: var(--space-10);
+  width: var(--space-24);
+  height: var(--space-24);
+  color: var(--chips-active);
+}
+
+/* Маленькая картинка подкатегории в «Подробностях» карточки Заявки. */
+.facts__illustration {
+  display: block;
+  width: calc(var(--space-32) * 3);
+  margin-block-start: var(--space-6);
+}
+
+/*
+ * Иллюстрации (components/illustrationKit.tsx): только токены. Тема меняет
+ * фон, пол и стены, а предметы держат настоящий цвет — фаянс белый, металл
+ * серый, — поэтому они на статических токенах и читаются в обеих темах.
+ */
+.illustration {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-12);
+}
+
+.illustration--blue { --illustration-tone: var(--tile-blue); }
+.illustration--teal { --illustration-tone: var(--tile-teal); }
+.illustration--green { --illustration-tone: var(--tile-green); }
+.illustration--pink { --illustration-tone: var(--tile-pink); }
+.illustration--coral { --illustration-tone: var(--tile-coral); }
+.illustration--neutral { --illustration-tone: var(--icon-tertiary); }
+
+.illustration--fallback {
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--illustration-tone) 14%, var(--background-surface));
+}
+
+.illustration__icon {
+  width: 36%;
+  height: 36%;
+  color: var(--illustration-tone);
+}
+
+.illustration__bg { fill: color-mix(in srgb, var(--illustration-tone) 14%, var(--background-surface)); }
+.illustration__floor { fill: color-mix(in srgb, var(--illustration-tone) 26%, var(--background-surface)); }
+.illustration__slab { fill: color-mix(in srgb, var(--icon-tertiary) 42%, var(--background-surface)); }
+.illustration__surface { fill: color-mix(in srgb, var(--icon-primary-inverse-static) 92%, var(--illustration-tone)); }
+.illustration__metal { fill: color-mix(in srgb, var(--text-primary-static) 26%, var(--icon-primary-inverse-static)); }
+.illustration__metal-dark { fill: color-mix(in srgb, var(--text-primary-static) 58%, var(--icon-primary-inverse-static)); }
+.illustration__shine { fill: var(--icon-primary-inverse-static); opacity: 0.5; }
+.illustration__tone { fill: var(--illustration-tone); }
+.illustration__tone-soft { fill: color-mix(in srgb, var(--illustration-tone) 45%, var(--icon-primary-inverse-static)); }
+.illustration__water { fill: var(--tile-blue); }
+.illustration__water-soft { fill: color-mix(in srgb, var(--tile-blue) 42%, var(--icon-primary-inverse-static)); }
+.illustration__rust { fill: color-mix(in srgb, var(--warning), var(--text-primary-static) 35%); }
+.illustration__rust-soft { fill: color-mix(in srgb, var(--warning) 45%, var(--icon-primary-inverse-static)); }
+.illustration__sewage { fill: color-mix(in srgb, var(--warning) 45%, var(--text-primary-static)); }
+.illustration__danger { fill: var(--text-negative); }
+.illustration__warm { fill: var(--warning); }
+.illustration__glow { fill: var(--text-attention); }
+.illustration__glow-soft { fill: var(--text-attention); opacity: 0.3; }
+.illustration__leaf { fill: var(--tile-green); }
+.illustration__night { fill: var(--background-overlay-hard); }
+/* Сумерки, а не чернота: в тёмной теме фон и так тёмный. */
+.illustration__dim { fill: var(--background-overlay); opacity: 0.7; }
+.illustration__smoke { fill: color-mix(in srgb, var(--text-primary-static) 30%, var(--icon-primary-inverse-static)); opacity: 0.85; }
+.illustration__mark-fill { fill: var(--icon-primary-inverse-static); }
+
+.illustration__mark,
+.illustration__cold,
+.illustration__hose,
+.illustration__bubble,
+.illustration__wire,
+.illustration__wire-warm,
+.illustration__arrow,
+.illustration__cable,
+.illustration__muted-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.illustration__mark { stroke: var(--icon-primary-inverse-static); }
+.illustration__cold,
+.illustration__bubble,
+.illustration__wire { stroke: var(--tile-blue); }
+.illustration__hose { stroke: color-mix(in srgb, var(--text-primary-static) 40%, var(--icon-primary-inverse-static)); }
+.illustration__wire-warm { stroke: var(--warning); }
+.illustration__arrow,
+.illustration__cable { stroke: var(--illustration-tone); }
+.illustration__muted-line { stroke: var(--icon-mute); }
+
 /* Фон и внутренний отступ даёт сам Textarea из max-ui; здесь только рамка. */
 .request-textarea {
   display: block;
@@ -2069,6 +2249,14 @@ time,
 }
 
 .request-note__join {
+  margin-inline-start: calc(var(--space-8) * -1);
+}
+
+/* «У меня тоже» и «Открыть» в подсказке о проблеме, о которой уже сообщили соседи. */
+.request-note__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
   margin-inline-start: calc(var(--space-8) * -1);
 }
 

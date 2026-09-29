@@ -3,28 +3,57 @@ import type { Pool } from 'pg';
 import type { UserNotification } from '@maxtown/shared';
 import { requireAuthentication } from '../auth/sessions.ts';
 
-type NotificationRow = { id: string; house_id: string; house_address: string; poll_id: string; question: string; created_at: Date; read_at: Date | null };
+type NotificationRow = {
+  id: string;
+  kind: UserNotification['kind'];
+  house_id: string;
+  house_address: string;
+  poll_id: string | null;
+  question: string | null;
+  request_id: string | null;
+  accident_id: string | null;
+  title: string | null;
+  body: string | null;
+  created_at: Date;
+  read_at: Date | null;
+};
+
+function toNotification(row: NotificationRow): UserNotification {
+  const base = { id: row.id, at: row.created_at.toISOString(), read: row.read_at !== null, houseId: row.house_id };
+  if (row.kind === 'community-poll') {
+    return {
+      ...base, kind: 'community-poll', title: `Новый Опрос · ${row.house_address}`,
+      ...(row.question ? { text: row.question } : {}), ...(row.poll_id ? { pollId: row.poll_id } : {}),
+    };
+  }
+  return {
+    ...base,
+    kind: row.kind,
+    title: row.title ?? '',
+    ...(row.body ? { text: row.body } : {}),
+    ...(row.request_id ? { requestId: row.request_id } : {}),
+    ...(row.accident_id ? { eventId: row.accident_id } : {}),
+  };
+}
 
 export function registerNotificationRoutes(app: FastifyInstance, pool: Pool): void {
   const authenticated = requireAuthentication(pool);
   app.get('/api/notifications', { preHandler: authenticated }, async (request): Promise<{ notifications: UserNotification[] }> => {
     const residentId = request.authSession!.resident.id;
     const result = await pool.query<NotificationRow>(
-      `SELECT notification.id, notification.house_id, house.address AS house_address, notification.poll_id, poll.question,
-              notification.created_at, notification.read_at
+      `SELECT notification.id, notification.kind, notification.house_id, house.address AS house_address,
+              notification.poll_id, poll.question, notification.request_id, notification.accident_id,
+              notification.title, notification.body, notification.created_at, notification.read_at
          FROM in_app_notifications notification
-         JOIN polls poll ON poll.id = notification.poll_id AND poll.house_id = notification.house_id
          JOIN houses house ON house.id = notification.house_id
+         LEFT JOIN polls poll ON poll.id = notification.poll_id AND poll.house_id = notification.house_id
         WHERE notification.resident_id = $1
           AND EXISTS (SELECT 1 FROM memberships membership WHERE membership.resident_id = $1
                        AND membership.house_id = notification.house_id AND membership.ended_at IS NULL)
         ORDER BY notification.created_at DESC, notification.id DESC LIMIT 100`,
       [residentId],
     );
-    return { notifications: result.rows.map((row) => ({
-      id: row.id, kind: 'community-poll', title: `Новый Опрос · ${row.house_address}`, text: row.question,
-      at: row.created_at.toISOString(), read: row.read_at !== null, houseId: row.house_id, pollId: row.poll_id,
-    })) };
+    return { notifications: result.rows.map(toNotification) };
   });
 
   app.patch<{ Params: { notificationId: string } }>('/api/notifications/:notificationId/read', {

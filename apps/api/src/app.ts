@@ -19,6 +19,9 @@ import { registerServicesDirectoryRoutes } from './routes/services-directory.ts'
 import { registerInternetProviderRoutes } from './routes/internet-providers.ts';
 import { registerContactRoutes } from './routes/contacts.ts';
 import { registerPlaceRoutes } from './routes/places.ts';
+import { registerRequestRoutes } from './routes/requests.ts';
+import { registerHouseEventRoutes } from './routes/house-events.ts';
+import { startRequestMaintenance } from './requests/maintenance.ts';
 import { createDgisClient, type DgisClient } from './places/dgis.ts';
 import { createDataMosContactSource, type HouseContactSource } from './contacts/data-mos.ts';
 
@@ -79,8 +82,18 @@ export async function buildApp({ pool, env, staticAssets, contactSource, dgis, m
       { intervalMs: 15_000, setInterval: (callback, delay) => setInterval(callback, delay), clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) },
     )
     : null;
+  // Напоминания и автозакрытие Выполненных Заявок (docs/adr/0012). В тестах
+  // выключено: там время подставляют в runRequestMaintenance напрямую.
+  const requestMaintenance = env.NODE_ENV === 'test'
+    ? null
+    : startRequestMaintenance(
+      pool,
+      { intervalMs: 15 * 60_000, setInterval: (callback, delay) => setInterval(callback, delay), clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) },
+      (error) => app.log.error({ err: error }, 'Request maintenance failed'),
+    );
   app.addHook('onClose', async () => {
     await worker?.stop();
+    await requestMaintenance?.stop();
     await pool.end();
   });
 
@@ -90,6 +103,12 @@ export async function buildApp({ pool, env, staticAssets, contactSource, dgis, m
     if (typeof error === 'object' && error !== null && 'validation' in error) {
       return reply.code(400).send({ error: 'invalid_request' });
     }
+    // Отказы самого Fastify: слишком большое тело, неизвестный Content-Type,
+    // битый JSON. Это ошибка запроса, а не сервера.
+    const statusCode = typeof error === 'object' && error !== null && 'statusCode' in error ? Number(error.statusCode) : 0;
+    if (statusCode === 413) return reply.code(413).send({ error: 'payload_too_large' });
+    if (statusCode === 415) return reply.code(415).send({ error: 'unsupported_media_type' });
+    if (statusCode >= 400 && statusCode < 500) return reply.code(statusCode).send({ error: 'invalid_request' });
     app.log.error({ err: error }, 'Unhandled API error');
     return reply.code(500).send({ error: 'internal_server_error' });
   });
@@ -141,6 +160,8 @@ export async function buildApp({ pool, env, staticAssets, contactSource, dgis, m
     dgis: dgis === undefined ? (env.DGIS_API_KEY?.trim() ? createDgisClient({ key: env.DGIS_API_KEY.trim() }) : null) : dgis,
   });
   registerNotificationRoutes(app, pool);
+  registerRequestRoutes(app, pool);
+  registerHouseEventRoutes(app, pool);
 
   const assets = staticAssets ?? (env.NODE_ENV === 'production' ? {
     miniAppRoot: fileURLToPath(new URL('../../miniapp/dist', import.meta.url)),

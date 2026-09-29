@@ -136,6 +136,23 @@ it('moves roles to MAX house chats: admin, resident, management company', () => 
   expect(migration).toContain('UPDATE sessions SET revoked_at = now()');
 });
 
+it('adds requests, «У меня тоже», accidents and request notifications', () => {
+  const migration = readFileSync(new URL('./migrations/0013_requests_and_accidents.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('CREATE TABLE requests');
+  expect(migration).toContain('CREATE TABLE request_supporters');
+  expect(migration).toContain('CREATE TABLE accidents');
+  // По одной Системе открыта не больше одной Аварии.
+  expect(migration).toContain('CREATE UNIQUE INDEX accidents_one_open_per_system ON accidents (house_id, system) WHERE resolved_at IS NULL');
+  expect(migration).toContain('ALTER COLUMN poll_id DROP NOT NULL');
+  expect(migration).toContain("content_type IN ('image/jpeg', 'image/png', 'image/webp')");
+});
+
+it('adds request subcategories checked by code, not by a fixed list', () => {
+  const migration = readFileSync(new URL('./migrations/0014_request_subcategories.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('ADD COLUMN subcategory text');
+  expect(migration).toContain("subcategory ~ '^[a-z0-9-]{1,40}$'");
+});
+
 it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent', async () => {
   expect(pool).not.toBeNull();
   if (!pool) return;
@@ -144,7 +161,7 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('12');
+  expect(result.rows[0]?.count).toBe('14');
 });
 
 it.skipIf(!databaseUrl)('preserves old public totals while deleting every historical voter link', async () => {

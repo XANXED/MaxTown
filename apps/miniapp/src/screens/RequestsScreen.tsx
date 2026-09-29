@@ -11,22 +11,29 @@ import {
   RequestRow,
   SkeletonRows,
 } from '../components/ui.tsx';
-import { useHomeData } from '../data/home.ts';
+import { useMembership } from '../auth/membership.tsx';
+import { isProcessor, useRequests } from '../data/requests.ts';
 import {
+  emptyFilterText,
   filterRequests,
   requestFilterLabels,
+  requestFiltersFor,
   requestsSummary,
   type RequestFilter,
 } from '../data/requestFilters.ts';
 import { requestRoute, ROUTES } from '../routes.ts';
 import type { Navigate } from './types.ts';
 
-const filters: RequestFilter[] = ['all', 'active', 'closed'];
-
-/** Вкладка «Заявки»: все Заявки Жильца. Комментарии живут внутри карточки Заявки. */
+/**
+ * Вкладка «Заявки»: у Жильца — свои и отмеченные «У меня тоже», у УК и
+ * Администратора — все Заявки Дома. Комментарии живут внутри карточки Заявки.
+ */
 export function RequestsScreen({ navigate }: { navigate: Navigate }) {
-  const { status, requests, retry } = useHomeData();
-  const [filter, setFilter] = useState<RequestFilter>('all');
+  const { status, data: requests, retry } = useRequests();
+  const processor = isProcessor(useMembership()?.role);
+  const filters = requestFiltersFor(processor);
+  const [chosen, setFilter] = useState<RequestFilter | null>(null);
+  const filter = chosen ?? filters[0]!;
   const visible = filterRequests(requests, filter);
 
   return (
@@ -35,7 +42,7 @@ export function RequestsScreen({ navigate }: { navigate: Navigate }) {
         <header className="home-header">
           <span className="home-header__copy">
             <Typography.Text asChild variant="header">
-              <h1>Мои заявки</h1>
+              <h1>{processor ? 'Заявки Дома' : 'Мои заявки'}</h1>
             </Typography.Text>
             {requests.length > 0 ? (
               <Typography.Text asChild variant="detail" color="secondary">
@@ -78,9 +85,7 @@ export function RequestsScreen({ navigate }: { navigate: Navigate }) {
               </ListCard>
             ) : (
               <Typography.Text asChild variant="detail" color="secondary">
-                <p className="filter-empty">
-                  {filter === 'active' ? 'Активных Заявок нет: всё исправлено.' : 'Закрытых Заявок пока нет.'}
-                </p>
+                <p className="filter-empty">{emptyFilterText(filter)}</p>
               </Typography.Text>
             )}
           </>
@@ -90,7 +95,9 @@ export function RequestsScreen({ navigate }: { navigate: Navigate }) {
               icon={serviceVisuals.requests.icon}
               tone={serviceVisuals.requests.color}
               title="Заявок пока нет"
-              description="Здесь будут все ваши Заявки. В каждой можно обсудить неисправность с Ответственным в Комментариях"
+              description={processor
+                ? 'Здесь будут все Заявки Дома. Новые придут и в Уведомления'
+                : 'Здесь будут все ваши Заявки. В каждой можно обсудить неисправность с Ответственным в Комментариях'}
               action={
                 <Button size="small" variant="primary" onClick={() => navigate(ROUTES.newRequest)}>
                   Подать заявку

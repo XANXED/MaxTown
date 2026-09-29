@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Общий каркас для данных экранов. API ещё нет, поэтому в сборке данные
-// всегда пустые и готовые; запрос к apps/api появится в каждом хуке сам.
+// Общий каркас для данных экранов. useLoadable — для экранов, у которых API
+// ещё нет: в сборке данные пустые и готовые. useApiLoadable — данные из apps/api.
 //
 // Только при `npm run dev` адрес переключает пример:
 //   ?demo=filled  — данные из fixtures.ts
@@ -86,4 +86,68 @@ export function useLoadable<T>(empty: T, pickDemo: (fixtures: Fixtures) => T): L
   }, []);
 
   return { status, data, retry };
+}
+
+/** Данные из API, которые экран может заменить ответом сервера после действия. */
+export type ApiLoadable<T> = Loadable<T> & {
+  /** Подставить свежие данные, например карточку из ответа на действие. */
+  replace: (value: T) => void;
+};
+
+/**
+ * Данные экрана из apps/api. `load` — запрос; null — спрашивать нечего
+ * (человек не в Доме): пусто и готово. `key` перезапускает загрузку, когда
+ * меняется то, что запрашиваем. В dev `?demo=…` работает как у useLoadable:
+ * примеры из fixtures.ts вместо запросов.
+ */
+export function useApiLoadable<T>(
+  load: (() => Promise<T>) | null,
+  empty: T,
+  pickDemo: (fixtures: Fixtures) => T,
+  key: string,
+): ApiLoadable<T> {
+  const [mode] = useState(demoMode);
+  const [status, setStatus] = useState<LoadStatus>(() => (mode === null ? (load ? 'loading' : 'ready') : initialStatus(mode)));
+  const [data, setData] = useState<T>(empty);
+  const [attempt, setAttempt] = useState(0);
+  // Функции-запросы новые на каждый рендер: держим последние в ref.
+  const latest = useRef({ load, empty, pickDemo });
+  latest.current = { load, empty, pickDemo };
+  const hasLoad = load !== null;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (mode !== null) {
+      if (mode === 'loading' || (mode === 'error' && attempt === 0)) return;
+      void loadFixtures()?.then((module) => {
+        if (cancelled) return;
+        setData(latest.current.pickDemo(module));
+        setStatus('ready');
+      });
+      return () => { cancelled = true; };
+    }
+    const request = latest.current.load;
+    if (!request) {
+      setData(latest.current.empty);
+      setStatus('ready');
+      return;
+    }
+    setStatus('loading');
+    request()
+      .then((value) => {
+        if (cancelled) return;
+        setData(value);
+        setStatus('ready');
+      })
+      .catch(() => { if (!cancelled) setStatus('error'); });
+    return () => { cancelled = true; };
+  }, [mode, attempt, key, hasLoad]);
+
+  const retry = useCallback(() => {
+    setStatus('loading');
+    setAttempt((current) => current + 1);
+  }, []);
+  const replace = useCallback((value: T) => setData(value), []);
+
+  return { status, data, retry, replace };
 }

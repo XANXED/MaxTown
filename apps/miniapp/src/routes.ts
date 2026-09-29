@@ -7,6 +7,7 @@ export const ROUTES = {
   requests: '/requests',
   newRequest: '/requests/new',
   events: '/events',
+  newAccident: '/events/new',
   services: '/services',
   profile: '/profile',
   house: '/house',
@@ -120,6 +121,7 @@ export function isRootRoute(route: AppRoute): boolean {
 
 const parents: Partial<Record<StaticRoute, AppRoute>> = {
   [ROUTES.newRequest]: ROUTES.requests,
+  [ROUTES.newAccident]: ROUTES.house,
   [ROUTES.contacts]: ROUTES.services,
   [ROUTES.newContact]: ROUTES.contacts,
   [ROUTES.places]: ROUTES.services,

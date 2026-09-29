@@ -12,6 +12,7 @@ import {
 } from '@phosphor-icons/react';
 import { Button, Counter, Typography } from './platform-ui.tsx';
 import { categoryVisual } from './categoryVisuals.ts';
+import { findSubcategory } from '../data/categories.ts';
 import type { HouseEventKind, HouseEventSummary, RequestSummary } from '@maxtown/shared';
 import {
   formatUpdatedAt,
@@ -20,7 +21,10 @@ import {
   requestStatusTones,
 } from '../data/labels.ts';
 import { ROUTES, type AppRoute } from '../routes.ts';
-import { useHomeData } from '../data/home.ts';
+import { waitingRequests } from '../data/home.ts';
+import { isProcessor, useRequests } from '../data/requests.ts';
+import { useMembership } from '../auth/membership.tsx';
+import { eventPeriod } from '../data/eventDetails.ts';
 import type { Navigate } from '../screens/types.ts';
 
 export type IconComponent = ComponentType<{
@@ -370,7 +374,7 @@ export function RequestRow({ request, onOpen }: { request: RequestSummary; onOpe
       <span className="list-row__copy">
         <Typography.Text asChild variant="description" color="tertiary">
           <span>
-            <span className="tabular nowrap">№ {request.number}</span> · {request.category}
+            <span className="tabular nowrap">№ {request.number}</span> · {findSubcategory(request.category, request.subcategory)?.label ?? request.category}
           </span>
         </Typography.Text>
         <Typography.Text asChild variant="body-strong">
@@ -378,14 +382,23 @@ export function RequestRow({ request, onOpen }: { request: RequestSummary; onOpe
         </Typography.Text>
         <span className="list-row__meta">
           <span className={`status-badge status-badge--${tone}`}>{requestStatusLabels[request.status]}</span>
-          {request.status === 'done' ? (
-            // Выполненная Заявка ждёт ответа Жильца — подсказываем, что от него нужно.
+          {request.status === 'done' && request.relation === 'author' ? (
+            // Выполненная Заявка ждёт ответа автора — подсказываем, что от него нужно.
             <span className="list-row__hint">Подтвердите исправление</span>
           ) : (
             <Typography.Text asChild variant="description" color="tertiary">
               <time dateTime={request.updatedAt}>{formatUpdatedAt(request.updatedAt)}</time>
             </Typography.Text>
           )}
+          {request.relation === 'supporter' ? (
+            <Typography.Text asChild variant="description" color="tertiary">
+              <span>Вы: «У меня тоже»</span>
+            </Typography.Text>
+          ) : request.supportCount > 0 ? (
+            <Typography.Text asChild variant="description" color="tertiary">
+              <span className="nowrap">У меня тоже: <span className="tabular">{request.supportCount}</span></span>
+            </Typography.Text>
+          ) : null}
         </span>
       </span>
     </RowShell>
@@ -414,7 +427,7 @@ export function EventRow({ event, onOpen }: { event: HouseEventSummary; onOpen?:
         </Typography.Text>
         <Typography.Text asChild variant="description" color="secondary">
           <span>
-            {houseEventKindLabels[event.kind]} · <span className="tabular nowrap">{event.period}</span>
+            {houseEventKindLabels[event.kind]} · <span className="tabular nowrap">{eventPeriod(event)}</span>
           </span>
         </Typography.Text>
       </span>
@@ -435,15 +448,17 @@ const tabs: Array<{ label: string; icon: IconComponent; route: AppRoute }> = [
 ];
 
 export function BottomNavigation({ active, navigate }: BottomNavigationProps) {
-  // Счётчик на «Заявках»: Выполненные Заявки ждут, что Жилец подтвердит исправление.
-  const { requests } = useHomeData();
-  const awaitingConfirmation = requests.filter((request) => request.status === 'done').length;
+  // Счётчик на «Заявках»: Жильцу — Выполненные Заявки ждут его подтверждения,
+  // УК и Администратору — новые Заявки ждут, чтобы их взяли в работу.
+  const { data: requests } = useRequests();
+  const processor = isProcessor(useMembership()?.role);
+  const waiting = waitingRequests(requests, processor);
 
   return (
     <nav className="bottom-navigation" aria-label="Основная навигация">
       {tabs.map(({ label, icon: Icon, route }) => {
         const isActive = route === active;
-        const counter = route === ROUTES.requests ? awaitingConfirmation : 0;
+        const counter = route === ROUTES.requests ? waiting : 0;
         return (
           <button
             className={`bottom-navigation__item pressable${isActive ? ' bottom-navigation__item--active' : ''}`}
@@ -462,7 +477,7 @@ export function BottomNavigation({ active, navigate }: BottomNavigationProps) {
                   value={counter}
                   variant="primary"
                   rounded
-                  aria-label={`Ждут подтверждения: ${counter}`}
+                  aria-label={processor ? `Новых Заявок: ${counter}` : `Ждут подтверждения: ${counter}`}
                 />
               ) : null}
             </span>

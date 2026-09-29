@@ -1,21 +1,18 @@
 import { useState, type FormEvent } from 'react';
-import { CheckCircle, FileX, PaperPlaneRight, Prohibit, XCircle } from '@phosphor-icons/react';
+import { CheckCircle, FileX, PaperPlaneRight, Prohibit, UsersThree, XCircle } from '@phosphor-icons/react';
 import { Button, Textarea, Typography } from '../components/platform-ui.tsx';
-import type { RequestDetails } from '@maxtown/shared';
+import type { RequestAction, RequestDetails } from '@maxtown/shared';
+import { useMembership } from '../auth/membership.tsx';
 import { categoryVisual } from '../components/categoryVisuals.ts';
 import { EmptyState, ErrorState, IconTile, ListGroup, SkeletonRows } from '../components/ui.tsx';
-import { requestPlaces } from '../data/categories.ts';
+import { findSubcategory, requestPlaces } from '../data/categories.ts';
+import { RequestIllustration } from '../components/requestIllustrations.tsx';
 import { formatUpdatedAt, requestStatusLabels, requestStatusTones } from '../data/labels.ts';
-import {
-  addComment,
-  canCancel,
-  cancelRequest,
-  confirmFix,
-  formatVisit,
-  reportNotFixed,
-  requestTimeline,
-  useRequestDetails,
-} from '../data/requestDetails.ts';
+import { formatVisit, requestTimeline } from '../data/requestDetails.ts';
+import { useRequestPhotoUrls } from '../data/requestPhotos.ts';
+import { requestsClient, useRequestDetails } from '../data/requests.ts';
+import { fromDateTimeLocal, toDateTimeLocal } from '../data/repairMode.ts';
+import { plural } from '../data/text.ts';
 import { eventRoute, ROUTES } from '../routes.ts';
 import type { Navigate, Notify } from './types.ts';
 
@@ -27,12 +24,33 @@ type RequestScreenProps = {
   notify: Notify;
 };
 
+/** Изменить Заявку на сервере; true — сервер принял, карточка уже обновлена. */
+type Perform = (call: (houseId: string) => Promise<RequestDetails>, message?: string) => Promise<boolean>;
+
 /** Карточка Заявки: что с ней сейчас, как она шла, подробности и Комментарии. */
 export function RequestScreen({ id, navigate, notify }: RequestScreenProps) {
-  const { status, data, retry } = useRequestDetails(id);
-  // Действия Жильца меняют карточку на месте; с API здесь будет ответ сервера.
-  const [changed, setChanged] = useState<RequestDetails | null>(null);
-  const request = changed ?? data;
+  const { status, data: request, retry, replace } = useRequestDetails(id);
+  const houseId = useMembership()?.houseId ?? null;
+  const [busy, setBusy] = useState(false);
+
+  // Что можно сделать, решает сервер (request.actions); ответ заменяет карточку.
+  const perform: Perform = async (call, message) => {
+    if (!houseId) {
+      notify('В примере Заявка не меняется: войдите через MAX');
+      return false;
+    }
+    setBusy(true);
+    try {
+      replace(await call(houseId));
+      if (message) notify(message);
+      return true;
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Не удалось изменить Заявку');
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (status === 'loading') {
     return (
@@ -74,29 +92,37 @@ export function RequestScreen({ id, navigate, notify }: RequestScreenProps) {
     );
   }
 
-  const update = (next: RequestDetails, message: string) => {
-    setChanged(next);
-    notify(message);
-  };
+  const act = (action: RequestAction, message: string, extra: { note?: string; scheduledAt?: string } = {}) =>
+    perform((house) => requestsClient.act(house, request.id, action, extra), message);
+  const can = (action: RequestAction) => request.actions.includes(action);
 
   return (
     <main className="screen screen--inner" id="main-content">
       <div className="inner-content stagger">
         <RequestHead request={request} />
 
-        {request.status === 'done' ? (
+        {can('confirm') ? (
           <FixDecision
-            onConfirm={() => update(confirmFix(request, new Date()), 'Заявка закрыта. Спасибо, что проверили')}
-            onNotFixed={(details) =>
-              update(
-                reportNotFixed(request, new Date(), details),
-                'Заявка вернулась в работу. Ответственный увидит ваш ответ',
-              )
-            }
+            busy={busy}
+            onConfirm={() => void act('confirm', 'Заявка закрыта. Спасибо, что проверили')}
+            onNotFixed={(details) => void act('not-fixed', 'Заявка вернулась в работу. Ответственный увидит ваш ответ', details.trim() ? { note: details.trim() } : {})}
           />
         ) : (
           <Outcome request={request} />
         )}
+
+        <ProcessorActions request={request} busy={busy} act={act} />
+
+        {request.canSupport || request.supportedByMe ? (
+          <SupportCard
+            request={request}
+            busy={busy}
+            onToggle={(supported) => void perform(
+              (house) => requestsClient.support(house, request.id, supported),
+              supported ? 'Отметили: у вас тоже. Вы получите уведомление, когда проблему решат' : 'Отметка снята',
+            )}
+          />
+        ) : null}
 
         <ListGroup id="request-timeline" title="Ход заявки">
           <ol className="timeline">
@@ -129,34 +155,18 @@ export function RequestScreen({ id, navigate, notify }: RequestScreenProps) {
 
         <RequestFacts request={request} onOpenAccident={(accidentId) => navigate(eventRoute(accidentId))} />
 
-        <ListGroup id="request-description" title="Описание">
-          <div className="request-description">
-            <Typography.Text asChild variant="body">
-              <p>{request.description}</p>
-            </Typography.Text>
-            {request.photos.length > 0 ? (
-              <ul className="photo-grid photo-grid--static" aria-label="Фото к Заявке">
-                {request.photos.map((photo, index) => (
-                  <li className="photo-tile" key={photo.id}>
-                    <img src={photo.url} alt={`Фото ${index + 1} к Заявке`} loading="lazy" />
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        </ListGroup>
+        <RequestDescription request={request} />
 
         <Comments
           request={request}
-          onSend={(text) => {
-            setChanged(addComment(request, text, new Date()));
-          }}
+          onSend={(text) => perform((house) => requestsClient.comment(house, request.id, text))}
         />
 
-        {canCancel(request.status) ? (
+        {can('cancel') ? (
           <CancelRequest
             number={request.number}
-            onCancel={() => update(cancelRequest(request, new Date()), `Заявка № ${request.number} отменена`)}
+            busy={busy}
+            onCancel={() => void act('cancel', `Заявка № ${request.number} отменена`)}
           />
         ) : null}
       </div>
@@ -192,12 +202,13 @@ function RequestHead({ request }: { request: RequestDetails }) {
 }
 
 type FixDecisionProps = {
+  busy: boolean;
   onConfirm: () => void;
   onNotFixed: (details: string) => void;
 };
 
-/** Выполненная Заявка ждёт ответа Жильца: подтвердить или вернуть в работу. */
-function FixDecision({ onConfirm, onNotFixed }: FixDecisionProps) {
+/** Выполненная Заявка ждёт ответа автора: подтвердить или вернуть в работу. */
+function FixDecision({ busy, onConfirm, onNotFixed }: FixDecisionProps) {
   const [explaining, setExplaining] = useState(false);
   const [details, setDetails] = useState('');
 
@@ -232,20 +243,20 @@ function FixDecision({ onConfirm, onNotFixed }: FixDecisionProps) {
             autoFocus
           />
           <div className="decision-card__actions">
-            <Button type="submit" size="medium" variant="primary" stretched>
+            <Button type="submit" size="medium" variant="primary" stretched loading={busy}>
               Вернуть в работу
             </Button>
-            <Button type="button" size="medium" variant="ghost" stretched onClick={() => setExplaining(false)}>
+            <Button type="button" size="medium" variant="ghost" stretched disabled={busy} onClick={() => setExplaining(false)}>
               Назад к ответу
             </Button>
           </div>
         </form>
       ) : (
         <div className="decision-card__actions">
-          <Button size="medium" variant="primary" stretched onClick={onConfirm}>
+          <Button size="medium" variant="primary" stretched loading={busy} onClick={onConfirm}>
             Подтвердить исправление
           </Button>
-          <Button size="medium" variant="secondary" stretched onClick={() => setExplaining(true)}>
+          <Button size="medium" variant="secondary" stretched disabled={busy} onClick={() => setExplaining(true)}>
             Не исправлено
           </Button>
         </div>
@@ -254,7 +265,7 @@ function FixDecision({ onConfirm, onNotFixed }: FixDecisionProps) {
   );
 }
 
-/** Итог Заявки, которая уже не ждёт Жильца: закрыта, отклонена или отменена. */
+/** Итог Заявки, которая уже не ждёт автора: закрыта, отклонена или отменена. */
 function Outcome({ request }: { request: RequestDetails }) {
   const last = request.history.at(-1);
   switch (request.status) {
@@ -263,7 +274,7 @@ function Outcome({ request }: { request: RequestDetails }) {
         <aside className="outcome outcome--positive">
           <CheckCircle className="icon" weight="fill" aria-hidden />
           <Typography.Text asChild variant="body">
-            <p>Исправление подтверждено, Заявка закрыта.</p>
+            <p>{last?.note ? `Заявка закрыта: ${last.note.toLocaleLowerCase('ru-RU')}.` : 'Исправление подтверждено, Заявка закрыта.'}</p>
           </Typography.Text>
         </aside>
       );
@@ -288,7 +299,7 @@ function Outcome({ request }: { request: RequestDetails }) {
         <aside className="outcome">
           <Prohibit className="icon" aria-hidden />
           <Typography.Text asChild variant="body">
-            <p>Вы отменили эту Заявку.</p>
+            <p>{request.relation === 'author' ? 'Вы отменили эту Заявку.' : 'Автор отменил эту Заявку.'}</p>
           </Typography.Text>
         </aside>
       );
@@ -297,18 +308,177 @@ function Outcome({ request }: { request: RequestDetails }) {
   }
 }
 
+type ActFn = (action: RequestAction, message: string, extra?: { note?: string; scheduledAt?: string }) => Promise<boolean>;
+
+/** Действия УК и Администратора: взять в работу, назначить Визит, отметить выполненной, отклонить. */
+function ProcessorActions({ request, busy, act }: { request: RequestDetails; busy: boolean; act: ActFn }) {
+  const can = (action: RequestAction) => request.actions.includes(action);
+  const [visitAt, setVisitAt] = useState(() => toDateTimeLocal(request.visit?.scheduledAt ?? null));
+  const [rejecting, setRejecting] = useState(false);
+  const [reason, setReason] = useState('');
+  if (!can('take') && !can('complete') && !can('schedule-visit') && !can('reject')) return null;
+
+  const scheduled = fromDateTimeLocal(visitAt);
+  return (
+    <section className="decision-card" aria-labelledby="processor-title">
+      <Typography.Text asChild variant="title">
+        <h2 id="processor-title">{request.status === 'new' ? 'Новая Заявка' : 'Заявка в работе'}</h2>
+      </Typography.Text>
+      <Typography.Text asChild variant="description" color="secondary">
+        <p>
+          {request.status === 'new'
+            ? 'Возьмите её в работу: Жилец увидит, что Ответственный назначен.'
+            : 'Когда неисправность устранят, отметьте Заявку выполненной — Жилец подтвердит исправление.'}
+        </p>
+      </Typography.Text>
+
+      {can('schedule-visit') ? (
+        <form
+          className="decision-card__form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (scheduled) void act('schedule-visit', 'Время Визита назначено. Жилец получит уведомление', { scheduledAt: scheduled });
+          }}
+        >
+          <label htmlFor="visit-at">
+            <Typography.Text asChild variant="body-strong">
+              <span>{request.visit?.scheduledAt ? 'Перенести Визит' : 'Время Визита'}</span>
+            </Typography.Text>
+          </label>
+          <input
+            id="visit-at"
+            className="date-field"
+            type="datetime-local"
+            value={visitAt}
+            onChange={(event) => setVisitAt(event.target.value)}
+          />
+          <Button type="submit" size="medium" variant="secondary" stretched disabled={!scheduled || busy}>
+            {request.visit?.scheduledAt ? 'Перенести Визит' : 'Назначить Визит'}
+          </Button>
+        </form>
+      ) : null}
+
+      {rejecting ? (
+        <form
+          className="decision-card__form reveal"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (reason.trim()) void act('reject', `Заявка № ${request.number} отклонена`, { note: reason.trim() });
+          }}
+        >
+          <label className="visually-hidden" htmlFor="reject-reason">
+            Причина отказа
+          </label>
+          <Textarea
+            id="reject-reason"
+            className="request-textarea"
+            value={reason}
+            rows={3}
+            maxLength={COMMENT_LIMIT}
+            placeholder="Почему Заявку не выполнить? Жилец увидит причину"
+            onChange={(event) => setReason(event.target.value)}
+            autoFocus
+          />
+          <div className="decision-card__actions">
+            <Button type="submit" size="medium" variant="destructive" stretched loading={busy} disabled={!reason.trim()}>
+              Отклонить
+            </Button>
+            <Button type="button" size="medium" variant="ghost" stretched disabled={busy} onClick={() => setRejecting(false)}>
+              Не отклонять
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <div className="decision-card__actions">
+          {can('take') ? (
+            <Button size="medium" variant="primary" stretched loading={busy} onClick={() => void act('take', 'Заявка взята в работу. Жилец получит уведомление')}>
+              Взять в работу
+            </Button>
+          ) : null}
+          {can('complete') ? (
+            <Button size="medium" variant="primary" stretched loading={busy} onClick={() => void act('complete', 'Заявка выполнена. Ждём подтверждения Жильца')}>
+              Выполнено
+            </Button>
+          ) : null}
+          {can('reject') ? (
+            <Button size="medium" variant="ghost" stretched disabled={busy} onClick={() => setRejecting(true)}>
+              Отклонить
+            </Button>
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** «У меня тоже»: сосед подтверждает проблему в Общем имуществе вместо того, чтобы подавать дубль. */
+function SupportCard({ request, busy, onToggle }: { request: RequestDetails; busy: boolean; onToggle: (supported: boolean) => void }) {
+  const others = request.supportCount - (request.supportedByMe ? 1 : 0);
+  return (
+    <section className="decision-card" aria-labelledby="support-title">
+      <span className="support-card__head">
+        <UsersThree className="icon" weight="fill" aria-hidden />
+        <Typography.Text asChild variant="title">
+          <h2 id="support-title">{request.supportedByMe ? 'Вы отметили: у вас тоже' : 'Столкнулись с этим тоже?'}</h2>
+        </Typography.Text>
+      </span>
+      <Typography.Text asChild variant="description" color="secondary">
+        <p>
+          {others > 0
+            ? `Ещё ${others} ${plural(others, ['Жилец отметил', 'Жильца отметили', 'Жильцов отметили'])} «У меня тоже». `
+            : ''}
+          {request.supportedByMe
+            ? 'Вы получите уведомление, когда проблему решат.'
+            : 'Отметьте, и подавать такую же Заявку не нужно. Когда сообщат трое, откроется Авария.'}
+        </p>
+      </Typography.Text>
+      <div className="decision-card__actions">
+        {request.supportedByMe ? (
+          <Button size="medium" variant="ghost" stretched loading={busy} onClick={() => onToggle(false)}>
+            Убрать отметку
+          </Button>
+        ) : (
+          <Button size="medium" variant="primary" stretched loading={busy} onClick={() => onToggle(true)}>
+            У меня тоже
+          </Button>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function RequestFacts({ request, onOpenAccident }: { request: RequestDetails; onOpenAccident: (id: string) => void }) {
   const place = requestPlaces.find(({ value }) => value === request.place)?.label ?? '';
   const visit = request.visit ? formatVisit(request.visit) : null;
+  const subcategory = findSubcategory(request.category, request.subcategory);
   const { accidentId } = request;
 
   return (
     <ListGroup id="request-facts" title="Подробности">
       <dl className="facts">
+        {subcategory ? (
+          <div className="facts__row">
+            <dt>Что сломалось</dt>
+            <dd>
+              {subcategory.label}
+              {subcategory.id !== 'other' ? (
+                <span className="facts__illustration">
+                  <RequestIllustration category={request.category} subcategory={subcategory.id} />
+                </span>
+              ) : null}
+            </dd>
+          </div>
+        ) : null}
         <div className="facts__row">
           <dt>Где</dt>
-          <dd>{place}</dd>
+          <dd>{request.apartment ? `${place}, № ${request.apartment}` : place}</dd>
         </div>
+        {request.authorName ? (
+          <div className="facts__row">
+            <dt>Жилец</dt>
+            <dd>{request.authorName}</dd>
+          </div>
+        ) : null}
         {visit ? (
           <div className="facts__row">
             <dt>Визит</dt>
@@ -347,20 +517,41 @@ function RequestFacts({ request, onOpenAccident }: { request: RequestDetails; on
   );
 }
 
-/** Комментарии нужны, пока по Заявке ещё что-то происходит. */
-function acceptsComments(request: RequestDetails): boolean {
-  return request.status !== 'closed' && request.status !== 'cancelled';
+function RequestDescription({ request }: { request: RequestDetails }) {
+  const photos = useRequestPhotoUrls(request.photos);
+  return (
+    <ListGroup id="request-description" title="Описание">
+      <div className="request-description">
+        <Typography.Text asChild variant="body">
+          <p>{request.description}</p>
+        </Typography.Text>
+        {photos.length > 0 ? (
+          <ul className="photo-grid photo-grid--static" aria-label="Фото к Заявке">
+            {photos.map((photo, index) => (
+              <li className="photo-tile" key={photo.id}>
+                <img src={photo.url} alt={`Фото ${index + 1} к Заявке`} loading="lazy" />
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </ListGroup>
+  );
 }
 
-function Comments({ request, onSend }: { request: RequestDetails; onSend: (text: string) => void }) {
+function Comments({ request, onSend }: { request: RequestDetails; onSend: (text: string) => Promise<boolean> }) {
   const [draft, setDraft] = useState('');
-  const open = acceptsComments(request);
+  const [sending, setSending] = useState(false);
+  const open = request.canComment;
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!draft.trim()) return;
-    onSend(draft);
-    setDraft('');
+    const text = draft.trim();
+    if (!text || sending) return;
+    setSending(true);
+    void onSend(text)
+      .then((sent) => { if (sent) setDraft(''); })
+      .finally(() => setSending(false));
   };
 
   return (
@@ -386,8 +577,8 @@ function Comments({ request, onSend }: { request: RequestDetails; onSend: (text:
         <Typography.Text asChild variant="description" color="secondary">
           <p className="comments__empty">
             {open
-              ? 'Комментариев пока нет. Напишите, если нужно что-то уточнить у Ответственного.'
-              : 'Комментариев не было.'}
+              ? 'Комментариев пока нет. Напишите, если нужно что-то уточнить.'
+              : 'Комментариев нет.'}
           </p>
         </Typography.Text>
       )}
@@ -410,7 +601,7 @@ function Comments({ request, onSend }: { request: RequestDetails; onSend: (text:
             className="comment-form__send pressable"
             type="submit"
             aria-label="Отправить Комментарий"
-            disabled={!draft.trim()}
+            disabled={!draft.trim() || sending}
           >
             <PaperPlaneRight className="icon" weight="fill" aria-hidden />
           </button>
@@ -421,7 +612,7 @@ function Comments({ request, onSend }: { request: RequestDetails; onSend: (text:
 }
 
 /** Отмена в два шага: случайное нажатие не отзывает Заявку. */
-function CancelRequest({ number, onCancel }: { number: number; onCancel: () => void }) {
+function CancelRequest({ number, busy, onCancel }: { number: number; busy: boolean; onCancel: () => void }) {
   const [asking, setAsking] = useState(false);
 
   if (!asking) {
@@ -441,10 +632,10 @@ function CancelRequest({ number, onCancel }: { number: number; onCancel: () => v
         <p>Ответственный перестанет её выполнять. Если неисправность останется, придётся подать новую.</p>
       </Typography.Text>
       <div className="decision-card__actions">
-        <Button size="medium" variant="destructive" stretched onClick={onCancel}>
+        <Button size="medium" variant="destructive" stretched loading={busy} onClick={onCancel}>
           Отменить заявку
         </Button>
-        <Button size="medium" variant="ghost" stretched onClick={() => setAsking(false)}>
+        <Button size="medium" variant="ghost" stretched disabled={busy} onClick={() => setAsking(false)}>
           Не отменять
         </Button>
       </div>

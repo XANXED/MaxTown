@@ -38,8 +38,12 @@ const request = (id: string, status: RequestSummary['status']): RequestSummary =
   id,
   number: 1,
   category: 'Вода',
+  subcategory: 'riser',
   title: 'Течёт',
   status,
+  place: 'apartment',
+  supportCount: 0,
+  relation: 'author',
   updatedAt: '2026-09-25T10:00:00Z',
 });
 

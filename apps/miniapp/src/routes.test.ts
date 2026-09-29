@@ -45,6 +45,8 @@ describe('miniapp routes', () => {
   it('keeps the new request form a screen, not a card', () => {
     expect(routeFromHash('#/requests/new')).toBe(ROUTES.newRequest);
     expect(matchCard(ROUTES.newRequest)).toBeNull();
+    expect(routeFromHash('#/events/new')).toBe(ROUTES.newAccident);
+    expect(matchCard(ROUTES.newAccident)).toBeNull();
   });
 
   it('opens contact create and edit screens', () => {

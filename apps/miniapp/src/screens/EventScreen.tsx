@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { CalendarX, Phone, UsersThree } from '@phosphor-icons/react';
 import { Button, Typography } from '../components/platform-ui.tsx';
 import type { HouseEventDetails } from '@maxtown/shared';
@@ -13,11 +14,12 @@ import {
   SkeletonRows,
 } from '../components/ui.tsx';
 import type { HouseSystemName } from '../data/categories.ts';
-import { eventPhase, eventPhaseLabel, formatEventTime, useEventDetails, type EventPhase } from '../data/eventDetails.ts';
+import { eventPeriod, eventPhase, eventPhaseLabel, eventsClient, formatEventTime, useEventDetails, type EventPhase } from '../data/eventDetails.ts';
 import { houseEventKindLabels, type StatusTone } from '../data/labels.ts';
 import { plural } from '../data/text.ts';
 import { ROUTES } from '../routes.ts';
-import type { Navigate } from './types.ts';
+import { canManageServices, useMembership } from '../auth/membership.tsx';
+import type { Navigate, Notify } from './types.ts';
 
 /** Не работает сейчас — сигнальный; впереди — нейтральный; позади — зелёный. */
 const phaseTones: Record<EventPhase, StatusTone> = {
@@ -33,8 +35,9 @@ const aboutTitles: Record<HouseEventDetails['kind'], string> = {
 };
 
 /** Карточка События дома: когда, что затронуто и что делать Жильцу. */
-export function EventScreen({ id, navigate }: { id: string; navigate: Navigate }) {
-  const { status, data: event, retry } = useEventDetails(id);
+export function EventScreen({ id, navigate, notify }: { id: string; navigate: Navigate; notify?: Notify }) {
+  const { status, data: event, retry, replace } = useEventDetails(id);
+  const membership = useMembership();
 
   if (status === 'loading') {
     return (
@@ -83,6 +86,14 @@ export function EventScreen({ id, navigate }: { id: string; navigate: Navigate }
     <main className="screen screen--inner" id="main-content">
       <div className="inner-content stagger">
         <EventHead event={event} phase={phase} />
+
+        {event.openedAutomatically && openAccident ? (
+          <Typography.Text asChild variant="description" color="secondary">
+            <p>
+              Открыта автоматически: о неполадке сообщили несколько Жильцов. УК и Администратор Дома уже видят Заявки.
+            </p>
+          </Typography.Text>
+        ) : null}
 
         {openAccident && event.linkedRequests ? (
           <aside className="outcome">
@@ -191,6 +202,16 @@ export function EventScreen({ id, navigate }: { id: string; navigate: Navigate }
             Аварийная служба
           </Button>
         ) : null}
+
+        {openAccident && membership && canManageServices(membership.role) ? (
+          <ResolveAccident
+            onResolve={async () => {
+              const resolved = await eventsClient.resolve(membership.houseId, event.id);
+              replace(resolved);
+              notify?.('Авария закрыта. Привязанные Заявки закрыты вместе с ней');
+            }}
+          />
+        ) : null}
       </div>
     </main>
   );
@@ -210,9 +231,56 @@ function EventHead({ event, phase }: { event: HouseEventDetails; phase: EventPha
       <span className="list-row__meta">
         {label ? <span className={`status-badge status-badge--${phaseTones[phase]}`}>{label}</span> : null}
         <Typography.Text asChild variant="description" color="tertiary">
-          <span className="tabular">{event.period}</span>
+          <span className="tabular">{eventPeriod(event)}</span>
         </Typography.Text>
       </span>
     </header>
+  );
+}
+
+/** Закрытие Аварии в два шага: оно закрывает и все привязанные Заявки. */
+function ResolveAccident({ onResolve }: { onResolve: () => Promise<void> }) {
+  const [asking, setAsking] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!asking) {
+    return (
+      <button className="danger-action pressable" type="button" onClick={() => setAsking(true)}>
+        Закрыть Аварию
+      </button>
+    );
+  }
+
+  return (
+    <section className="decision-card reveal" aria-labelledby="resolve-title">
+      <Typography.Text asChild variant="title">
+        <h2 id="resolve-title">Неполадку устранили?</h2>
+      </Typography.Text>
+      <Typography.Text asChild variant="description" color="secondary">
+        <p>Авария закроется, а с ней все привязанные Заявки. Жильцы получат уведомление.</p>
+      </Typography.Text>
+      {error ? <p className="field-error" role="alert">{error}</p> : null}
+      <div className="decision-card__actions">
+        <Button
+          size="medium"
+          variant="primary"
+          stretched
+          loading={saving}
+          onClick={() => {
+            setSaving(true);
+            setError(null);
+            onResolve()
+              .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Не удалось закрыть Аварию'))
+              .finally(() => setSaving(false));
+          }}
+        >
+          Закрыть Аварию
+        </Button>
+        <Button size="medium" variant="ghost" stretched disabled={saving} onClick={() => setAsking(false)}>
+          Не закрывать
+        </Button>
+      </div>
+    </section>
   );
 }

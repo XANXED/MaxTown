@@ -1,4 +1,4 @@
-import { CalendarBlank, CaretRight, CheckCircle, House, Warning, WarningCircle } from '@phosphor-icons/react';
+import { CalendarBlank, CaretRight, CheckCircle, House, Megaphone, Warning, WarningCircle } from '@phosphor-icons/react';
 import { Button, Typography } from '../components/platform-ui.tsx';
 import type { HouseSystemState } from '@maxtown/shared';
 import { categoryVisual } from '../components/categoryVisuals.ts';
@@ -7,6 +7,7 @@ import {
   ErrorState,
   IconTile,
   ListCard,
+  RequestRow,
   RowShell,
   ScreenHeading,
   SkeletonRows,
@@ -15,13 +16,14 @@ import {
 } from '../components/ui.tsx';
 import { houseSummary, systemStatusLine, useHouseState, type HouseSummary } from '../data/houseState.ts';
 import { formatUpdatedAt } from '../data/labels.ts';
-import { eventRoute, ROUTES } from '../routes.ts';
-import { useMembership } from '../auth/membership.tsx';
+import { eventRoute, requestRoute, ROUTES } from '../routes.ts';
+import { canManageServices, useMembership } from '../auth/membership.tsx';
 import type { Navigate } from './types.ts';
 
 const summaryVisuals: Record<HouseSummary['tone'], { icon: IconComponent; tone: TileTone }> = {
   positive: { icon: CheckCircle, tone: 'green' },
   negative: { icon: Warning, tone: 'danger' },
+  reported: { icon: Megaphone, tone: 'coral' },
   attention: { icon: CalendarBlank, tone: 'coral' },
 };
 
@@ -30,6 +32,7 @@ const statusIcons: Record<HouseSystemState['status'], IconComponent> = {
   working: CheckCircle,
   accident: WarningCircle,
   'planned-outage': CalendarBlank,
+  reported: WarningCircle,
 };
 
 /** Состояние дома: работает ли каждая Система прямо сейчас. */
@@ -92,7 +95,7 @@ export function HouseStateScreen({ navigate }: { navigate: Navigate }) {
     );
   }
 
-  const summary = houseSummary(house.systems);
+  const summary = houseSummary(house.systems, house.problems);
   const visual = summaryVisuals[summary.tone];
 
   return (
@@ -125,12 +128,14 @@ export function HouseStateScreen({ navigate }: { navigate: Navigate }) {
           {house.systems.map((system) => {
             const { icon, tone } = categoryVisual(system.name);
             const eventId = system.eventId ?? system.nextOutage?.eventId;
+            const { requestId } = system;
             const StatusIcon = statusIcons[system.status];
+            const open = eventId ? () => navigate(eventRoute(eventId)) : requestId ? () => navigate(requestRoute(requestId)) : undefined;
             return (
               <RowShell
                 key={system.name}
                 className="list-row--compact"
-                onOpen={eventId ? () => navigate(eventRoute(eventId)) : undefined}
+                onOpen={open}
                 trailing={
                   <span className="system-row__trail">
                     <StatusIcon className={`icon system-row__status system-row__status--${system.status}`} weight="fill" aria-hidden />
@@ -147,7 +152,7 @@ export function HouseStateScreen({ navigate }: { navigate: Navigate }) {
                     <span className={`system-row__line system-row__line--${system.status}`}>{systemStatusLine(system)}</span>
                   </Typography.Text>
                 </span>
-                {eventId ? null : (
+                {open ? null : (
                   <StatusIcon className={`icon system-row__status system-row__status--${system.status}`} weight="fill" aria-hidden />
                 )}
               </RowShell>
@@ -155,17 +160,42 @@ export function HouseStateScreen({ navigate }: { navigate: Navigate }) {
           })}
         </ListCard>
 
+        {house.problems.length > 0 ? (
+          <section className="home-section" aria-labelledby="house-problems-title">
+            <Typography.Text asChild variant="title">
+              <h2 id="house-problems-title">Сообщили Жильцы</h2>
+            </Typography.Text>
+            <ListCard label="Проблемы в Общем имуществе">
+              {house.problems.map((problem) => (
+                <RequestRow request={problem} key={problem.id} onOpen={() => navigate(requestRoute(problem.id))} />
+              ))}
+            </ListCard>
+          </section>
+        ) : null}
+
         <div className="house-hint">
           <Typography.Text asChild variant="description" color="secondary">
             <p>
-              Что-то сломалось, а здесь всё работает? Подайте Заявку. Когда таких Заявок станет несколько, Авария
-              откроется сама.
+              Что-то сломалось в подъезде, лифте или во дворе? Подайте Заявку об Общем имуществе, её увидят все
+              соседи. Когда о неполадке сообщат три Жильца, Авария откроется сама.
             </p>
           </Typography.Text>
           <button className="text-action pressable" type="button" onClick={() => navigate(ROUTES.newRequest)}>
             Подать заявку
           </button>
         </div>
+
+        {canManageServices(membership?.role ?? null) ? (
+          <Button
+            size="medium"
+            variant="secondary"
+            stretched
+            iconBefore={<Warning className="icon icon--small" weight="fill" aria-hidden />}
+            onClick={() => navigate(ROUTES.newAccident)}
+          >
+            Открыть Аварию
+          </Button>
+        ) : null}
       </div>
     </main>
   );

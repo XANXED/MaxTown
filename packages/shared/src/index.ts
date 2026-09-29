@@ -47,19 +47,35 @@ export type HouseAddressSuggestionsResponse = {
  */
 export type RequestStatus = 'new' | 'in-progress' | 'done' | 'closed' | 'rejected' | 'cancelled';
 
+/** Где неисправность: в своей Квартире или в Общем имуществе. */
+export type RequestPlace = 'apartment' | 'common-property';
+
+/** Кем Заявка приходится тому, кто смотрит список: автор, отметил «У меня тоже» или никак. */
+export type RequestRelation = 'author' | 'supporter' | 'none';
+
 /** Строка Заявки в списке. */
 export type RequestSummary = {
   id: string;
   number: number;
   category: string;
+  /** Что именно сломалось: id из REQUEST_SUBCATEGORIES; у «Другое» и старых Заявок — null. */
+  subcategory: string | null;
   title: string;
   status: RequestStatus;
+  place: RequestPlace;
+  /** Сколько соседей отметили «У меня тоже». */
+  supportCount: number;
+  relation: RequestRelation;
   /** ISO 8601. */
   updatedAt: string;
 };
 
-/** Где неисправность: в своей Квартире или в Общем имуществе. */
-export type RequestPlace = 'apartment' | 'common-property';
+/**
+ * Действие с Заявкой (docs/adr/0012): УК или Администратор Дома берут в работу,
+ * назначают Визит, отмечают выполненной или отклоняют; автор отменяет,
+ * подтверждает исправление или возвращает в работу.
+ */
+export type RequestAction = 'take' | 'schedule-visit' | 'complete' | 'reject' | 'cancel' | 'confirm' | 'not-fixed';
 
 /** Шаг истории Заявки: смена статуса. */
 export type RequestStatusChange = {
@@ -98,7 +114,10 @@ export type RequestPhoto = {
 /** Карточка Заявки целиком. */
 export type RequestDetails = RequestSummary & {
   description: string;
-  place: RequestPlace;
+  /** Квартира Заявки о Квартире; соседям не приходит. */
+  apartment?: string;
+  /** Кто подал: видят только УК и Администратор Дома. */
+  authorName?: string;
   /** Ответственный, который взял Заявку; пока никто не взял — нет. */
   responsibleName?: string;
   visit?: RequestVisit;
@@ -108,18 +127,43 @@ export type RequestDetails = RequestSummary & {
   comments: RequestComment[];
   /** Авария, к которой привязана Заявка: закроется Авария — закроется и Заявка. */
   accidentId?: string;
+  /** Что тот, кто смотрит, может сделать с Заявкой сейчас. */
+  actions: RequestAction[];
+  /** Можно отметить «У меня тоже». */
+  canSupport: boolean;
+  /** Тот, кто смотрит, уже отметил «У меня тоже». */
+  supportedByMe: boolean;
+  /** Можно написать Комментарий: автору и Ответственным, пока Заявка не закрыта. */
+  canComment: boolean;
+};
+
+/** Новая Заявка от Жильца. */
+export type RequestInput = {
+  category: string;
+  /** Обязательна везде, кроме Категории «Другое» (packages/shared/src/requests.ts). */
+  subcategory?: string;
+  place: RequestPlace;
+  description: string;
+  /** Для Заявки о Квартире, если Квартира не привязана к членству. */
+  apartmentNumber?: string;
+  /** День Визита, удобный Жильцу: YYYY-MM-DD. */
+  preferredVisitDate?: string;
 };
 
 /** Событие дома: Авария, Плановое отключение или Объявление. */
 export type HouseEventKind = 'accident' | 'planned-outage' | 'announcement';
 
-/** Строка События дома в списке. */
+/** Строка События дома в списке. Подпись периода собирает клиент в часовом поясе телефона. */
 export type HouseEventSummary = {
   id: string;
   kind: HouseEventKind;
   title: string;
-  /** Готовая подпись периода или времени: «12–14 октября», «с 08:40». */
-  period: string;
+  /** ISO 8601: начало; у Аварии — когда её открыли. */
+  startsAt: string;
+  /** ISO 8601: окончание; у Аварии — ожидаемое, пока не известно — нет. */
+  endsAt?: string;
+  /** ISO 8601: Авария закрыта. */
+  resolvedAt?: string;
 };
 
 /** Кто опубликовал Событие дома. */
@@ -132,12 +176,6 @@ export type HouseEventAuthor = {
 /** Карточка События дома целиком. */
 export type HouseEventDetails = HouseEventSummary & {
   description: string;
-  /** ISO 8601: начало; у Аварии — когда её открыли. */
-  startsAt: string;
-  /** ISO 8601: окончание; у Аварии — ожидаемое, пока не известно — нет. */
-  endsAt?: string;
-  /** ISO 8601: Авария закрыта. */
-  resolvedAt?: string;
   /** Где в Доме: «2-й подъезд», «весь Дом», «двор». */
   scope?: string;
   /** Затронутые Системы — названия, как в Состоянии дома. */
@@ -145,35 +183,61 @@ export type HouseEventDetails = HouseEventSummary & {
   /** Что делать Жильцу, по пункту на строку. */
   advice: string[];
   author?: HouseEventAuthor;
+  /** Аварию открыл Порог, а не человек. */
+  openedAutomatically?: boolean;
   /** Для Аварии: сколько Заявок к ней привязано. */
   linkedRequests?: number;
 };
 
-/** Работает ли Система сейчас: работает, Авария или Плановое отключение. */
-export type HouseSystemStatus = 'working' | 'accident' | 'planned-outage';
+/** Новая Авария от УК или Администратора Дома. */
+export type AccidentInput = {
+  system: string;
+  title: string;
+  description: string;
+  scope?: string;
+  /** ISO 8601: когда обещают устранить. */
+  expectedResolutionAt?: string;
+  advice?: string[];
+};
 
-/** Одна Система в Состоянии дома. */
+/**
+ * Работает ли Система сейчас: работает, Авария, Плановое отключение или
+ * Жильцы сообщили о неполадке Заявкой об Общем имуществе.
+ */
+export type HouseSystemStatus = 'working' | 'accident' | 'planned-outage' | 'reported';
+
+/** Одна Система в Состоянии дома. Подписи времени собирает клиент. */
 export type HouseSystemState = {
   /** Название Системы: «Электричество», «Вода»… */
   name: string;
   status: HouseSystemStatus;
   /** Событие дома, из-за которого Система не работает. */
   eventId?: string;
-  /** Готовая подпись времени: «с 08:40», «до 14 октября». */
-  detail?: string;
+  /** Заявка об Общем имуществе, из-за которой Система помечена «Сообщили». */
+  requestId?: string;
+  /** ISO 8601: с какого времени Система в этом статусе. */
+  since?: string;
+  /** ISO 8601: до какого времени, если известно. */
+  until?: string;
   /** Ближайшее Плановое отключение, пока Система работает. */
-  nextOutage?: { eventId: string; period: string };
+  nextOutage?: { eventId: string; startsAt: string; endsAt?: string };
 };
 
-/** Состояние дома: сводка по каждой Системе. */
-export type HouseState = {
+/** Состояние дома от API: Системы и открытые Заявки об Общем имуществе. */
+export type HouseStateResponse = {
+  systems: HouseSystemState[];
+  /** Проблемы Дома: открытые Заявки об Общем имуществе, новые сверху. */
+  problems: RequestSummary[];
+  /** ISO 8601. */
+  updatedAt: string;
+};
+
+/** Состояние дома: сводка по каждой Системе и проблемы Дома. */
+export type HouseState = HouseStateResponse & {
   /** Адрес Дома для подписи: «ул. Лесная, 12». */
   address: string;
   /** Квартира, в которой человек Жилец: «34». */
   apartment: string;
-  systems: HouseSystemState[];
-  /** ISO 8601. */
-  updatedAt: string;
 };
 
 /** Что показала проверка Приглашения. */
@@ -190,7 +254,15 @@ export type InviteCheck =
 export type UserNotification = {
   id: string;
   /** Что именно изменилось — от этого зависит значок. */
-  kind: 'request-status' | 'request-comment' | 'request-visit' | 'join-approved' | 'join-declined' | 'community-poll';
+  kind:
+    | 'request-new'
+    | 'request-status'
+    | 'request-comment'
+    | 'request-visit'
+    | 'accident'
+    | 'join-approved'
+    | 'join-declined'
+    | 'community-poll';
   /** Готовая строка: «Заявка № 2431 выполнена». */
   title: string;
   /** Подробность: текст Комментария, время Визита. */
@@ -200,6 +272,8 @@ export type UserNotification = {
   read: boolean;
   /** Заявка, которую открывает Уведомление. */
   requestId?: string;
+  /** Авария, которую открывает Уведомление. */
+  eventId?: string;
   /** Дом и Опрос для перехода из уведомления. */
   houseId?: string;
   pollId?: string;
