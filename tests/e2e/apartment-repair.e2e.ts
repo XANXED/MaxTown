@@ -12,6 +12,9 @@ const membership = {
   address: 'ул. Соседская, 1',
   locality: 'Казань',
   role: 'resident',
+  profileCompleted: true,
+  phoneVisibleToNeighbors: false,
+  neighborApartments: { left: null, right: null, below: null, above: null },
 };
 
 async function maxBridge(page: Page) {
