@@ -125,6 +125,9 @@ gunzip -c backups/<файл>.sql.gz | docker compose -p maxtown -f compose.yml -
   закрывал бы вход всем сразу.
 - `MAXTOWN_PUBLIC_URL=https://maxtown.ru`: на этот адрес `/api/max/register`
   подписывает webhook бота.
+- Карта 2ГИС в мини-аппе ходит через Caddy (`/dgis/…`), а не напрямую в 2ГИС:
+  2ГИС не отвечает иностранным IP, и без этого у Жильца с VPN карты нет
+  (docs/adr/0008).
 - MAX API вызывается только через актуальный `platform-api2.max.ru`. Russian
   Trusted Root CA Минцифры закреплён в образе и подключён через
   `NODE_EXTRA_CA_CERTS`; токен не отправляется на устаревший домен.
