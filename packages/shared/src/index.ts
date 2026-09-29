@@ -360,6 +360,37 @@ export type RepairMode = {
   updatedBy: { displayName: string; role: HouseRole } | null;
 };
 
+/** Жизненный цикл отдельной Ремонтной работы Дома. */
+export type HouseRepairStatus = 'planned' | 'in_progress' | 'paused' | 'completed' | 'cancelled';
+
+/** Полная карточка Ремонтной работы. Неизвестные для старых данных поля равны null. */
+export type HouseRepair = {
+  id: string;
+  houseId: string;
+  title: string;
+  description: string;
+  location: string | null;
+  status: HouseRepairStatus;
+  startsAt: string | null;
+  expectedCompletionAt: string | null;
+  contractorName: string | null;
+  contractorContact: string | null;
+  residentImpact: string | null;
+  instructions: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Одно неизменяемое изменение Ремонтной работы из журнала аудита Дома. */
+export type HouseRepairHistoryEntry = {
+  id: string;
+  repairId: string;
+  eventType: string;
+  details: Record<string, unknown>;
+  occurredAt: string;
+  actor: { displayName: string; role: HouseRole } | null;
+};
+
 export type MeResponse = {
   resident: AuthResident;
   memberships: HouseMembershipSummary[];

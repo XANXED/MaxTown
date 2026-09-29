@@ -80,6 +80,17 @@ it('defines house scoped services and sourced tariffs', () => {
   expect(migration).toContain('FOREIGN KEY (service_id, house_id)');
 });
 
+it('defines independent house repair records with the approved lifecycle', () => {
+  const migration = readFileSync(new URL('./migrations/0007_house_repairs.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('CREATE TABLE house_repairs');
+  for (const status of ['planned', 'in_progress', 'paused', 'completed', 'cancelled']) {
+    expect(migration).toContain(`'${status}'`);
+  }
+  expect(migration).toContain('FOREIGN KEY (created_by_membership_id, house_id)');
+  expect(migration).toContain('repair_mode.completed');
+  expect(migration).toContain('ON CONFLICT');
+});
+
 it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent', async () => {
   expect(pool).not.toBeNull();
   if (!pool) return;
@@ -145,6 +156,68 @@ it.skipIf(!databaseUrl)('preserves old public totals while deleting every histor
     } finally {
       client.release();
     }
+  } finally {
+    await scoped.end();
+    await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+    await admin.end();
+  }
+});
+
+it.skipIf(!databaseUrl)('migrates active and completed repairs once while retaining their legacy rows and events', async () => {
+  const admin = createPool(databaseUrl!);
+  const schema = `repair_migration_${randomUUID().replaceAll('-', '')}`;
+  const scoped = new Pool({ connectionString: databaseUrl!, options: `-c search_path=${schema}` });
+  try {
+    await admin.query(`CREATE SCHEMA ${schema}`);
+    const client = await scoped.connect();
+    try {
+      for (let version = 1; version <= 6; version += 1) {
+        const file = `${String(version).padStart(4, '0')}_${[
+          'core', 'immutable_audit_events', 'vk_identity', 'anonymous_poll_ballots',
+          'vk_notification_outbox', 'house_service_directory',
+        ][version - 1]}.sql`;
+        await client.query(readFileSync(new URL(`./migrations/${file}`, import.meta.url), 'utf8'));
+      }
+      await client.query(`
+        CREATE TABLE schema_migrations (version text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now());
+        INSERT INTO schema_migrations (version) VALUES
+          ('0001_core.sql'), ('0002_immutable_audit_events.sql'), ('0003_vk_identity.sql'),
+          ('0004_anonymous_poll_ballots.sql'), ('0005_vk_notification_outbox.sql'), ('0006_house_service_directory.sql');
+      `);
+      await client.query(`
+        WITH resident AS (
+          INSERT INTO residents (max_user_id, display_name) VALUES ('repair-migration', 'Староста') RETURNING id
+        ), house AS (
+          INSERT INTO houses (address, locality) VALUES ('ул. Ремонта, 99', 'Казань') RETURNING id
+        ), apartment AS (
+          INSERT INTO apartments (house_id, number) SELECT id, '1' FROM house RETURNING id, house_id
+        ), membership AS (
+          INSERT INTO memberships (house_id, apartment_id, resident_id, role)
+          SELECT apartment.house_id, apartment.id, resident.id, 'headman' FROM apartment, resident
+          RETURNING id, house_id
+        ), active AS (
+          INSERT INTO repair_modes (house_id, is_active, title, description, starts_at, updated_by_membership_id)
+          SELECT house_id, true, 'Активный ремонт', 'Подробности активной работы', now(), id FROM membership
+        ), historic AS (
+          INSERT INTO audit_events (house_id, actor_membership_id, event_type, details)
+          SELECT house_id, id, 'repair_mode.completed',
+                 '{"before":{"isActive":true,"title":"Завершённый ремонт","description":"Историческое описание","startsAt":"2026-09-01T08:00:00.000Z","expectedCompletionAt":"2026-09-02T18:00:00.000Z","instructions":"Исторические инструкции"},"after":{"isActive":false}}'::jsonb
+            FROM membership RETURNING id
+        ) SELECT count(*) FROM historic;
+      `);
+    } finally { client.release(); }
+
+    await runMigrations(scoped);
+    await runMigrations(scoped);
+    const repairs = await scoped.query<{ title: string; status: string; instructions: string | null }>(
+      'SELECT title, status, instructions FROM house_repairs ORDER BY title',
+    );
+    expect(repairs.rows).toEqual([
+      { title: 'Активный ремонт', status: 'in_progress', instructions: null },
+      { title: 'Завершённый ремонт', status: 'completed', instructions: 'Исторические инструкции' },
+    ]);
+    expect(await scoped.query('SELECT house_id FROM repair_modes WHERE is_active')).toHaveProperty('rowCount', 1);
+    expect(await scoped.query("SELECT id FROM audit_events WHERE event_type = 'repair_mode.completed'")).toHaveProperty('rowCount', 1);
   } finally {
     await scoped.end();
     await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
