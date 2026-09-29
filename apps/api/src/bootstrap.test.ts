@@ -70,6 +70,7 @@ describe('API startup', () => {
 
     await expect(startServer({ env: { ...validProductionEnv, BOT_TOKEN: '' }, dependencies })).rejects.toThrow(/BOT_TOKEN/);
     await expect(startServer({ env: { ...validProductionEnv, MAX_WEBHOOK_SECRET: 'bad secret' }, dependencies })).rejects.toThrow(/MAX_WEBHOOK_SECRET/);
+    await expect(startServer({ env: { ...validProductionEnv, MAX_WEBHOOK_SECRET: 'bad_secret' }, dependencies })).rejects.toThrow(/MAX_WEBHOOK_SECRET/);
     await expect(startServer({ env: { ...validProductionEnv, DADATA_API_KEY: '' }, dependencies })).rejects.toThrow(/DADATA_API_KEY/);
 
     expect(dependencies.createPool).not.toHaveBeenCalled();

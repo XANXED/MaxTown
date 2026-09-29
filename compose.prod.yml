@@ -32,6 +32,11 @@ services:
       web:
         condition: service_healthy
     networks: [public]
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
 
 volumes:
   caddy-data:

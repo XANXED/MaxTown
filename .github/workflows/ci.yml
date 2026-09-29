@@ -66,7 +66,7 @@ jobs:
         run: docker build --file apps/api/Dockerfile --tag maxtown-api:ci .
 
       - name: Validate deployment shell scripts
-        run: bash -n deploy/compose-smoke.sh deploy/smoke.sh deploy/deploy.sh
+        run: bash -n deploy/compose-smoke.sh deploy/smoke.sh deploy/deploy.sh deploy/prepare-env.sh deploy/setup-timeweb.sh deploy/publish-timeweb.sh
 
       - name: Validate Timeweb production Compose model
         run: docker compose --file compose.yml --file compose.prod.yml config --quiet

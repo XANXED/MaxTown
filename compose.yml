@@ -16,6 +16,11 @@ services:
       retries: 12
       start_period: 10s
     stop_grace_period: 1m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
 
   web:
     image: ${WEB_IMAGE:-maxtown-api:local}
@@ -50,6 +55,11 @@ services:
       retries: 12
       start_period: 15s
     stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
 
 volumes:
   postgres-data:

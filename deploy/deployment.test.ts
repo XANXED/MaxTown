@@ -1,4 +1,5 @@
 import { access, readdir, readFile } from 'node:fs/promises';
+import { X509Certificate } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
@@ -98,6 +99,25 @@ describe('production deployment contract', () => {
     const deploy = await readProjectFile('deploy/deploy.sh');
     expect(deploy).toContain('--file compose.yml --file compose.prod.yml');
     expect(deploy).toContain('pg_dump');
+    expect(deploy).toContain('/api/max/register');
+    expect(deploy).toContain('MAX не принял webhook');
+    expect(await readProjectFile('deploy/prepare-env.sh')).toContain('openssl rand -hex 32');
+    expect(await readProjectFile('deploy/publish-timeweb.sh')).toContain("--exclude='.env'");
     expect(await readProjectFile('.github/workflows/ci.yml')).toContain('docker compose --file compose.yml --file compose.prod.yml config --quiet');
+  });
+
+  it('trusts the pinned Russian Trusted Root CA and never uses the legacy MAX API domain', async () => {
+    const certificate = new X509Certificate(await readProjectFile('deploy/certs/russian-trusted-root-ca.pem'));
+    expect(certificate.subject).toContain('CN=Russian Trusted Root CA');
+    expect(certificate.fingerprint256).toBe('D2:6D:2D:02:31:B7:C3:9F:92:CC:73:85:12:BA:54:10:35:19:E4:40:5D:68:B5:BD:70:3E:97:88:CA:8E:CF:31');
+    expect(new Date(certificate.validTo).getTime()).toBeGreaterThan(Date.now());
+
+    const dockerfile = await readProjectFile('apps/api/Dockerfile');
+    expect(dockerfile).toContain('NODE_EXTRA_CA_CERTS=/etc/ssl/certs/russian-trusted-root-ca.pem');
+    expect(dockerfile).toContain('COPY deploy/certs/russian-trusted-root-ca.pem');
+
+    const maxApi = await readProjectFile('apps/api/src/max/api.ts');
+    expect(maxApi).toContain("const MAX_API_ORIGIN = 'https://platform-api2.max.ru'");
+    expect(maxApi).not.toContain('platform-api.max.ru');
   });
 });

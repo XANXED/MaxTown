@@ -1,6 +1,6 @@
 # Временный fallback для вызовов MAX API из Cloudflare Worker
 
-Статус: принято временно для хакатона, 27 сентября 2026 года.
+Статус: заменено production-решением на Timeweb, 29 сентября 2026 года.
 
 ## Контекст
 
@@ -35,3 +35,13 @@ Webhook, статика, авторизация и реестр Домовых �
 - Перед production нужно перенести вызовы MAX API в среду, где можно добавить
   Russian Trusted Root CA, либо включить платный Custom Origin Trust Store и
   удалить fallback.
+
+## Замена для production
+
+Production перенесён на Timeweb (ADR 0011). Публичный корень Минцифры
+закреплён в `deploy/certs/russian-trusted-root-ca.pem`, а контейнер Node
+подключает его через `NODE_EXTRA_CA_CERTS`. Вызовы выполняются только к
+`platform-api2.max.ru`; fallback на устаревший домен из API удалён.
+
+Cloudflare Worker остался только запасным reverse proxy к API и сам не
+вызывает MAX API.

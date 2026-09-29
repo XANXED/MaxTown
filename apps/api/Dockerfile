@@ -22,8 +22,11 @@ RUN npm ci --omit=dev --workspace=@maxtown/api --workspace=@maxtown/shared --inc
 
 FROM node:24-alpine AS runtime
 
-ENV NODE_ENV=production PORT=3000
+ENV NODE_ENV=production \
+    PORT=3000 \
+    NODE_EXTRA_CA_CERTS=/etc/ssl/certs/russian-trusted-root-ca.pem
 WORKDIR /app
+COPY deploy/certs/russian-trusted-root-ca.pem /etc/ssl/certs/russian-trusted-root-ca.pem
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 COPY --from=dependencies /app/apps/api/package.json ./apps/api/package.json

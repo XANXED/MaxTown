@@ -53,8 +53,8 @@ function validateEnvironment(env: NodeJS.ProcessEnv): { databaseUrl: string; por
   }
   if (env.NODE_ENV === 'production') {
     if (!env.BOT_TOKEN?.trim()) throw new Error('BOT_TOKEN is required in production');
-    if (!/^[A-Za-z0-9_-]{5,256}$/.test(env.MAX_WEBHOOK_SECRET ?? '')) {
-      throw new Error('MAX_WEBHOOK_SECRET must be 5-256 Latin letters, digits, "-" or "_" in production');
+    if (!/^[A-Za-z0-9-]{5,256}$/.test(env.MAX_WEBHOOK_SECRET ?? '')) {
+      throw new Error('MAX_WEBHOOK_SECRET must be 5-256 Latin letters, digits or "-" in production');
     }
     if (!env.DADATA_API_KEY?.trim()) throw new Error('DADATA_API_KEY is required in production');
     if (!isValidPollNullifierSecret(env.POLL_VOTER_NULLIFIER_SECRET)) {

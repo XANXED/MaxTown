@@ -2,23 +2,9 @@ import type { MaxHouseChatRole } from '@maxtown/shared';
 import { withTimeout } from '@maxtown/shared/http';
 
 // Вызовы MAX Bot API (https://dev.max.ru/docs-api) от имени бота MaxTown.
-// Токен уходит только на два фиксированных домена MAX.
+// Токен уходит только на актуальный официальный домен MAX.
 
 const MAX_API_ORIGIN = 'https://platform-api2.max.ru';
-/**
- * platform-api2 подписан Russian Trusted Root CA (Минцифры), которого нет в
- * стандартном наборе Node и Cloudflare. Старый домен отдаёт тот же API с
- * публично доверенной цепочкой — идём туда только при ошибке TLS (ADR 0004).
- * Поставите корень Минцифры в NODE_EXTRA_CA_CERTS — запасной не понадобится.
- */
-const MAX_API_FALLBACK_ORIGIN = 'https://platform-api.max.ru';
-const TLS_ERROR_CODES = new Set([
-  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
-  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
-  'SELF_SIGNED_CERT_IN_CHAIN',
-  'DEPTH_ZERO_SELF_SIGNED_CERT',
-  'CERT_UNTRUSTED',
-]);
 const TIMEOUT_MS = 4_000;
 
 export class MaxApiError extends Error {}
@@ -55,11 +41,6 @@ function isUserId(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 }
 
-function isTlsError(error: unknown): boolean {
-  const cause = isRecord(error) ? error.cause : undefined;
-  return isRecord(cause) && typeof cause.code === 'string' && TLS_ERROR_CODES.has(cause.code);
-}
-
 function toMember(value: unknown): MaxChatMember | null {
   if (!isRecord(value) || !isUserId(value.user_id)) return null;
   return {
@@ -80,7 +61,7 @@ export function chatRole(member: MaxChatMember): MaxHouseChatRole {
 export function createMaxApi(config: { token: string; botUsername: string; fetcher?: Fetcher }): MaxApi {
   const fetcher: Fetcher = config.fetcher ?? ((input, init) => fetch(input, init));
 
-  async function send(path: string, init: RequestInit, signal: AbortSignal): Promise<Response> {
+  function send(path: string, init: RequestInit, signal: AbortSignal): Promise<Response> {
     const request: RequestInit = {
       ...init,
       signal,
@@ -89,14 +70,7 @@ export function createMaxApi(config: { token: string; botUsername: string; fetch
         ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
       },
     };
-    try {
-      const response = await fetcher(new URL(path, MAX_API_ORIGIN).href, request);
-      // 526 — тот же отказ TLS, если запрос идёт через Cloudflare.
-      if (response.status !== 526) return response;
-    } catch (error) {
-      if (!isTlsError(error)) throw error;
-    }
-    return fetcher(new URL(path, MAX_API_FALLBACK_ORIGIN).href, request);
+    return fetcher(new URL(path, MAX_API_ORIGIN).href, request);
   }
 
   /** Запрос с таймаутом; 403 и 404 отдаются вызывающему, остальные ошибки — MaxApiError. */
