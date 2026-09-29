@@ -79,9 +79,13 @@ function parseSuggestion(value: unknown): DaDataHouse | null {
       ? data.house_fias_id.trim()
       : null;
 
-  // Уровень 8 в DaData означает конкретный дом. Улицу или населённый пункт
-  // нельзя принять за Дом даже при единственной подсказке.
-  if (!label || !garHouseGuid || String(data.fias_level) !== '8') return null;
+  // Уровень 8 — конкретный дом, уровень 9 — квартира/комната в доме.
+  // Для поиска Дома подходят оба варианта: при вводе номера квартиры DaData
+  // возвращает уровень 9, но house_fias_id по-прежнему содержит GUID Дома.
+  // Улицу или населённый пункт нельзя принять за Дом даже при единственной
+  // подсказке.
+  const fiasLevel = String(data.fias_level);
+  if (!label || !garHouseGuid || (fiasLevel !== '8' && fiasLevel !== '9')) return null;
 
   const localityParts = [
     ...new Set(

@@ -94,6 +94,32 @@ describe('адрес Дома через DaData', () => {
     await expect(suggestHouseAddresses('key', 'Лесная', fetcher)).resolves.toEqual([]);
   });
 
+  it('принимает адрес квартиры и возвращает GUID её Дома', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        suggestions: [
+          {
+            value: 'г Москва, ул Лесная, д 12, кв 42',
+            data: {
+              fias_level: '9',
+              house_fias_id: 'guid-12',
+              flat_fias_id: 'flat-42',
+              region_with_type: 'г Москва',
+              city_with_type: 'г Москва',
+            },
+          },
+        ],
+      }),
+    );
+
+    await expect(suggestHouseAddresses('key', 'Москва, Лесная 12 квартира 42', fetcher)).resolves.toEqual([
+      expect.objectContaining({
+        value: 'г Москва, ул Лесная, д 12, кв 42',
+        garHouseGuid: 'guid-12',
+      }),
+    ]);
+  });
+
   it('берёт точку Дома из geo_lat и geo_lon', async () => {
     const withPoint = house('г Москва, ул Лесная, д 12', 'guid-12');
     const fetcher = vi.fn<typeof fetch>(async () =>
