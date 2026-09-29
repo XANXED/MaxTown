@@ -14,6 +14,7 @@ import { registerVkCallbackRoutes } from './routes/vk-callback.ts';
 import { createPgOutboxStore, startNotificationOutboxWorker } from './notifications/outbox.ts';
 import { createVkMessageClient } from './vk/client.ts';
 import { registerServicesDirectoryRoutes } from './routes/services-directory.ts';
+import { registerHouseRepairRoutes } from './routes/house-repairs.ts';
 
 export type BuildAppOptions = {
   pool: Pool;
@@ -76,6 +77,7 @@ export async function buildApp({ pool, env, staticAssets }: BuildAppOptions): Pr
   registerModeratorRoutes(app, pool);
   registerCommunityRoutes(app, pool, env.POLL_VOTER_NULLIFIER_SECRET ?? 'development-only-poll-voter-nullifier-secret');
   registerRepairModeRoutes(app, pool);
+  registerHouseRepairRoutes(app, pool);
   registerServicesDirectoryRoutes(app, pool);
   registerNotificationRoutes(app, pool, groupId);
   if (groupId && env.VK_CALLBACK_SECRET && env.VK_CALLBACK_CONFIRMATION_CODE) {

@@ -80,13 +80,17 @@ describe.skipIf(!databaseUrl)('house repair mode', () => {
     expect(completed.statusCode).toBe(200);
     expect(completed.json<{ repairMode: Record<string, unknown> }>().repairMode).toMatchObject({ isActive: false, title: null, expectedCompletionAt: null });
     const audit = await pool.query<{ actor_membership_id: string; event_type: string; occurred_at: Date; details: { before: { isActive: boolean }; after: { isActive: boolean } } }>(
-      'SELECT actor_membership_id, event_type, occurred_at, details FROM audit_events WHERE house_id = $1 ORDER BY occurred_at, id', [houseId],
+      "SELECT actor_membership_id, event_type, occurred_at, details FROM audit_events WHERE house_id = $1 AND event_type LIKE 'repair_mode.%' ORDER BY occurred_at, id", [houseId],
     );
     expect(audit.rows).toHaveLength(3);
     expect(audit.rows.map((row) => row.event_type)).toEqual(['repair_mode.activated', 'repair_mode.updated', 'repair_mode.completed']);
     expect(audit.rows.every((row) => row.actor_membership_id === responsibleMembershipId && row.occurred_at instanceof Date)).toBe(true);
     expect(audit.rows[0]?.details).toMatchObject({ before: { isActive: false }, after: { isActive: true } });
     expect(audit.rows[2]?.details).toMatchObject({ before: { isActive: true }, after: { isActive: false } });
+    const repairRecords = await pool.query<{ title: string; status: string; description: string }>(
+      'SELECT title, status, description FROM house_repairs WHERE house_id = $1', [houseId],
+    );
+    expect(repairRecords.rows).toEqual([{ title: activePayload.title, status: 'completed', description: activePayload.description }]);
     await expect(pool.query('UPDATE audit_events SET event_type = $1 WHERE house_id = $2', ['rewritten', houseId])).rejects.toThrow('audit_events are append-only');
     await expect(pool.query('DELETE FROM audit_events WHERE house_id = $1', [houseId])).rejects.toThrow('audit_events are append-only');
   });
@@ -112,5 +116,15 @@ describe.skipIf(!databaseUrl)('house repair mode', () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.json<{ repairMode: { updatedBy: { role: string } } }>().repairMode.updatedBy.role).toBe('headman');
+  });
+
+  it('serves a repair created by the new API to clients that still read the legacy route', async () => {
+    const created = await app.inject({
+      method: 'POST', url: `/api/houses/${houseId}/repairs`, headers: { authorization: `Bearer ${responsibleToken}` },
+      payload: { title: 'Замена дверей', description: 'Работы в подъезде', status: 'in_progress', startsAt: '2026-09-28T08:00:00.000Z' },
+    });
+    expect(created.statusCode).toBe(201);
+    const legacy = await app.inject({ method: 'GET', url: `/api/houses/${houseId}/repair-mode`, headers: { authorization: `Bearer ${residentToken}` } });
+    expect(legacy.json<{ repairMode: Record<string, unknown> }>().repairMode).toMatchObject({ isActive: true, title: 'Замена дверей', description: 'Работы в подъезде' });
   });
 });

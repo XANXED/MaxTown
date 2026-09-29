@@ -46,6 +46,32 @@ function snapshot(mode: RepairMode): RepairSnapshot {
 }
 
 async function readRepairMode(db: Pool | PoolClient, houseId: string): Promise<RepairMode | null> {
+  const currentRepair = await db.query<{
+    title: string; description: string; starts_at: Date | null; expected_completion_at: Date | null;
+    instructions: string | null; updated_at: Date; display_name: string | null; role: HouseRole | null;
+  }>(
+    `SELECT repair.title, repair.description, repair.starts_at, repair.expected_completion_at, repair.instructions,
+            repair.updated_at, resident.display_name, membership.role
+       FROM house_repairs repair
+       LEFT JOIN memberships membership ON membership.id = repair.updated_by_membership_id AND membership.house_id = repair.house_id
+       LEFT JOIN residents resident ON resident.id = membership.resident_id
+      WHERE repair.house_id = $1 AND repair.status IN ('planned', 'in_progress', 'paused')
+      ORDER BY repair.updated_at DESC, repair.created_at DESC LIMIT 1`,
+    [houseId],
+  );
+  const active = currentRepair.rows[0];
+  if (active) {
+    return {
+      isActive: true,
+      title: active.title,
+      description: active.description,
+      startsAt: active.starts_at?.toISOString() ?? null,
+      expectedCompletionAt: active.expected_completion_at?.toISOString() ?? null,
+      instructions: active.instructions,
+      updatedAt: active.updated_at.toISOString(),
+      updatedBy: active.display_name && active.role ? { displayName: active.display_name, role: active.role } : null,
+    };
+  }
   const result = await db.query<RepairModeRow>(
     `SELECT rm.is_active, rm.title, rm.description, rm.starts_at, rm.expected_completion_at,
             rm.instructions, rm.updated_at, r.display_name AS updated_by_name, m.role AS updated_by_role
@@ -144,6 +170,57 @@ export function registerRepairModeRoutes(app: FastifyInstance, pool: Pool): void
              updated_by_membership_id = EXCLUDED.updated_by_membership_id, updated_at = now()`,
           [request.params.houseId, next.isActive, next.title, next.description, next.startsAt, next.expectedCompletionAt, next.instructions, access.id],
         );
+        const currentRepair = await client.query<{ id: string; status: string; title: string; description: string; starts_at: Date | null; expected_completion_at: Date | null; instructions: string | null }>(
+          `SELECT id, status, title, description, starts_at, expected_completion_at, instructions
+             FROM house_repairs
+            WHERE house_id = $1 AND status IN ('planned', 'in_progress', 'paused')
+            ORDER BY updated_at DESC, created_at DESC
+            LIMIT 1 FOR UPDATE`,
+          [request.params.houseId],
+        );
+        const current = currentRepair.rows[0];
+        if (next.isActive) {
+          if (current) {
+            const beforeRepair = { title: current.title, description: current.description, startsAt: current.starts_at?.toISOString() ?? null, expectedCompletionAt: current.expected_completion_at?.toISOString() ?? null, instructions: current.instructions };
+            await client.query(
+              `UPDATE house_repairs SET title=$2, description=$3, starts_at=$4, expected_completion_at=$5,
+                 instructions=$6, updated_by_membership_id=$7, updated_at=now() WHERE id=$1`,
+              [current.id, next.title, next.description, next.startsAt, next.expectedCompletionAt, next.instructions, access.id],
+            );
+            await client.query(
+              `INSERT INTO audit_events (house_id, actor_membership_id, event_type, details)
+               VALUES ($1,$2,'house_repair.updated',$3::jsonb)`,
+              [request.params.houseId, access.id, JSON.stringify({ repairId: current.id, action: 'updated', before: beforeRepair, after: { title: next.title, description: next.description, startsAt: next.startsAt, expectedCompletionAt: next.expectedCompletionAt, instructions: next.instructions } })],
+            );
+          } else {
+            const inserted = await client.query<{ id: string }>(
+              `INSERT INTO house_repairs (house_id, title, description, status, starts_at, expected_completion_at, instructions, created_by_membership_id, updated_by_membership_id)
+               VALUES ($1,$2,$3,CASE WHEN $4::timestamptz > now() THEN 'planned' ELSE 'in_progress' END,$4,$5,$6,$7,$7) RETURNING id`,
+              [request.params.houseId, next.title, next.description, next.startsAt, next.expectedCompletionAt, next.instructions, access.id],
+            );
+            await client.query(
+              `INSERT INTO audit_events (house_id, actor_membership_id, event_type, details)
+               VALUES ($1,$2,'house_repair.created',$3::jsonb)`,
+              [request.params.houseId, access.id, JSON.stringify({ repairId: inserted.rows[0]!.id, action: 'created', after: { title: next.title, description: next.description, startsAt: next.startsAt, expectedCompletionAt: next.expectedCompletionAt, instructions: next.instructions } })],
+            );
+          }
+        } else if (current) {
+          const beforeRepair = { title: current.title, description: current.description, startsAt: current.starts_at?.toISOString() ?? null, expectedCompletionAt: current.expected_completion_at?.toISOString() ?? null, instructions: current.instructions, status: current.status };
+          if (current.status === 'planned') {
+            await client.query("UPDATE house_repairs SET status='in_progress', updated_by_membership_id=$2, updated_at=now() WHERE id=$1", [current.id, access.id]);
+            await client.query(
+              `INSERT INTO audit_events (house_id, actor_membership_id, event_type, details)
+               VALUES ($1,$2,'house_repair.status_changed',$3::jsonb)`,
+              [request.params.houseId, access.id, JSON.stringify({ repairId: current.id, action: 'status_changed', before: beforeRepair, after: { ...beforeRepair, status: 'in_progress' }, note: 'Переход через старый клиент' })],
+            );
+          }
+          await client.query("UPDATE house_repairs SET status='completed', updated_by_membership_id=$2, updated_at=now() WHERE id=$1", [current.id, access.id]);
+          await client.query(
+            `INSERT INTO audit_events (house_id, actor_membership_id, event_type, details)
+             VALUES ($1,$2,'house_repair.status_changed',$3::jsonb)`,
+            [request.params.houseId, access.id, JSON.stringify({ repairId: current.id, action: 'status_changed', before: beforeRepair, after: { ...beforeRepair, status: 'completed' } })],
+          );
+        }
         const afterMode = await readRepairMode(client, request.params.houseId);
         const mode = afterMode!;
         const eventType = !before.isActive && next.isActive ? 'repair_mode.activated'
