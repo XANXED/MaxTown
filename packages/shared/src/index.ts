@@ -310,7 +310,8 @@ export type UserNotification = {
     | 'community-poll'
     | 'apartment-repair'
     | 'management-question'
-    | 'management-answer';
+    | 'management-answer'
+    | 'utility-payment';
   /** Готовая строка: «Заявка № 2431 выполнена». */
   title: string;
   /** Подробность: текст Комментария, время Визита. */
@@ -329,6 +330,8 @@ export type UserNotification = {
   repairId?: string;
   /** Вопрос в УК, который открывает Уведомление. */
   managementQuestionId?: string;
+  /** Платёжный период, который открывает Уведомление. */
+  utilityPaymentPeriodId?: string;
 };
 
 export type HouseContactKind =
@@ -616,6 +619,99 @@ export type ReadingsWindow = {
   /** «Квартира 34». */
   apartment: string;
   meters: Meter[];
+};
+
+export const UTILITY_PAYMENT_CATEGORIES = [
+  'rent', 'electricity', 'gas', 'water', 'heating', 'capital-repair', 'intercom', 'internet', 'other',
+] as const;
+
+/** Категория ручного Платежа ЖКУ. */
+export type UtilityPaymentCategory = (typeof UTILITY_PAYMENT_CATEGORIES)[number];
+
+/** Состояние Платёжного периода относительно текущего дня Дома. */
+export type UtilityPaymentState = 'upcoming' | 'due-soon' | 'due-today' | 'overdue' | 'paid' | 'skipped';
+
+export type UtilityPaymentTemplate = {
+  id: string;
+  houseId: string;
+  apartmentId: string;
+  category: UtilityPaymentCategory;
+  title: string;
+  dueDay: number;
+  /** Первый расчётный месяц, YYYY-MM-01. */
+  startsOn: string;
+  archivedAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UtilityPaymentTemplateInput = {
+  category: UtilityPaymentCategory;
+  title: string;
+  dueDay: number;
+  /** Первый расчётный месяц, YYYY-MM-01. */
+  startsOn: string;
+  version?: number;
+};
+
+export type UtilityPaymentReceipt = {
+  fileName: string;
+  contentType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf';
+  size: number;
+  url: string;
+  uploadedBy: string;
+  uploadedAt: string;
+};
+
+export type UtilityPaymentEventAction =
+  | 'template-created' | 'template-updated' | 'template-archived' | 'period-updated'
+  | 'paid' | 'unpaid' | 'skipped' | 'unskipped'
+  | 'receipt-added' | 'receipt-replaced' | 'receipt-deleted';
+
+export type UtilityPaymentEvent = {
+  id: string;
+  action: UtilityPaymentEventAction;
+  actorName: string;
+  at: string;
+};
+
+export type UtilityPaymentPeriod = {
+  id: string;
+  templateId: string;
+  houseId: string;
+  apartmentId: string;
+  /** Расчётный месяц, YYYY-MM-01. */
+  billingMonth: string;
+  category: UtilityPaymentCategory;
+  title: string;
+  /** YYYY-MM-DD. */
+  dueOn: string;
+  state: UtilityPaymentState;
+  paidAt: string | null;
+  skippedAt: string | null;
+  version: number;
+  receipt: UtilityPaymentReceipt | null;
+  events?: UtilityPaymentEvent[];
+};
+
+export type UtilityPaymentsOverview = {
+  apartmentId: string;
+  apartmentNumber: string;
+  today: string;
+  periods: UtilityPaymentPeriod[];
+  templates: UtilityPaymentTemplate[];
+};
+
+export type UtilityPaymentPeriodsPage = {
+  periods: UtilityPaymentPeriod[];
+  nextCursor: string | null;
+};
+
+export type UtilityPaymentPeriodInput = {
+  title?: string;
+  dueOn?: string;
+  version: number;
 };
 
 /** Где регистрация Дома: ждёт Модератора, одобрена или отклонена. */

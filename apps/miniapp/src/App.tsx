@@ -29,6 +29,8 @@ import { ManagementQuestionsScreen } from './screens/ManagementQuestionsScreen.t
 import { NewManagementQuestionScreen } from './screens/NewManagementQuestionScreen.tsx';
 import { ManagementQuestionScreen } from './screens/ManagementQuestionScreen.tsx';
 import { ResidentProfileSetupScreen } from './screens/ResidentProfileSetupScreen.tsx';
+import { UtilityPaymentsScreen } from './screens/UtilityPaymentsScreen.tsx';
+import { UtilityPaymentScreen } from './screens/UtilityPaymentScreen.tsx';
 import {
   hashForRoute,
   isRootRoute,
@@ -39,6 +41,7 @@ import {
   matchNearestPlaces,
   matchPlaceEditor,
   matchRepair,
+  matchUtilityPayment,
   parentRoute,
   routeFromHash,
   ROUTES,
@@ -48,7 +51,7 @@ import {
 import { launchInviteCode } from './data/join.ts';
 import { demoMode } from './data/loadable.ts';
 import { demoPendingHouseSetup, launchSetupChatId } from './houseSetup.ts';
-import { isMaxRuntime, launchManagementQuestion, launchPoll, launchRepair, maxNavigationHash, waitForMaxInitData } from './maxLaunch.ts';
+import { isMaxRuntime, launchManagementQuestion, launchPoll, launchRepair, launchUtilityPayment, maxNavigationHash, waitForMaxInitData } from './maxLaunch.ts';
 import { useOnline } from './network.ts';
 import { hasSeenWelcome, markWelcomeSeen } from './welcome.ts';
 import { authenticateWithMax, AuthRequestError, getCurrentResident } from './auth/session.ts';
@@ -72,6 +75,8 @@ function initialRoute(): AppRoute {
   if (repair) return `/repair-mode/${repair.repairId}`;
   const question = launchManagementQuestion();
   if (question) return `/management-questions/${question.questionId}`;
+  const payment = launchUtilityPayment();
+  if (payment) return `/utilities/payments/${payment.periodId}`;
   // В MAX человек пришёл из своего Домового чата — приветствие не нужно.
   if (INSIDE_MAX) return routeFromHash(window.location.hash);
   return startRoute(window.location.hash, hasSeenWelcome());
@@ -170,7 +175,7 @@ export function App() {
         setPendingSetups(pendingHouseSetups);
         applyCurrentResident(
           profile,
-          launchPoll()?.houseId ?? launchRepair()?.houseId ?? launchManagementQuestion()?.houseId ?? null,
+          launchPoll()?.houseId ?? launchRepair()?.houseId ?? launchManagementQuestion()?.houseId ?? launchUtilityPayment()?.houseId ?? null,
         );
         setAuthState({ status: 'ready' });
       })
@@ -400,7 +405,11 @@ export function App() {
       screen = <ProfileScreen navigate={navigate} notify={notify} />;
       break;
     case ROUTES.readings:
+    case ROUTES.utilitiesReadings:
       screen = <ReadingsScreen navigate={navigate} />;
+      break;
+    case ROUTES.utilities:
+      screen = <UtilityPaymentsScreen houseId={activeHouseId} navigate={navigate} notify={notify} />;
       break;
     case ROUTES.community:
       screen = <CommunityScreen houseId={activeHouseId} role={activeHouseRole} selectedPollId={communityPollId} />;
@@ -446,6 +455,7 @@ export function App() {
       const nearest = matchNearestPlaces(route);
       const repair = matchRepair(route);
       const managementQuestion = matchManagementQuestion(route);
+      const utilityPayment = matchUtilityPayment(route);
       screen =
         card?.kind === 'request' ? (
           <RequestScreen id={card.id} navigate={navigate} notify={notify} />
@@ -463,6 +473,8 @@ export function App() {
           <RepairModeScreen houseId={activeHouseId} role={activeHouseRole} selectedRepairId={repair.id} />
         ) : managementQuestion ? (
           <ManagementQuestionScreen id={managementQuestion.id} notify={notify} />
+        ) : utilityPayment ? (
+          <UtilityPaymentScreen houseId={activeHouseId} periodId={utilityPayment.id} notify={notify} />
         ) : (
           <HomeScreen navigate={navigate} houseId={activeHouseId} />
         );

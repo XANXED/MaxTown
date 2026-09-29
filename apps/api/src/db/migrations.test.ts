@@ -184,6 +184,17 @@ it('stores the first-run House profile on membership', () => {
   expect(migration).toContain('profile_completed_at timestamptz');
 });
 
+it('adds apartment-private utility payment schedules, receipts and reminders', () => {
+  const migration = readFileSync(new URL('./migrations/0019_utility_payments.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('CREATE TABLE utility_payment_templates');
+  expect(migration).toContain('CREATE TABLE utility_payment_periods');
+  expect(migration).toContain('CREATE TABLE utility_payment_receipts');
+  expect(migration).toContain('CREATE TABLE utility_payment_events');
+  expect(migration).toContain("'utility-payment'");
+  expect(migration).toContain("'three-days', 'due-today', 'overdue-once'");
+  expect(migration).toContain('octet_length(data) BETWEEN 1 AND 5242880');
+});
+
 it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent', async () => {
   expect(pool).not.toBeNull();
   if (!pool) return;
@@ -192,7 +203,7 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('18');
+  expect(result.rows[0]?.count).toBe('19');
 });
 
 it.skipIf(!databaseUrl)('preserves old public totals while deleting every historical voter link', async () => {

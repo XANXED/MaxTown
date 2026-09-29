@@ -2,7 +2,7 @@ import type { AppRoute } from '../routes.ts';
 import { ROUTES } from '../routes.ts';
 
 /** Ключ иконки: сами иконки подставляет экран, чтобы данные не зависели от React. */
-export type ServiceIcon = 'new-request' | 'requests' | 'house-state' | 'events' | 'readings' | 'contacts' | 'places' | 'community' | 'repair-mode' | 'internet' | 'management-questions';
+export type ServiceIcon = 'new-request' | 'requests' | 'house-state' | 'events' | 'readings' | 'utilities' | 'contacts' | 'places' | 'community' | 'repair-mode' | 'internet' | 'management-questions';
 
 export type Service = {
   id: string;
@@ -84,12 +84,12 @@ export const serviceGroups: ServiceGroup[] = [
         keywords: 'ремонт работы сроки шум соседи',
       },
       {
-        id: 'readings',
-        title: 'Передать показания',
-        description: 'Цифры с приборов учёта Квартиры',
-        icon: 'readings',
-        route: ROUTES.readings,
-        keywords: 'счётчики вода электричество',
+        id: 'utilities',
+        title: 'ЖКУ',
+        description: 'Сроки платежей и Показания Квартиры',
+        icon: 'utilities',
+        route: ROUTES.utilities,
+        keywords: 'оплата квитанция коммуналка счётчики вода электричество',
       },
     ],
   },

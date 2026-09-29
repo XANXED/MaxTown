@@ -18,6 +18,8 @@ export const ROUTES = {
   places: '/places',
   newPlace: '/places/new',
   readings: '/readings',
+  utilities: '/utilities',
+  utilitiesReadings: '/utilities/readings',
   community: '/community',
   repairMode: '/repair-mode',
   internet: '/internet',
@@ -35,6 +37,7 @@ export type AppRoute =
   | `/events/${string}`
   | `/repair-mode/${string}`
   | `/management-questions/${string}`
+  | `/utilities/payments/${string}`
   | `/contacts/${string}/edit`
   | `/internet/${string}/edit`
   | `/places/${string}/edit`
@@ -50,6 +53,7 @@ const placeEditorPattern = /^\/places\/([\w-]+)\/edit$/;
 const nearestPattern = /^\/places\/nearest\/([\w-]+)$/;
 const repairPattern = /^\/repair-mode\/([\w-]+)$/;
 const managementQuestionPattern = /^\/management-questions\/([\w-]+)$/;
+const utilityPaymentPattern = /^\/utilities\/payments\/([\w-]+)$/;
 
 export function requestRoute(id: string): AppRoute {
   return `/requests/${id}`;
@@ -71,6 +75,16 @@ export function matchRepair(route: AppRoute): { id: string } | null {
 
 export function managementQuestionRoute(id: string): AppRoute {
   return `/management-questions/${id}`;
+}
+
+export function utilityPaymentRoute(id: string): AppRoute {
+  return `/utilities/payments/${id}`;
+}
+
+export function matchUtilityPayment(route: AppRoute): { id: string } | null {
+  if (staticRoutes.has(route)) return null;
+  const [, id] = utilityPaymentPattern.exec(route) ?? [];
+  return id ? { id } : null;
 }
 
 export function matchManagementQuestion(route: AppRoute): { id: string } | null {
@@ -129,7 +143,7 @@ export function matchCard(route: AppRoute): { kind: 'request' | 'event'; id: str
 
 export function routeFromHash(hash: string): AppRoute {
   const candidate = hash.replace(/^#/, '').split('&')[0] || ROUTES.home;
-  if (staticRoutes.has(candidate) || cardPattern.test(candidate) || repairPattern.test(candidate) || managementQuestionPattern.test(candidate) || contactEditorPattern.test(candidate) || internetProviderEditorPattern.test(candidate)) return candidate as AppRoute;
+  if (staticRoutes.has(candidate) || cardPattern.test(candidate) || repairPattern.test(candidate) || managementQuestionPattern.test(candidate) || utilityPaymentPattern.test(candidate) || contactEditorPattern.test(candidate) || internetProviderEditorPattern.test(candidate)) return candidate as AppRoute;
   if (placeEditorPattern.test(candidate) || matchNearestPlaces(candidate as AppRoute)) return candidate as AppRoute;
   return ROUTES.home;
 }
@@ -157,6 +171,9 @@ const parents: Partial<Record<StaticRoute, AppRoute>> = {
   [ROUTES.newInternetProvider]: ROUTES.internet,
   [ROUTES.managementQuestions]: ROUTES.services,
   [ROUTES.newManagementQuestion]: ROUTES.managementQuestions,
+  [ROUTES.utilities]: ROUTES.services,
+  [ROUTES.utilitiesReadings]: ROUTES.utilities,
+  [ROUTES.readings]: ROUTES.utilities,
 };
 
 /**
@@ -166,6 +183,7 @@ const parents: Partial<Record<StaticRoute, AppRoute>> = {
 export function parentRoute(route: AppRoute): AppRoute {
   if (matchRepair(route)) return ROUTES.repairMode;
   if (matchManagementQuestion(route)) return ROUTES.managementQuestions;
+  if (matchUtilityPayment(route)) return ROUTES.utilities;
   if (matchContactEditor(route)) return ROUTES.contacts;
   if (matchInternetProviderEditor(route)) return ROUTES.internet;
   if (matchPlaceEditor(route) || matchNearestPlaces(route)) return ROUTES.places;

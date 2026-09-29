@@ -79,7 +79,8 @@ export async function waitForMaxInitData(
 
 /**
  * Параметр запуска из ссылки `max.ru/<бот>?startapp=…` или кнопки бота:
- * `inv_…` — Приглашение, `setup_…` — выбор адреса, `poll_…` — Опрос.
+ * `inv_…` — Приглашение, `setup_…` — выбор адреса, `poll_…` — Опрос,
+ * `repair_…`, `question_…` и `payment_…` — адресные карточки.
  * Только маршрутизация: права всё равно проверяет сервер.
  */
 export function launchStartParam(): string | undefined {
@@ -99,6 +100,7 @@ const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const pollStartParam = new RegExp(`^poll_(${uuid})_(${uuid})$`, 'i');
 const repairStartParam = new RegExp(`^repair_(${uuid})_(${uuid})$`, 'i');
 const managementQuestionStartParam = new RegExp(`^question_(${uuid})_(${uuid})$`, 'i');
+const utilityPaymentStartParam = new RegExp(`^payment_(${uuid})_(${uuid})$`, 'i');
 
 /** Опрос из кнопки бота «Проголосовать» в Домовом чате. */
 export function launchPoll(): { houseId: string; pollId: string } | null {
@@ -116,4 +118,10 @@ export function launchRepair(): { houseId: string; repairId: string } | null {
 export function launchManagementQuestion(): { houseId: string; questionId: string } | null {
   const match = managementQuestionStartParam.exec(launchStartParam() ?? '');
   return match ? { houseId: match[1]!, questionId: match[2]! } : null;
+}
+
+/** Платёжный период из кнопки личного напоминания MAX. */
+export function launchUtilityPayment(): { houseId: string; periodId: string } | null {
+  const match = utilityPaymentStartParam.exec(launchStartParam() ?? '');
+  return match ? { houseId: match[1]!, periodId: match[2]! } : null;
 }

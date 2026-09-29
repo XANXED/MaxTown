@@ -1,4 +1,4 @@
-import { Bell, CaretRight } from '@phosphor-icons/react';
+import { Bell, CaretRight, CheckCircle, ClockCountdown, Receipt } from '@phosphor-icons/react';
 import { Button, Counter, IconButton, Typography } from '../components/platform-ui.tsx';
 import buildingImage from '../assets/home-building.webp';
 import { systemVisuals } from '../components/categoryVisuals.ts';
@@ -24,6 +24,8 @@ import { greeting } from '../data/text.ts';
 import { currentProfileUser } from '../maxUser.ts';
 import { eventRoute, requestRoute, ROUTES } from '../routes.ts';
 import { membershipLine, useMembership } from '../auth/membership.tsx';
+import { useUtilityPayments } from '../data/utilityPayments.ts';
+import { formatUtilityDue } from './UtilityPaymentsScreen.tsx';
 import type { Navigate } from './types.ts';
 
 /** Сколько последних строк показывать на главной; остальное — на экране по «Все». */
@@ -46,8 +48,11 @@ export function HomeScreen({ navigate, houseId }: HomeScreenProps) {
   const { status, isResident, processor, requests, events, retry } = useHomeData();
   const firstName = currentProfileUser()?.name.split(' ')[0];
   const unread = unreadCount(useNotifications().data);
+  const membership = useMembership();
+  const paymentAccess = Boolean(houseId && membership?.apartmentId && membership.role !== 'management-company');
+  const payments = useUtilityPayments(paymentAccess ? houseId ?? null : null);
   // УК отвечает на вопросы, но не задаёт их: ей — список Приёмной.
-  const managementCompany = useMembership()?.role === 'management-company';
+  const managementCompany = membership?.role === 'management-company';
 
   const quickActions: QuickAction[] = [
     { label: 'Подать заявку', service: 'new-request', onClick: () => navigate(ROUTES.newRequest) },
@@ -56,7 +61,7 @@ export function HomeScreen({ navigate, houseId }: HomeScreenProps) {
       : { label: 'Задать вопрос УК', service: 'management-questions', onClick: () => navigate(ROUTES.newManagementQuestion) },
     { label: processor ? 'Заявки Дома' : 'Мои заявки', service: 'requests', onClick: () => navigate(ROUTES.requests) },
     { label: 'События дома', service: 'events', onClick: () => navigate(ROUTES.events) },
-    { label: 'Передать показания', service: 'readings', onClick: () => navigate(ROUTES.readings) },
+    { label: 'Передать показания', service: 'readings', onClick: () => navigate(ROUTES.utilitiesReadings) },
     { label: 'Чат Дома', service: 'community', onClick: () => navigate(ROUTES.community) },
   ];
 
@@ -96,6 +101,10 @@ export function HomeScreen({ navigate, houseId }: HomeScreenProps) {
         ) : (
           <JoinCard navigate={navigate} />
         )}
+
+        {paymentAccess && payments.status === 'ready' && payments.data ? (
+          <UtilityDeadlineCard periods={payments.data.periods} navigate={navigate} />
+        ) : null}
 
         <nav className="quick-actions" aria-label="Быстрые действия">
           {quickActions.map(({ label, service, soon, onClick }) => (
@@ -171,6 +180,26 @@ export function HomeScreen({ navigate, houseId }: HomeScreenProps) {
       </main>
       <BottomNavigation active={ROUTES.home} navigate={navigate} />
     </div>
+  );
+}
+
+function UtilityDeadlineCard({ periods, navigate }: { periods: import('@maxtown/shared').UtilityPaymentPeriod[]; navigate: Navigate }) {
+  const pending = periods.filter((period) => period.state !== 'paid' && period.state !== 'skipped');
+  const period = pending.toSorted((left, right) => {
+    if (left.state === 'overdue' && right.state !== 'overdue') return -1;
+    if (right.state === 'overdue' && left.state !== 'overdue') return 1;
+    return left.dueOn.localeCompare(right.dueOn);
+  })[0];
+  return (
+    <button className={`utility-home-card pressable${period?.state === 'overdue' ? ' utility-home-card--overdue' : ''}`} type="button" onClick={() => navigate(ROUTES.utilities)}>
+      <IconTile icon={period?.state === 'overdue' ? ClockCountdown : period ? Receipt : CheckCircle} tone={period?.state === 'overdue' ? 'coral' : period ? 'blue' : 'green'} size="small" />
+      <span className="utility-home-card__copy">
+        <span className="caps-label">Платежи ЖКУ</span>
+        <Typography.Text asChild variant="body-strong"><span>{period?.title ?? 'Все платежи отмечены'}</span></Typography.Text>
+        {period ? <Typography.Text asChild variant="description" color="secondary"><span>{period.state === 'overdue' ? `Срок был ${formatUtilityDue(period.dueOn)}` : `До ${formatUtilityDue(period.dueOn)}`}</span></Typography.Text> : null}
+      </span>
+      <CaretRight className="icon icon--small icon--mute" aria-hidden />
+    </button>
   );
 }
 

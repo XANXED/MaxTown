@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BellSimple, CalendarCheck, CaretRight, ChatCircleText, FilePlus, FileText, Hammer, House, HouseLine, Warning } from '@phosphor-icons/react';
+import { BellSimple, CalendarCheck, CaretRight, ChatCircleText, FilePlus, FileText, Hammer, House, HouseLine, Receipt, Warning } from '@phosphor-icons/react';
 import { Typography } from '../components/platform-ui.tsx';
 import type { UserNotification } from '@maxtown/shared';
 import {
@@ -16,7 +16,7 @@ import {
 import { formatUpdatedAt } from '../data/labels.ts';
 import { groupByDay, markAllNotificationsRead, markAllRead, markNotificationRead, markRead, unreadCount, useNotifications } from '../data/notifications.ts';
 import { glueNumberSign, plural } from '../data/text.ts';
-import { eventRoute, repairRoute, requestRoute, ROUTES, type AppRoute } from '../routes.ts';
+import { eventRoute, repairRoute, requestRoute, ROUTES, utilityPaymentRoute, type AppRoute } from '../routes.ts';
 import type { Navigate } from './types.ts';
 
 const kindVisuals: Record<UserNotification['kind'], { icon: IconComponent; tone: TileTone }> = {
@@ -31,6 +31,7 @@ const kindVisuals: Record<UserNotification['kind'], { icon: IconComponent; tone:
   'apartment-repair': { icon: Hammer, tone: 'coral' },
   'management-question': { icon: ChatCircleText, tone: 'blue' },
   'management-answer': { icon: ChatCircleText, tone: 'blue' },
+  'utility-payment': { icon: Receipt, tone: 'blue' },
 };
 
 /** Непрочитанные изменения в Заявках и Запросах на вступление. */
@@ -66,6 +67,12 @@ export function NotificationsScreen({ navigate, openCommunityPoll, openApartment
     }
     if ((item.kind === 'management-question' || item.kind === 'management-answer') && item.houseId && item.managementQuestionId) {
       openManagementQuestion?.(item.houseId, item.managementQuestionId);
+      return;
+    }
+    if (item.kind === 'utility-payment' && item.houseId && item.utilityPaymentPeriodId) {
+      const target = utilityPaymentRoute(item.utilityPaymentPeriodId);
+      if (openHouseRoute) openHouseRoute(item.houseId, target);
+      else navigate(target);
       return;
     }
     const target = item.requestId ? requestRoute(item.requestId) : item.eventId ? eventRoute(item.eventId) : ROUTES.house;

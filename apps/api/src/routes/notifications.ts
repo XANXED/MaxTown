@@ -14,6 +14,7 @@ type NotificationRow = {
   accident_id: string | null;
   apartment_repair_id: string | null;
   management_question_id: string | null;
+  utility_payment_period_id: string | null;
   title: string | null;
   body: string | null;
   created_at: Date;
@@ -37,6 +38,7 @@ function toNotification(row: NotificationRow): UserNotification {
     ...(row.accident_id ? { eventId: row.accident_id } : {}),
     ...(row.apartment_repair_id ? { repairId: row.apartment_repair_id } : {}),
     ...(row.management_question_id ? { managementQuestionId: row.management_question_id } : {}),
+    ...(row.utility_payment_period_id ? { utilityPaymentPeriodId: row.utility_payment_period_id } : {}),
   };
 }
 
@@ -49,13 +51,17 @@ export function registerNotificationRoutes(app: FastifyInstance, pool: Pool): vo
               notification.poll_id, poll.question, notification.request_id, notification.accident_id,
               notification.apartment_repair_id,
               notification.management_question_id,
+              notification.utility_payment_period_id,
               notification.title, notification.body, notification.created_at, notification.read_at
          FROM in_app_notifications notification
          JOIN houses house ON house.id = notification.house_id
          LEFT JOIN polls poll ON poll.id = notification.poll_id AND poll.house_id = notification.house_id
+         LEFT JOIN utility_payment_periods utility_period
+           ON utility_period.id = notification.utility_payment_period_id AND utility_period.house_id = notification.house_id
         WHERE notification.resident_id = $1
           AND EXISTS (SELECT 1 FROM memberships membership WHERE membership.resident_id = $1
-                       AND membership.house_id = notification.house_id AND membership.ended_at IS NULL)
+                       AND membership.house_id = notification.house_id AND membership.ended_at IS NULL
+                       AND (notification.kind <> 'utility-payment' OR membership.apartment_id = utility_period.apartment_id))
         ORDER BY notification.created_at DESC, notification.id DESC LIMIT 100`,
       [residentId],
     );

@@ -16,7 +16,7 @@ describe('filterServiceGroups', () => {
   });
 
   it('treats ё and е as the same letter', () => {
-    expect(titles('счетчики')).toEqual(['Передать показания']);
+    expect(titles('счетчики')).toEqual(['ЖКУ']);
   });
 
   it('requires every word and drops empty groups', () => {

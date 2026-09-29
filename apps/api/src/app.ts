@@ -25,6 +25,8 @@ import { registerRequestRoutes } from './routes/requests.ts';
 import { registerHouseEventRoutes } from './routes/house-events.ts';
 import { registerManagementQuestionRoutes } from './routes/management-questions.ts';
 import { startRequestMaintenance } from './requests/maintenance.ts';
+import { registerUtilityPaymentRoutes } from './routes/utility-payments.ts';
+import { startUtilityPaymentMaintenance } from './utility-payments/maintenance.ts';
 import { createDgisClient, type DgisClient } from './places/dgis.ts';
 import { createDataMosContactSource, type HouseContactSource } from './contacts/data-mos.ts';
 
@@ -101,10 +103,18 @@ export async function buildApp({ pool, env, staticAssets, contactSource, dgis, m
       { intervalMs: 15 * 60_000, setInterval: (callback, delay) => setInterval(callback, delay), clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) },
       (error) => app.log.error({ err: error }, 'Request maintenance failed'),
     );
+  const utilityPaymentMaintenance = env.NODE_ENV === 'test'
+    ? null
+    : startUtilityPaymentMaintenance(
+      pool,
+      { intervalMs: 15 * 60_000, setInterval: (callback, delay) => setInterval(callback, delay), clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) },
+      (error) => app.log.error({ err: error }, 'Utility payment maintenance failed'),
+    );
   app.addHook('onClose', async () => {
     await worker?.stop();
     await directMessageWorker?.stop();
     await requestMaintenance?.stop();
+    await utilityPaymentMaintenance?.stop();
     await pool.end();
   });
 
@@ -173,6 +183,7 @@ export async function buildApp({ pool, env, staticAssets, contactSource, dgis, m
   });
   registerNotificationRoutes(app, pool);
   registerRequestRoutes(app, pool);
+  registerUtilityPaymentRoutes(app, pool);
   registerManagementQuestionRoutes(app, pool);
   registerHouseEventRoutes(app, pool);
 

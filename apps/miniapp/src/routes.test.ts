@@ -13,11 +13,13 @@ import {
   matchNearestPlaces,
   matchPlaceEditor,
   matchRepair,
+  matchUtilityPayment,
   nearestPlacesRoute,
   placeEditRoute,
   parentRoute,
   requestRoute,
   repairRoute,
+  utilityPaymentRoute,
   routeFromHash,
   ROUTES,
   startRoute,
@@ -57,6 +59,14 @@ describe('miniapp routes', () => {
     expect(matchManagementQuestion(managementQuestionRoute('question-17'))).toEqual({ id: 'question-17' });
     expect(parentRoute(managementQuestionRoute('question-17'))).toBe(ROUTES.managementQuestions);
     expect(parentRoute(ROUTES.newManagementQuestion)).toBe(ROUTES.managementQuestions);
+  });
+
+  it('opens a utility payment and keeps the old Readings route compatible', () => {
+    expect(routeFromHash('#/utilities/payments/payment-17')).toBe('/utilities/payments/payment-17');
+    expect(matchUtilityPayment(utilityPaymentRoute('payment-17'))).toEqual({ id: 'payment-17' });
+    expect(parentRoute(utilityPaymentRoute('payment-17'))).toBe(ROUTES.utilities);
+    expect(routeFromHash('#/readings')).toBe(ROUTES.readings);
+    expect(parentRoute(ROUTES.readings)).toBe(ROUTES.utilities);
   });
 
   it('keeps the new request form a screen, not a card', () => {

@@ -16,6 +16,7 @@ import { hapticSuccess } from '../haptics.ts';
 import { ROUTES } from '../routes.ts';
 import { useMembership } from '../auth/membership.tsx';
 import type { Navigate } from './types.ts';
+import { UtilityTabs } from './UtilityPaymentsScreen.tsx';
 
 /** Холодная и горячая вода — один значок разного цвета, день и ночь — разные значки. */
 const meterVisuals: Record<Meter['kind'], { icon: IconComponent; tone: TileTone }> = {
@@ -45,7 +46,8 @@ export function ReadingsScreen({ navigate }: ReadingsScreenProps) {
   if (status === 'loading') {
     return (
       <main className="screen screen--inner inner-content" id="main-content" aria-busy="true">
-        <ScreenHeading>Передать показания</ScreenHeading>
+        <ScreenHeading description="Показания приборов учёта Квартиры">ЖКУ</ScreenHeading>
+        <UtilityTabs active="readings" navigate={navigate} />
         <SkeletonRows count={4} />
       </main>
     );
@@ -54,7 +56,8 @@ export function ReadingsScreen({ navigate }: ReadingsScreenProps) {
   if (status === 'error') {
     return (
       <main className="screen screen--inner inner-content" id="main-content">
-        <ScreenHeading>Передать показания</ScreenHeading>
+        <ScreenHeading description="Показания приборов учёта Квартиры">ЖКУ</ScreenHeading>
+        <UtilityTabs active="readings" navigate={navigate} />
         <ErrorState onRetry={retry} />
       </main>
     );
@@ -63,7 +66,8 @@ export function ReadingsScreen({ navigate }: ReadingsScreenProps) {
   if (!intake && membership) {
     return (
       <main className="screen screen--inner inner-content" id="main-content">
-        <ScreenHeading>Передать показания</ScreenHeading>
+        <ScreenHeading description="Показания приборов учёта Квартиры">ЖКУ</ScreenHeading>
+        <UtilityTabs active="readings" navigate={navigate} />
         <div className="list-card">
           <EmptyState
             icon={Drop}
@@ -79,7 +83,8 @@ export function ReadingsScreen({ navigate }: ReadingsScreenProps) {
   if (!intake) {
     return (
       <main className="screen screen--inner inner-content" id="main-content">
-        <ScreenHeading>Передать показания</ScreenHeading>
+        <ScreenHeading description="Показания приборов учёта Квартиры">ЖКУ</ScreenHeading>
+        <UtilityTabs active="readings" navigate={navigate} />
         <div className="list-card">
           <EmptyState
             icon={Drop}
@@ -164,7 +169,8 @@ function ReadingsForm({ intake, navigate }: { intake: ReadingsWindow } & Reading
     <main className="screen screen--inner screen--with-panel" id="main-content">
       <form className="request-form" onSubmit={submit} noValidate>
         <div className="inner-content stagger">
-          <ScreenHeading description={`${intake.apartment}. Принимаем ${period}`}>Передать показания</ScreenHeading>
+          <ScreenHeading description={`${intake.apartment}. Принимаем ${period}`}>ЖКУ</ScreenHeading>
+          <UtilityTabs active="readings" navigate={navigate} />
 
           {state !== 'open' ? (
             <aside className="outcome">

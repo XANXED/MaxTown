@@ -34,7 +34,8 @@ const photoParams = {
   type: 'object', required: ['houseId', 'requestId', 'photoId'], properties: { houseId: uuid, requestId: uuid, photoId: uuid },
 } as const;
 const actions: RequestAction[] = ['take', 'schedule-visit', 'complete', 'reject', 'cancel', 'confirm', 'not-fixed'];
-const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const BINARY_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const BINARY_BODY_MAX_BYTES = 5_242_880;
 
 async function contextFor(pool: Pool, request: FastifyRequest<{ Params: HouseParams }>, reply: FastifyReply): Promise<RequestContext | null> {
   const resident = request.authSession!.resident;
@@ -65,7 +66,9 @@ export function registerRequestRoutes(app: FastifyInstance, pool: Pool): void {
   const authenticated = requireAuthentication(pool);
 
   // Фото приходят телом запроса, по одному: так не нужен multipart.
-  app.addContentTypeParser(PHOTO_TYPES, { parseAs: 'buffer', bodyLimit: PHOTO_MAX_BYTES }, (_request, body, done) => done(null, body));
+  // Один бинарный parser обслуживает фото и Чеки оплаты. Лимит конкретного
+  // маршрута остаётся строже: у фото 1,5 МБ, у Чека оплаты 5 МБ.
+  app.addContentTypeParser(BINARY_TYPES, { parseAs: 'buffer', bodyLimit: BINARY_BODY_MAX_BYTES }, (_request, body, done) => done(null, body));
 
   app.get<{ Params: HouseParams }>('/api/houses/:houseId/requests', {
     preHandler: authenticated, schema: { params: houseParams },

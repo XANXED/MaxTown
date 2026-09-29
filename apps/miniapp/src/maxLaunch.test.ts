@@ -6,6 +6,7 @@ import {
   launchManagementQuestion,
   launchPoll,
   launchRepair,
+  launchUtilityPayment,
   launchStartParam,
   maxNavigationHash,
   waitForMaxInitData,
@@ -105,6 +106,13 @@ describe('запуск внутри MAX', () => {
     const questionId = 'a1b2c3d4-0000-4000-8000-000000000001';
     vi.stubGlobal('window', { WebApp: { initDataUnsafe: { start_param: `question_${houseId}_${questionId}` } }, location: { hash: '', search: '' } });
     expect(launchManagementQuestion()).toEqual({ houseId, questionId });
+  });
+
+  it('открывает Платёжный период из личного напоминания', () => {
+    const houseId = '3ce05158-0792-429c-9129-99c12e1e5366';
+    const periodId = 'a1b2c3d4-0000-4000-8000-000000000001';
+    vi.stubGlobal('window', { WebApp: { initDataUnsafe: { start_param: `payment_${houseId}_${periodId}` } }, location: { hash: '', search: '' } });
+    expect(launchUtilityPayment()).toEqual({ houseId, periodId });
   });
 
   it('выбирает текущие Опрос и Приглашение вместо start_param предыдущего запуска', () => {
