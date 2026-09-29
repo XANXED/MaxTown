@@ -3,7 +3,7 @@ import type { AssignedPlace, AssignedPlaceInput, AssignedPlaceKind, GeoPoint, Ho
 import { apiFetch } from '../auth/session.ts';
 import { demoMode, initialStatus, loadFixtures, type Loadable } from './loadable.ts';
 
-// Места рядом (CONTEXT.md, docs/adr/0003): Закреплённые места ведёт Староста,
+// Места рядом (CONTEXT.md, docs/adr/0008): Закреплённые места ведёт Администратор Дома,
 // Ближайшие API ищет в 2ГИС при каждом открытии. Здесь ничего из 2ГИС не
 // сохраняется — ни в памяти между экранами, ни в хранилище браузера.
 

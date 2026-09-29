@@ -12,11 +12,10 @@ import {
   type TileColor,
 } from '../components/ui.tsx';
 import { useHouseState } from '../data/houseState.ts';
-import { currentProfileUser } from '../vkUser.ts';
+import { currentProfileUser } from '../maxUser.ts';
 import { ROUTES } from '../routes.ts';
 import { membershipLine, useMembership } from '../auth/membership.tsx';
 import type { Navigate, Notify } from './types.ts';
-import { houseRoleLabel, useCurrentHouse } from '../houseSession.ts';
 
 type ProfileScreenProps = {
   navigate: Navigate;
@@ -24,9 +23,8 @@ type ProfileScreenProps = {
 };
 
 export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
-  const access = useCurrentHouse();
   const user = currentProfileUser();
-  const platform = new URLSearchParams(window.__VK_LAUNCH_PARAMS__ ?? '').get('vk_platform');
+  const platform = window.WebApp?.initData ? window.WebApp.platform : null;
   const soon = (title: string) => () => notify(`«${title}» появится позже`);
   const { status: houseStatus, data: house, retry: retryHouse } = useHouseState();
   const membership = useMembership();
@@ -53,7 +51,7 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
           </Typography.Text>
           <Typography.Text asChild variant="description" color="secondary">
             <p>
-              {user ? 'Вход через VK' : 'Откройте мини-приложение MaxTown в VK — имя и фото появятся здесь'}
+              {user ? 'Вход через MAX' : 'Откройте мини-приложение MaxTown в MAX — имя и фото появятся здесь'}
             </p>
           </Typography.Text>
         </section>
@@ -89,7 +87,7 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
               icon={House}
               color="green"
               title={house.address}
-              description={access ? houseRoleLabel(access) : `Квартира ${house.apartment}. Вы Жилец`}
+              description={membership ? membershipLine(membership) : `Квартира ${house.apartment}. Вы Жилец`}
               onOpen={() => navigate(ROUTES.house)}
             />
           ) : (
@@ -140,7 +138,7 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
         </ProfileGroup>
 
         <Typography.Text asChild variant="description" color="tertiary">
-          <p className="services-note">{platform ? `MaxTown · VK, ${platform}` : 'MaxTown · открыт в браузере'}</p>
+          <p className="services-note">{platform ? `MaxTown · MAX, ${platform}` : 'MaxTown · открыт в браузере'}</p>
         </Typography.Text>
       </main>
       <BottomNavigation active={ROUTES.profile} navigate={navigate} />

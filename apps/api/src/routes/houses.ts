@@ -19,7 +19,7 @@ const asRegistration = (row: Record<string, unknown>): HouseRegistration => ({
   ...(row.gar_house_guid ? { garHouseGuid: String(row.gar_house_guid) } : {}),
   headman: {
     name: String(row.display_name), apartment: String(row.apartment_number),
-    ...(row.username ? { vkUsername: String(row.username) } : {}),
+    ...(row.username ? { username: String(row.username) } : {}),
     ...(row.phone ? { phone: String(row.phone) } : {}),
   },
   submittedAt: new Date(String(row.submitted_at)).toISOString(), status: row.status as HouseRegistration['status'],
@@ -92,7 +92,9 @@ export function registerHouseRoutes(app: FastifyInstance, pool: Pool): void {
     const { houseId } = request.params;
     const { apartmentId } = request.body;
     const access = await findHouseAccess(pool, request.authSession!.resident.id, houseId);
-    if (!access || access.apartmentId !== apartmentId || !['headman', 'resident'].includes(access.role)) return reply.code(403).send({ error: 'forbidden' });
+    // Администратор Дома приглашает в любую Квартиру, Жилец — только в свою.
+    const allowed = access && (access.role === 'admin' || (access.role === 'resident' && access.apartmentId === apartmentId));
+    if (!allowed) return reply.code(403).send({ error: 'forbidden' });
     const code = randomBytes(16).toString('base64url');
     await inTransaction(pool, async (client) => {
       const apartment = await client.query('SELECT id FROM apartments WHERE id = $1 AND house_id = $2 FOR UPDATE', [apartmentId, houseId]);
@@ -127,8 +129,14 @@ export function registerHouseRoutes(app: FastifyInstance, pool: Pool): void {
         if (!invite || invite.revoked_at || (invite.expires_at && invite.expires_at <= new Date())) return null;
         const current = await client.query<{ id: string; apartment_id: string | null }>('SELECT id, apartment_id FROM memberships WHERE resident_id = $1 AND house_id = $2 AND ended_at IS NULL', [request.authSession!.resident.id, invite.house_id]);
         if (current.rowCount) {
-          if (current.rows[0]!.apartment_id !== invite.apartment_id) return null;
-          return { id: current.rows[0]!.id, houseId: invite.house_id };
+          const existing = current.rows[0]!;
+          // Участник Домового чата уже в Доме — Приглашение привязывает его к Квартире.
+          if (existing.apartment_id === null) {
+            await client.query('UPDATE memberships SET apartment_id = $2 WHERE id = $1', [existing.id, invite.apartment_id]);
+          } else if (existing.apartment_id !== invite.apartment_id) {
+            return null;
+          }
+          return { id: existing.id, houseId: invite.house_id };
         }
         const inserted = await client.query<{ id: string }>(
           `INSERT INTO memberships (resident_id, house_id, apartment_id, role) VALUES ($1, $2, $3, 'resident') RETURNING id`,
@@ -196,7 +204,7 @@ export function registerHouseRoutes(app: FastifyInstance, pool: Pool): void {
       await client.query('SELECT id FROM apartments WHERE id = $1 FOR UPDATE', [joinRequest.apartment_id]);
       const memberships = await client.query<{ id: string; role: string; resident_id: string }>(
         `SELECT id, role, resident_id FROM memberships WHERE house_id = $1 AND ended_at IS NULL
-         AND (((apartment_id = $2) AND role IN ('resident', 'headman')) OR (role = 'headman' AND NOT EXISTS (
+         AND (((apartment_id = $2) AND role IN ('resident', 'admin')) OR (role = 'admin' AND NOT EXISTS (
            SELECT 1 FROM memberships resident_member WHERE resident_member.apartment_id = $2 AND resident_member.ended_at IS NULL
          ))) FOR UPDATE`, [joinRequest.house_id, joinRequest.apartment_id],
       );

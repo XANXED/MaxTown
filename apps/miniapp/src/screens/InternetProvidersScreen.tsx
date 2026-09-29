@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowSquareOut, Phone, Star, WifiHigh } from '@phosphor-icons/react';
 import type { HouseInternetProvider, HouseRole } from '@maxtown/shared';
-import { useMembership } from '../auth/membership.tsx';
+import { canManageHouse, useMembership } from '../auth/membership.tsx';
 import { Button, Typography } from '../components/platform-ui.tsx';
 import { ErrorState, InlineEmpty, ScreenHeading, SkeletonRows } from '../components/ui.tsx';
 import { phoneHref } from '../data/contacts.ts';
@@ -44,7 +44,7 @@ export function InternetProvidersScreen({ houseId, role, navigate, notify }: Pro
   const mode = demoMode();
   const demoData = mode === 'filled' || (mode === 'error' && attempt > 0);
   const resolvedHouseId = houseId ?? (mode ? 'demo-house' : null);
-  const canEdit = role === 'headman' || demoData;
+  const canEdit = canManageHouse(role) || demoData;
   const canRate = Boolean(membership?.apartmentId) || demoData;
 
   useEffect(() => {
@@ -99,7 +99,7 @@ export function InternetProvidersScreen({ houseId, role, navigate, notify }: Pro
 
         <div className="internet-disclaimer">
           <Typography.Text asChild variant="description" color="secondary">
-            <p>{canEdit ? 'Сейчас Поставщиков и Тарифы добавляет Староста. Структура данных уже готова к будущей автоматической выгрузке.' : 'Поставщиков и Тарифы для Дома добавляет Староста. Автоматическая выгрузка будет подключена позже.'}</p>
+            <p>{canEdit ? 'Сейчас Поставщиков и Тарифы добавляет Администратор Дома. Структура данных уже готова к будущей автоматической выгрузке.' : 'Поставщиков и Тарифы для Дома добавляет Администратор Дома. Автоматическая выгрузка будет подключена позже.'}</p>
           </Typography.Text>
         </div>
 
@@ -122,7 +122,7 @@ export function InternetProvidersScreen({ houseId, role, navigate, notify }: Pro
               icon={WifiHigh}
               tone="neutral"
               title="Поставщики пока не подтверждены"
-              description={canEdit ? 'Добавьте сведения из прайс-листа или личного кабинета Поставщика' : 'Староста или Ответственный добавит проверенные Тарифы'}
+              description={canEdit ? 'Добавьте сведения из прайс-листа или личного кабинета Поставщика' : 'Администратор Дома добавит проверенные Тарифы'}
               actionLabel={canEdit ? 'Добавить' : undefined}
               onAction={canEdit ? () => navigate(ROUTES.newInternetProvider) : undefined}
             />
@@ -148,7 +148,7 @@ export function InternetProvidersScreen({ houseId, role, navigate, notify }: Pro
 
                 <Typography.Text asChild variant="description" color="secondary">
                   <span className="internet-provider__provenance">
-                    {internetProviderSourceLabels[provider.source]}{provider.manualOverride && provider.source !== 'manual' ? ' · правка Старосты' : ''}
+                    {internetProviderSourceLabels[provider.source]}{provider.manualOverride && provider.source !== 'manual' ? ' · правка Администратора Дома' : ''}
                   </span>
                 </Typography.Text>
 

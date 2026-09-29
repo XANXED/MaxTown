@@ -4,7 +4,7 @@ import {
   resolveHouseAddressFromTitle,
   suggestHouseAddresses,
   titleMatchesAddress,
-} from './address.ts';
+} from './dadata.ts';
 
 function house(value: string, guid: string) {
   return {
@@ -29,6 +29,7 @@ describe('адрес Дома через DaData', () => {
       value: 'г Москва, ул Лесная, д 12',
       locality: 'г Москва',
       garHouseGuid: 'guid-12',
+      point: null,
     });
     expect(fetcher).toHaveBeenCalledWith(
       'https://suggestions.dadata.ru/suggestions/api/4_1/rs/suggest/address',
@@ -74,6 +75,13 @@ describe('адрес Дома через DaData', () => {
     ).toBe(false);
   });
 
+  it('узнаёт корпус, написанный слитно: «14к1» и «14 к1»', () => {
+    const address = { value: 'г Санкт-Петербург, Комендантский пр-кт, д 14 к 1', locality: 'г Санкт-Петербург', garHouseGuid: 'gar-14-1' };
+    expect(titleMatchesAddress('Санкт-Петербург, Комендантский проспект, 14к1', address)).toBe(true);
+    expect(titleMatchesAddress('Санкт-Петербург, Комендантский 14 к1', address)).toBe(true);
+    expect(titleMatchesAddress('Санкт-Петербург, Комендантский 14', address)).toBe(false);
+  });
+
   it('не предлагает улицы без конкретного дома', async () => {
     const fetcher = vi.fn<typeof fetch>(async () =>
       Response.json({
@@ -84,6 +92,17 @@ describe('адрес Дома через DaData', () => {
     );
 
     await expect(suggestHouseAddresses('key', 'Лесная', fetcher)).resolves.toEqual([]);
+  });
+
+  it('берёт точку Дома из geo_lat и geo_lon', async () => {
+    const withPoint = house('г Москва, ул Лесная, д 12', 'guid-12');
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({ suggestions: [{ ...withPoint, data: { ...withPoint.data, geo_lat: '55.7887', geo_lon: '37.5836' } }] }),
+    );
+
+    await expect(findHouseAddressByGuid('key', 'guid-12', fetcher)).resolves.toEqual(
+      expect.objectContaining({ point: { lat: 55.7887, lon: 37.5836 } }),
+    );
   });
 
   it('перепроверяет выбранный GUID через findById', async () => {

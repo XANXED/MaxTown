@@ -7,12 +7,10 @@ import { registerShutdownHandlers, startServer, type StartupDependencies } from 
 const validProductionEnv = {
   NODE_ENV: 'production',
   DATABASE_URL: 'postgres://maxtown:test@localhost/maxtown',
-  VK_APP_ID: '12345678',
-  VK_APP_SECRET: 'vk-test-app-secret',
-  VK_GROUP_ID: '123',
-  VK_GROUP_TOKEN: 'test-group-token',
-  VK_CALLBACK_SECRET: 'test-callback-secret',
-  VK_CALLBACK_CONFIRMATION_CODE: 'test-confirmation-code',
+  BOT_TOKEN: 'test-bot-token',
+  MAX_WEBHOOK_SECRET: 'test-webhook-secret',
+  DADATA_API_KEY: 'test-dadata-key',
+  MAX_CHAT_NOTIFICATIONS: 'off',
   POLL_VOTER_NULLIFIER_SECRET: 'test-only-poll-voter-nullifier-secret-32-bytes-minimum',
   MODERATOR_USERNAME: 'moderator@example.org',
   MODERATOR_PASSWORD_HASH: `$2a$04$${'A'.repeat(53)}`,
@@ -70,7 +68,9 @@ describe('API startup', () => {
   it('rejects missing production secrets before creating the pool', async () => {
     const { dependencies } = createDependencies();
 
-    await expect(startServer({ env: { ...validProductionEnv, VK_APP_SECRET: '' }, dependencies })).rejects.toThrow(/VK_APP_SECRET/);
+    await expect(startServer({ env: { ...validProductionEnv, BOT_TOKEN: '' }, dependencies })).rejects.toThrow(/BOT_TOKEN/);
+    await expect(startServer({ env: { ...validProductionEnv, MAX_WEBHOOK_SECRET: 'bad secret' }, dependencies })).rejects.toThrow(/MAX_WEBHOOK_SECRET/);
+    await expect(startServer({ env: { ...validProductionEnv, DADATA_API_KEY: '' }, dependencies })).rejects.toThrow(/DADATA_API_KEY/);
 
     expect(dependencies.createPool).not.toHaveBeenCalled();
     expect(dependencies.listen).not.toHaveBeenCalled();

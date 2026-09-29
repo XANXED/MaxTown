@@ -28,3 +28,13 @@ export async function findHouseAccess(
     role: row.role, residentId: row.resident_id,
   } : null;
 }
+
+/** Администратор Дома ведёт Контакты, Места и Провайдеров (docs/adr/0007). */
+export function canManageHouse(access: Pick<HouseAccess, 'role'> | null): boolean {
+  return access?.role === 'admin';
+}
+
+/** Режим ремонта и услуги дома ведут Администратор Дома и УК. */
+export function canManageServices(access: Pick<HouseAccess, 'role'> | null): boolean {
+  return access?.role === 'admin' || access?.role === 'management-company';
+}

@@ -1,11 +1,14 @@
 import type { InviteCheck } from '@maxtown/shared';
 import { apiFetch } from '../auth/session.ts';
+import { launchStartParam } from '../maxLaunch.ts';
 import { demoMode, loadFixtures } from './loadable.ts';
 
 // Стать Жильцом можно только по Приглашению — QR-коду или ссылке на
 // конкретную Квартиру.
 //
-// Приглашение — ссылка мессенджера на мини-апп с параметром запуска inv_<код>.
+// Приглашение — ссылка MAX на мини-апп: https://max.ru/<бот>?startapp=inv_<код>,
+// код — 22 символа base64url (docs/research/2026-09-house-data-and-max-platform.md, 2.5).
+// В payload MAX пропускает только латиницу, цифры, «_» и «-», до 512 символов.
 
 const INVITE_PREFIX = 'inv_';
 const codePattern = /^[A-Za-z0-9_-]{4,64}$/;
@@ -22,15 +25,15 @@ export function parseInviteCode(text: string): string | null {
     } catch {
       return null;
     }
-    if (!['vk.com', 'm.vk.com'].includes(url.hostname) || !/^\/app\d+$/.test(url.pathname)) return null;
-    return inviteFromStartParam(url.searchParams.get('ref') ?? url.searchParams.get('vk_ref') ?? undefined);
+    if (url.hostname !== 'max.ru') return null;
+    return inviteFromStartParam(url.searchParams.get('startapp') ?? undefined);
   }
 
   const code = trimmed.startsWith(INVITE_PREFIX) ? trimmed.slice(INVITE_PREFIX.length) : trimmed;
   return codePattern.test(code) ? code : null;
 }
 
-/** Код приглашения из параметра запуска VK, подтверждённого подписью при авторизации. */
+/** Приглашение из параметра запуска MAX (`start_param`). */
 export function inviteFromStartParam(startParam: string | undefined): string | null {
   if (!startParam?.startsWith(INVITE_PREFIX)) return null;
   const code = startParam.slice(INVITE_PREFIX.length);
@@ -39,8 +42,7 @@ export function inviteFromStartParam(startParam: string | undefined): string | n
 
 /** Приглашение, с которым открыли мини-апп, если оно было в ссылке. */
 export function launchInviteCode(): string | null {
-  const startParam = new URLSearchParams(window.__VK_LAUNCH_PARAMS__ ?? '').get('vk_ref') ?? undefined;
-  return inviteFromStartParam(typeof startParam === 'string' ? startParam : undefined);
+  return inviteFromStartParam(launchStartParam());
 }
 
 /** Результат проверки на экране: к ответам сервера добавляется «вступить пока нельзя». */

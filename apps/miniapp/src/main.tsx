@@ -1,44 +1,42 @@
-import { StrictMode, useEffect } from 'react';
+import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import bridge from '@vkontakte/vk-bridge';
-import { useAdaptivity, useAppearance, useInsets } from '@vkontakte/vk-bridge-react';
-import {
-  AdaptivityProvider,
-  AppRoot,
-  ConfigProvider,
-  getViewHeightByViewportHeight,
-  getViewWidthByViewportWidth,
-  ViewWidth,
-} from '@vkontakte/vkui';
+import { AdaptivityProvider, AppRoot, ConfigProvider } from '@vkontakte/vkui';
 import '@vkontakte/vkui/dist/vkui.css';
 import '@design/tokens.css';
 import './components/platform-ui.css';
 import { App } from './App.tsx';
-import { initializeVkPlatform, isStandaloneBrowser, type VkBridgeClient } from './platform/vk.ts';
+import { currentMaxInitData } from './maxLaunch.ts';
+
+// Мини-апп MAX. Интерфейс — на VKUI (MAX сделан VK и выглядит так же), мост —
+// window.WebApp из скрипта MAX в index.html. Отступы вырезов экрана VKUI берёт
+// из CSS env(safe-area-inset-*), тему — из системной.
+
+type ColorScheme = 'light' | 'dark';
+
+const darkQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+function useSystemColorScheme(): ColorScheme {
+  const [scheme, setScheme] = useState<ColorScheme>(darkQuery?.matches ? 'dark' : 'light');
+  useEffect(() => {
+    if (!darkQuery) return;
+    const update = () => setScheme(darkQuery.matches ? 'dark' : 'light');
+    darkQuery.addEventListener('change', update);
+    return () => darkQuery.removeEventListener('change', update);
+  }, []);
+  return scheme;
+}
 
 function PlatformRoot() {
-  const appearance = useAppearance();
-  const insets = useInsets();
-  const { type, viewportWidth, viewportHeight } = useAdaptivity();
+  const colorScheme = useSystemColorScheme();
 
   useEffect(() => {
-    if (appearance) document.documentElement.dataset.colorScheme = appearance;
-    else delete document.documentElement.dataset.colorScheme;
-  }, [appearance]);
-
-  const adaptivity = type === 'adaptive'
-    ? {
-      viewWidth: getViewWidthByViewportWidth(viewportWidth),
-      viewHeight: getViewHeightByViewportHeight(viewportHeight),
-    }
-    : type === 'force_mobile' || type === 'force_mobile_compact'
-      ? { viewWidth: ViewWidth.MOBILE, sizeX: type === 'force_mobile_compact' ? 'compact' as const : 'regular' as const }
-      : {};
+    document.documentElement.dataset.colorScheme = colorScheme;
+  }, [colorScheme]);
 
   return (
-    <ConfigProvider colorScheme={appearance ?? undefined} isWebView={bridge.isWebView()}>
-      <AdaptivityProvider {...adaptivity}>
-        <AppRoot mode="full" safeAreaInsets={insets ?? undefined}>
+    <ConfigProvider colorScheme={colorScheme} isWebView={Boolean(currentMaxInitData())}>
+      <AdaptivityProvider>
+        <AppRoot mode="full">
           <App />
         </AppRoot>
       </AdaptivityProvider>
@@ -48,33 +46,9 @@ function PlatformRoot() {
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('#root не найден в index.html');
-const root = createRoot(rootElement);
 
-async function startMiniApp(): Promise<void> {
-  const localPreview = import.meta.env.DEV && isStandaloneBrowser(bridge, window);
-  const initialized = await initializeVkPlatform(
-    bridge as unknown as VkBridgeClient,
-    window.location.search,
-    import.meta.env.DEV,
-    localPreview,
-  );
-  window.__VK_LAUNCH_PARAMS__ = initialized.launchParams;
-  if (localPreview) {
-    // Вне VK профиль не спросить: Bridge не ответит, и приложение не отрисуется.
-    root.render(<StrictMode><PlatformRoot /></StrictMode>);
-    return;
-  }
-  try {
-    const user = await bridge.send('VKWebAppGetUserInfo');
-    if (user && typeof user === 'object') window.__VK_USER_INFO__ = user as Window['__VK_USER_INFO__'];
-  } catch {
-    window.__VK_USER_INFO__ = undefined;
-  }
-
-  root.render(<StrictMode><PlatformRoot /></StrictMode>);
-}
-
-void startMiniApp().catch(() => {
-  window.__VK_LAUNCH_PARAMS__ = '';
-  root.render(<StrictMode><PlatformRoot /></StrictMode>);
-});
+createRoot(rootElement).render(
+  <StrictMode>
+    <PlatformRoot />
+  </StrictMode>,
+);

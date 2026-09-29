@@ -68,7 +68,7 @@ describe('decisions', () => {
   });
 
   it('asks for a reason the headman will understand', () => {
-    expect(rejectionError('')).toBe('Напишите причину: её увидит Староста');
+    expect(rejectionError('')).toBe('Напишите причину: её увидит заявитель');
     expect(rejectionError('нет')).toBe('Слишком коротко: объясните, что исправить');
     expect(rejectionError('Адреса нет в ГАР, пришлите выписку')).toBeNull();
   });

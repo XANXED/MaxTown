@@ -29,8 +29,8 @@ describe.skipIf(!databaseUrl)('Places API', () => {
   let foreignToken: string;
   let apartmentNumber = 0;
 
-  async function addMember(targetHouseId: string, key: string, role: 'resident' | 'headman'): Promise<string> {
-    const person = await pool.query<{ id: string }>('INSERT INTO residents (vk_user_id, display_name) VALUES ($1, $1) RETURNING id', [key]);
+  async function addMember(targetHouseId: string, key: string, role: 'resident' | 'admin'): Promise<string> {
+    const person = await pool.query<{ id: string }>('INSERT INTO residents (max_user_id, display_name) VALUES ($1, $1) RETURNING id', [key]);
     apartmentNumber += 1;
     const apartment = await pool.query<{ id: string }>('INSERT INTO apartments (house_id, number) VALUES ($1, $2) RETURNING id', [targetHouseId, String(apartmentNumber)]);
     await pool.query('INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, $4)', [targetHouseId, apartment.rows[0]!.id, person.rows[0]!.id, role]);
@@ -54,7 +54,7 @@ describe.skipIf(!databaseUrl)('Places API', () => {
     );
     houseId = houses.rows[0]!.id;
     residentToken = await addMember(houseId, 'places-resident', 'resident');
-    headmanToken = await addMember(houseId, 'places-headman', 'headman');
+    headmanToken = await addMember(houseId, 'places-headman', 'admin');
     foreignToken = await addMember(houses.rows[1]!.id, 'places-foreign', 'resident');
   });
 

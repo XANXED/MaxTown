@@ -44,36 +44,6 @@ export async function markAllNotificationsRead(): Promise<void> {
   await apiFetch('/api/notifications/read-all', { method: 'PATCH' });
 }
 
-export type VkMessagePermission = { status: 'unknown' | 'allowed' | 'denied' | 'opted_out'; groupId: number | null };
-
-export async function loadVkMessagePermission(): Promise<VkMessagePermission> {
-  const response = await apiFetch('/api/notifications/permission');
-  if (!response.ok) throw new Error('Не удалось загрузить настройки уведомлений');
-  return response.json() as Promise<VkMessagePermission>;
-}
-
-export async function setVkMessagePermission(allowed: boolean): Promise<void> {
-  const response = await apiFetch('/api/notifications/permission', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ allowed }),
-  });
-  if (!response.ok) throw new Error('Не удалось сохранить выбор уведомлений VK');
-}
-
-export async function saveVkMessagePermission(): Promise<void> {
-  return setVkMessagePermission(true);
-}
-
-export async function requestVkMessagesPermission(
-  bridge: { send: (method: 'VKWebAppAllowMessagesFromGroup', params: { group_id: number }) => Promise<unknown> },
-  groupId: number,
-  persist: () => Promise<void> = saveVkMessagePermission,
-): Promise<boolean> {
-  const result = await bridge.send('VKWebAppAllowMessagesFromGroup', { group_id: groupId });
-  if (!result || typeof result !== 'object' || !('result' in result) || result.result !== true) return false;
-  await persist();
-  return true;
-}
-
 /** Уведомления человека, новые сверху. Без API — пусто; примеры для dev — см. loadable.ts. */
 export function useNotifications(): Loadable<UserNotification[]> {
   const demo = useLoadable<UserNotification[]>([], ({ sampleNotifications }) => sampleNotifications());

@@ -19,7 +19,7 @@ describe.skipIf(!databaseUrl)('house community and polls', () => {
   let responsibleToken: string;
 
   async function createPerson(key: string): Promise<{ id: string; token: string }> {
-    const result = await pool.query<{ id: string }>("INSERT INTO residents (max_user_id, vk_user_id, display_name) VALUES ($1, $1, $1) RETURNING id", [key]);
+    const result = await pool.query<{ id: string }>("INSERT INTO residents (max_user_id, display_name) VALUES ($1, $1) RETURNING id", [key]);
     const session = await createSession(pool, result.rows[0]!.id);
     return { id: result.rows[0]!.id, token: session.token };
   }
@@ -38,13 +38,13 @@ describe.skipIf(!databaseUrl)('house community and polls', () => {
     await pool.query("INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'resident')", [houseId, apartment.rows[0]!.id, residentId]);
     const responsible = await createPerson('community-responsible');
     responsibleToken = responsible.token;
-    await pool.query("INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'responsible')", [houseId, apartment.rows[0]!.id, responsible.id]);
+    await pool.query("INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'management-company')", [houseId, apartment.rows[0]!.id, responsible.id]);
     const foreignHouse = await pool.query<{ id: string }>("INSERT INTO houses (address, locality) VALUES ('ул. Чужая, 5', 'Казань') RETURNING id");
     foreignHouseId = foreignHouse.rows[0]!.id;
     const foreignResident = await createPerson('community-foreign');
     foreignToken = foreignResident.token;
-    await pool.query("INSERT INTO memberships (house_id, resident_id, role) VALUES ($1, $2, 'concierge')", [foreignHouseId, foreignResident.id]);
-    app = await buildApp({ pool, env: { NODE_ENV: 'test', VK_GROUP_ID: '123', POLL_VOTER_NULLIFIER_SECRET: 'test-only-poll-voter-nullifier-secret-32-bytes-minimum' } });
+    await pool.query("INSERT INTO memberships (house_id, resident_id, role) VALUES ($1, $2, 'resident')", [foreignHouseId, foreignResident.id]);
+    app = await buildApp({ pool, env: { NODE_ENV: 'test', POLL_VOTER_NULLIFIER_SECRET: 'test-only-poll-voter-nullifier-secret-32-bytes-minimum' } });
   });
 
   afterEach(async () => { await app.close(); });
@@ -76,36 +76,29 @@ describe.skipIf(!databaseUrl)('house community and polls', () => {
     expect((await app.inject({ method: 'GET', url: `/api/houses/${houseId}/polls`, headers })).statusCode).toBe(403);
   });
 
-  it('stores VK message opt-in only for the authenticated resident', async () => {
+  it('announces each new poll once in the connected house chat and nowhere else', async () => {
     const headers = { authorization: `Bearer ${residentToken}` };
-    const current = await app.inject({ method: 'GET', url: '/api/notifications/permission', headers });
-    expect(current.json()).toEqual({ status: 'unknown', groupId: 123 });
-    const saved = await app.inject({ method: 'POST', url: '/api/notifications/permission', headers, payload: { allowed: true } });
-    expect(saved.statusCode).toBe(200);
-    const row = await pool.query<{ status: string; consented_at: Date }>('SELECT status, consented_at FROM resident_message_permissions WHERE resident_id = $1', [residentId]);
-    expect(row.rows[0]?.status).toBe('allowed');
-    expect(row.rows[0]?.consented_at).toBeInstanceOf(Date);
+    await pool.query('INSERT INTO house_chats (chat_id, house_id) VALUES ($1, $2)', [-7001, houseId]);
     const created = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers, payload: { question: 'Первый вопрос?', options: [{ label: 'Да' }, { label: 'Нет' }] } });
     expect(created.statusCode, created.body).toBe(201);
-    expect((await pool.query("SELECT id FROM vk_notification_outbox WHERE house_id = $1 AND status = 'pending'", [houseId])).rows).toHaveLength(1);
-    await app.inject({ method: 'POST', url: '/api/notifications/permission', headers, payload: { allowed: false } });
-    expect((await app.inject({ method: 'GET', url: '/api/notifications/permission', headers })).json()).toEqual({ status: 'opted_out', groupId: 123 });
-    expect((await pool.query("SELECT id FROM vk_notification_outbox WHERE house_id = $1 AND status = 'denied'", [houseId])).rows).toHaveLength(1);
+    expect((await pool.query("SELECT id FROM house_chat_outbox WHERE house_id = $1 AND status = 'pending'", [houseId])).rows).toHaveLength(1);
     await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers, payload: { question: 'Нужно ли созвониться?', options: [{ label: 'Да' }, { label: 'Нет' }] } });
-    expect((await pool.query('SELECT id FROM vk_notification_outbox WHERE house_id = $1', [houseId])).rows).toHaveLength(1);
+    expect((await pool.query('SELECT id FROM house_chat_outbox WHERE house_id = $1', [houseId])).rows).toHaveLength(2);
     expect((await pool.query('SELECT id FROM in_app_notifications WHERE house_id = $1', [houseId])).rows).toHaveLength(4);
+
+    // Дом без Домового чата (заведён Модератором) — объявлять некуда.
+    await pool.query('UPDATE house_chats SET disconnected_at = now() WHERE house_id = $1', [houseId]);
+    await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers, payload: { question: 'Третий вопрос?', options: [{ label: 'Да' }, { label: 'Нет' }] } });
+    expect((await pool.query('SELECT id FROM house_chat_outbox WHERE house_id = $1', [houseId])).rows).toHaveLength(2);
   });
 
   it('allows every active member to create informal polls and rejects invalid options', async () => {
     const residentHeaders = { authorization: `Bearer ${residentToken}` };
     const responsibleHeaders = { authorization: `Bearer ${responsibleToken}` };
     const payload = { question: 'Какой день удобнее?', options: [{ label: 'Суббота' }, { label: 'Воскресенье' }] };
-    await pool.query("INSERT INTO resident_message_permissions (resident_id, status, consented_at) VALUES ($1, 'allowed', now())", [residentId]);
     expect((await app.inject({ method: 'POST', url: `/api/houses/${houseId}/polls`, headers: residentHeaders, payload })).statusCode).toBe(201);
     const inApp = await pool.query<{ resident_id: string }>('SELECT resident_id FROM in_app_notifications WHERE house_id = $1', [houseId]);
-    expect(inApp.rows.map(({ resident_id }) => resident_id).sort()).toEqual([residentId, (await pool.query<{ id: string }>('SELECT id FROM residents WHERE vk_user_id = $1', ['community-responsible'])).rows[0]!.id].sort());
-    const outbox = await pool.query<{ membership_id: string; resident_id: string; vk_user_id: string }>('SELECT membership_id, resident_id, vk_user_id FROM vk_notification_outbox WHERE house_id = $1', [houseId]);
-    expect(outbox.rows).toMatchObject([{ resident_id: residentId, vk_user_id: 'community-resident' }]);
+    expect(inApp.rows.map(({ resident_id }) => resident_id).sort()).toEqual([residentId, (await pool.query<{ id: string }>('SELECT id FROM residents WHERE max_user_id = $1', ['community-responsible'])).rows[0]!.id].sort());
     const feed = await app.inject({ method: 'GET', url: '/api/notifications', headers: residentHeaders });
     expect(feed.json()).toMatchObject({ notifications: [{ kind: 'community-poll', houseId, read: false }] });
     const notificationId = feed.json<{ notifications: Array<{ id: string }> }>().notifications[0]!.id;

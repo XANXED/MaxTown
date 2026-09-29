@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearSession, setSession } from './auth/session.ts';
 import { confirmSetupAddress, launchSetupChatId, suggestSetupAddresses } from './houseSetup.ts';
 
 const setup = { chatId: -42, chatTitle: 'Лесная, 12' };
@@ -9,7 +10,12 @@ const suggestion = {
 };
 
 describe('настройка адреса Домового чата', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  // Вне dev-демо: запросы уходят на сервер, а не отдают примеры.
+  beforeEach(() => { setSession('Q'.repeat(43)); });
+  afterEach(() => {
+    clearSession();
+    vi.unstubAllGlobals();
+  });
 
   it('открывает панель настройки по WebAppStartParam из URL MAX', () => {
     vi.stubGlobal('window', {
@@ -20,33 +26,33 @@ describe('настройка адреса Домового чата', () => {
     expect(launchSetupChatId()).toBe(-79477452194309);
   });
 
-  it('ищет адрес только с подписанным initData и идентификатором чата', async () => {
+  it('ищет адрес по сессии: в запросе только чат и строка поиска', async () => {
     const fetcher = vi.fn<typeof fetch>(async () => Response.json({ suggestions: [suggestion] }));
 
-    await expect(suggestSetupAddresses(setup, 'Лесная 12', fetcher, 'signed')).resolves.toEqual([suggestion]);
+    await expect(suggestSetupAddresses(setup, 'Лесная 12', fetcher)).resolves.toEqual([suggestion]);
     expect(fetcher).toHaveBeenCalledWith('/api/house-setup/suggestions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ initData: 'signed', chatId: -42, query: 'Лесная 12' }),
+      body: JSON.stringify({ chatId: -42, query: 'Лесная 12' }),
       signal: expect.any(AbortSignal),
     });
   });
 
   it('подтверждает GUID выбранного дома, а не произвольную подпись', async () => {
-    const access = {
-      houseId: 'max-chat:-42', houseLabel: suggestion.value, maxChatRole: 'administrator',
-      canManageHouse: true, apartment: null, roles: ['admin'],
-    };
-    const fetcher = vi.fn<typeof fetch>(async () =>
-      Response.json({ house: { houseId: 'max-chat:-42', houseLabel: suggestion.value }, access }),
-    );
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({ houseId: 'house-1' }));
 
-    await expect(confirmSetupAddress(setup, suggestion, fetcher, 'signed')).resolves.toEqual(access);
+    await expect(confirmSetupAddress(setup, suggestion, fetcher)).resolves.toBe('house-1');
     expect(fetcher).toHaveBeenCalledWith('/api/house-setup/confirm', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ initData: 'signed', chatId: -42, garHouseGuid: 'guid-12' }),
+      body: JSON.stringify({ chatId: -42, garHouseGuid: 'guid-12' }),
       signal: expect.any(AbortSignal),
     });
+  });
+
+  it('объясняет отказ сервера по-русски', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () => Response.json({ error: 'house_setup_forbidden' }, { status: 403 }));
+
+    await expect(suggestSetupAddresses(setup, 'Лесная 12', fetcher)).rejects.toThrow('Выбрать адрес может только администратор этого чата');
   });
 });

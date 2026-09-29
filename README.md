@@ -1,31 +1,36 @@
 # MaxTown
 
-VK-бот и мини-апп — помощник жильцов многоквартирного дома:
-состояние дома, заявки в управляющую компанию, полезные контакты и адреса.
-Проект хакатона «умный город / умный дом».
+Бот и мини-приложение MAX — помощник жильцов многоквартирного дома:
+состояние дома, заявки в управляющую компанию, полезные контакты и места рядом,
+Опросы соседей и режим ремонта. Проект хакатона «умный город / умный дом».
+
+## Как это устроено
+
+- Дом подключается из **Домового чата MAX**. Бота MaxTown добавляют в групповой
+  чат и выдают ему права администратора. Бот ищет точный адрес по названию чата
+  через DaData (ГАР). При одном совпадении Дом создаётся сам, иначе
+  администратор чата получает кнопку «Указать адрес».
+- **Роли** выводятся из чата и пересчитываются при каждом входе:
+  - человек, добавивший бота, и администраторы чата — **Администраторы Дома**;
+  - остальные участники — **Жильцы**;
+  - один аккаунт **УК** назначает Администратор командой `/set_uk @username`.
+- Мини-апп входит по подписанному `initData` MAX. Все данные Дома живут в API
+  на Postgres: Опросы, режим ремонта, услуги, Контакты, Места рядом,
+  интернет-Поставщики.
+- Публичный адрес — https://maxtown.ru: сервер Timeweb, Caddy и API. Решения — в
+  [docs/adr/0010](docs/adr/0010-max-only-platform-api-on-postgres.md) и
+  [0011](docs/adr/0011-production-on-timeweb-vps.md). Cloudflare Worker
+  (`apps/edge`) — запасной адрес.
+
+Если бот получил права до настройки webhook, снимите и снова выдайте их или
+отправьте в чате `/connect`: бот ещё раз проверит свои права и заново определит адрес.
 
 ## Запуск
 
-Нужен Node 24 или новее.
+Нужен Node 24 или новее и PostgreSQL 13+.
 
 ```bash
 npm install
-cp .env.example .env     # заполните параметры VK и базы
-cp .env.example .env     # впишите BOT_TOKEN и DADATA_API_KEY, если нужен бот
-
-npm run dev:miniapp      # мини-апп жильцов, http://localhost:5173
-npm run dev:admin        # панель Модератора, http://localhost:5174
-npm run dev:api          # API, http://localhost:3000/health
-npm run dev:bot          # Worker (бот и API), http://localhost:8787
-```
-
-Проверки: `npm run typecheck`, `npm test` и `npm run smoke:mcp`.
-
-### Локальный запуск без VK
-
-Одной командой, после того как Postgres установлен (см. ниже):
-
-```bash
 npm run local            # создаст .env, если его нет, проверит Postgres,
                          # запустит API, мини-апп и панель, напечатает ссылки входа
 npm run local -- --users 5   # ссылок входа — на пять Жильцов
@@ -34,9 +39,26 @@ npm run local -- --users 5   # ссылок входа — на пять Жил�
 Если порты заняты: `MINIAPP_PORT=5183 ADMIN_PORT=5184 API_PORT=3100 npm run local`.
 Модератор в созданном `.env` — `moderator` / `moderator`.
 
-Вручную то же самое:
+Проверки: `npm run typecheck`, `npm test` и `npm run smoke:mcp`.
 
-Нужен PostgreSQL 13+. На Manjaro/Arch один раз:
+### Вход без клиента MAX
+
+Вне MAX мини-апп берёт `initData` из фрагмента адреса (`#WebAppData=…`), как
+настоящий клиент MAX. Ссылку подписывает тем же `BOT_TOKEN`, которым API
+проверяет подпись, команда `npm run dev:link`. Если своего токена в `.env` нет,
+`npm run local` подпишет локальным токеном: вход работает, а Домовые чаты MAX — нет.
+
+```bash
+npm run dev:link          # человек с MAX ID 1
+npm run dev:link -- 2     # второй человек — откройте в другой вкладке
+```
+
+Панель Модератора — http://localhost:5174/admin/, браузер спросит логин и
+пароль из `.env`.
+
+### Вручную
+
+PostgreSQL на Manjaro/Arch, один раз:
 
 ```bash
 sudo pacman -S postgresql
@@ -46,104 +68,69 @@ sudo -iu postgres psql -c "CREATE USER maxtown WITH PASSWORD 'maxtown';" \
                        -c "CREATE DATABASE maxtown OWNER maxtown;"
 ```
 
-`.env` для локального запуска (ключи VK настоящие не нужны):
+`.env` (образец — `.env.example`):
 
 ```bash
 DATABASE_URL=postgres://maxtown:maxtown@localhost:5432/maxtown
-VK_APP_ID=1
-VK_APP_SECRET=local-dev-secret
+BOT_TOKEN=                 # токен бота MAX; для dev:link подойдёт любая строка
+DADATA_API_KEY=            # адрес Дома по названию чата
 MODERATOR_USERNAME=moderator
 # npm run moderator:hash -- <пароль> печатает готовую строку:
 MODERATOR_PASSWORD_HASH='$2b$12$…'
 POLL_VOTER_NULLIFIER_SECRET=   # openssl rand -hex 32
 ```
 
-Дальше в трёх терминалах `npm run dev:api` (миграции применятся сами),
-`npm run dev:miniapp`, `npm run dev:admin`. Мини-апп и панель ходят в API
-через прокси Vite `/api`.
+Дальше в трёх терминалах: `npm run dev:api` (миграции применятся сами),
+`npm run dev:miniapp` и `npm run dev:admin`. Мини-апп и панель ходят в API через
+прокси Vite `/api`.
 
-Вне VK мини-апп входит по launch-параметрам из адреса. Их подписывает тем же
-`VK_APP_SECRET` команда `npm run dev:link` — она печатает ссылку, API проверяет
-подпись как у настоящего VK:
+### Браузерный тест
+
+`npx playwright install chromium --only-shell`, затем:
 
 ```bash
-npm run dev:link          # Жилец vk_user_id=1
-npm run dev:link -- 2     # второй человек — откройте в другой вкладке
+TEST_DATABASE_URL='postgres://…?options=-c%20search_path%3Dmaxtown_test' npm run test:e2e
 ```
 
-Панель Модератора — http://localhost:5174/admin/, браузер спросит логин и
-пароль из `.env`.
+Тест берёт production-сборку мини-аппа, настоящий API на Postgres, а MAX и
+DaData подменяет. Он проверяет:
+- зависший вход;
+- выбор адреса и создание Дома;
+- главную и повторную загрузку страницы.
 
 ## Развёртывание
 
-Для Render Free используйте [`render.yaml`](render.yaml) и инструкцию
-[`docs/deployment.md`](docs/deployment.md). GitHub Actions проверяет изменения;
-Render деплоит только после успешных checks. Free Web Service засыпает при
-простоях, а бесплатная PostgreSQL база ограничена сроком хранения — подробности
-и шаги запуска описаны в инструкции.
+Продакшн — https://maxtown.ru на облачном сервере Timeweb Cloud
+([docs/adr/0011](docs/adr/0011-production-on-timeweb-vps.md)). Там работает
+docker compose: API с мини-аппом и панелью, Postgres и Caddy с HTTPS. Пошагово —
+в [`docs/deployment.md`](docs/deployment.md). Кратко, на сервере:
+
+```bash
+cp .env.production.example .env   # один раз: заполнить
+./deploy/deploy.sh                # git pull, бэкап базы, сборка, проверка https://maxtown.ru
+```
+
+Подписка бота на события делается один раз после первого запуска:
+
+```bash
+curl -X POST -H "x-maxtown-internal-secret: $MAXTOWN_INTERNAL_SECRET" \
+  https://maxtown.ru/api/max/register
+```
+
+Запасной путь — Render ([`render.yaml`](render.yaml)) и Cloudflare Worker
+(`npm run deploy:cloudflare`). Он описан в конце той же инструкции.
 
 Проектный read-only MCP для Codex запускается командой `npm run mcp:project`.
 Подключение, ресурсы и инструменты описаны в
 [`docs/agents/project-mcp.md`](docs/agents/project-mcp.md).
 
-Для подключения Дома запустите `dev:miniapp` вместе с `dev:bot`:
-Vite направляет `/api` в тот же Worker, который работает на Cloudflare.
-`dev:api` — отдельный ранний сервер, в нём нет сценария выбора адреса.
-Локальный KV изолирован от опубликованного; данные запуска MAX проверяются
-на сервере и в локальном режиме.
-
-Браузерный регрессионный тест: `npx playwright install chromium --only-shell`,
-затем `npm run test:e2e`. Он использует production-сборку интерфейса, настоящий
-обработчик Worker и тестовые MAX/DaData/KV: проверяет зависание запроса,
-выбор адреса, создание Дома, отображение адреса и повторную загрузку.
-
-## Публичная версия
-
-Мини-приложение, API авторизации и webhook бота работают в одном Cloudflare
-Worker: <https://maxtown.maxtown-bot.workers.dev>.
-
-```bash
-npm run build:cloudflare   # локальная проверка сборки Worker
-npm run deploy:cloudflare  # сборка мини-аппы и публикация Worker
-```
-
-Домовые чаты Worker хранит в Cloudflare KV. После добавления бота в групповой
-чат нужно выдать ему права администратора. Бот попробует определить точный
-адрес по названию чата. При одном совпадении Дом создастся автоматически, при
-неоднозначном названии администратор получит кнопку «Указать адрес».
-
-Локально серверный ключ DaData задаётся в корневом `.env`:
-
-```dotenv
-DADATA_API_KEY=ваш_ключ
-```
-
-Для публичного Worker ключ загружается как секрет и не хранится в репозитории:
-
-```bash
-npx wrangler secret put DADATA_API_KEY --config apps/bot/wrangler.jsonc
-```
-
-Если бот получил права до настройки webhook, снимите и снова выдайте их один
-раз, чтобы MAX прислал новое событие. Если MAX не прислал событие смены прав,
-отправьте в Домовом чате команду `/connect`: бот повторно проверит админку и
-запустит определение адреса.
-
-### Роли в Доме
-
-- Человек, впервые добавивший бота, и текущие администраторы Домового чата —
-  **Администраторы Дома**.
-- Остальные участники чата — **Жильцы**.
-- Администратор назначает один аккаунт **УК** командой `/set_uk @username`.
-  Аккаунт УК должен состоять в этом же чате. Если он также администратор чата,
-  у него одновременно будут роли УК и Администратора Дома.
-
-Роли вычисляются заново по актуальному составу и правам участников при входе в
-мини-приложение. Назначение УК хранится отдельно для каждого Дома.
-
 ## Где что лежит
 
-- `apps/` — приложения: `miniapp`, `admin`, `api` (в API размещены Callback API и отправка VK-уведомлений).
+- `apps/`:
+  - `miniapp` — мини-апп MAX;
+  - `admin` — панель Модератора;
+  - `api` — API на Postgres, webhook бота MAX, Домовые чаты;
+  - `edge` — Cloudflare Worker, запасной публичный адрес.
 - `packages/shared/` — общие типы.
 - `design/` — токены оформления и материалы для Stitch.
 - `docs/` — архитектурные решения, исследования и настройка агентов.

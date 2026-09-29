@@ -26,7 +26,7 @@ const problems: Record<NearestProblem, { title: string; description: string }> =
   },
   'location-unknown': {
     title: 'Дом не нашёлся на карте',
-    description: '2ГИС не узнал адрес Дома. Напишите Старосте: возможно, адрес указан с ошибкой.',
+    description: '2ГИС не узнал адрес Дома. Напишите Администратору Дома: возможно, адрес указан с ошибкой.',
   },
 };
 

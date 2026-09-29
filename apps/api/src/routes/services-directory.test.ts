@@ -19,12 +19,12 @@ describe.skipIf(!databaseUrl)('house service directory', () => {
   let apartmentNumber = 0;
 
   async function person(key: string): Promise<{ id: string; token: string }> {
-    const result = await pool.query<{ id: string }>('INSERT INTO residents (vk_user_id, display_name) VALUES ($1, $1) RETURNING id', [key]);
+    const result = await pool.query<{ id: string }>('INSERT INTO residents (max_user_id, display_name) VALUES ($1, $1) RETURNING id', [key]);
     const session = await createSession(pool, result.rows[0]!.id);
     return { id: result.rows[0]!.id, token: session.token };
   }
 
-  async function addMember(targetHouseId: string, key: string, role: 'resident' | 'headman'): Promise<string> {
+  async function addMember(targetHouseId: string, key: string, role: 'resident' | 'admin'): Promise<string> {
     const member = await person(key);
     apartmentNumber += 1;
     const apartment = await pool.query<{ id: string }>('INSERT INTO apartments (house_id, number) VALUES ($1, $2) RETURNING id', [targetHouseId, String(apartmentNumber)]);
@@ -42,7 +42,7 @@ describe.skipIf(!databaseUrl)('house service directory', () => {
     houseId = houses.rows[0]!.id;
     otherHouseId = houses.rows[1]!.id;
     residentToken = await addMember(houseId!, 'directory-resident', 'resident');
-    headmanToken = await addMember(houseId!, 'directory-headman', 'headman');
+    headmanToken = await addMember(houseId!, 'directory-headman', 'admin');
     foreignToken = await addMember(otherHouseId!, 'directory-foreign', 'resident');
     app = await buildApp({ pool, env: { NODE_ENV: 'test' } });
   });

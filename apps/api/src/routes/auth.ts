@@ -1,54 +1,68 @@
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
-import type { MeResponse } from '@maxtown/shared';
-import { validateVkLaunchParams } from '../auth/vk-launch-params.ts';
+import type { MaxAuthSessionResponse, MeResponse } from '@maxtown/shared';
+import { validateMaxInitData } from '../auth/max-init-data.ts';
 import { createSession, requireAuthentication, revokeSession } from '../auth/sessions.ts';
+import { syncResidentHouses, type HouseChatDeps } from '../max/house-chats.ts';
 
-type AuthBody = { launchParams: string };
+type AuthBody = { initData: string; chatId?: number };
 
 type ResidentRow = {
   id: string;
 };
 
-export function registerAuthRoutes(app: FastifyInstance, pool: Pool, env: NodeJS.ProcessEnv): void {
+export type AuthConfig = {
+  /** Токен бота MAX: им подписан initData. Без него вход выключен. */
+  botToken: string | null;
+  initDataTtlSeconds: number;
+  houseChats: HouseChatDeps | null;
+};
+
+export function registerAuthRoutes(app: FastifyInstance, pool: Pool, config: AuthConfig): void {
   app.decorateRequest('authSession', null);
   app.decorateRequest('authToken', null);
 
   app.post<{ Body: AuthBody }>(
-    '/api/auth/vk',
+    '/api/auth/max',
     {
       schema: {
         body: {
           type: 'object',
-          required: ['launchParams'],
+          required: ['initData'],
           additionalProperties: false,
-          properties: { launchParams: { type: 'string', minLength: 1, maxLength: 16_384 } },
+          properties: {
+            initData: { type: 'string', minLength: 1, maxLength: 16_384 },
+            // Чат из параметра запуска (кнопка «Указать адрес») — только подсказка,
+            // права всё равно проверяются через MAX.
+            chatId: { type: 'integer', not: { const: 0 } },
+          },
         },
       },
     },
-    async (request, reply) => {
-      const appSecret = env.VK_APP_SECRET;
-      const appId = env.VK_APP_ID;
-      if (!appSecret?.trim() || !appId?.trim()) return reply.code(503).send({ error: 'authentication_unavailable' });
+    async (request, reply): Promise<MaxAuthSessionResponse | undefined> => {
+      if (!config.botToken) return reply.code(503).send({ error: 'authentication_unavailable' });
 
-      let identity;
-      try {
-        identity = validateVkLaunchParams(request.body.launchParams, appSecret, appId);
-      } catch {
-        return reply.code(401).send({ error: 'unauthorized' });
-      }
+      const validation = validateMaxInitData(request.body.initData, config.botToken, { maxAgeSeconds: config.initDataTtlSeconds });
+      if (!validation.ok) return reply.code(401).send({ error: 'unauthorized' });
 
+      const { user } = validation.data;
       const resident = await pool.query<ResidentRow>(
-        `INSERT INTO residents (vk_user_id, display_name, username)
-         VALUES ($1, $2, NULL)
-         ON CONFLICT (vk_user_id) DO UPDATE
+        `INSERT INTO residents (max_user_id, display_name, username)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (max_user_id) DO UPDATE
            SET display_name = EXCLUDED.display_name,
+               username = EXCLUDED.username,
                updated_at = now()
          RETURNING id`,
-        [identity.vkUserId, `Жилец ${identity.vkUserId}`],
+        [String(user.id), [user.firstName, user.lastName].filter(Boolean).join(' '), user.username ?? null],
       );
-      const session = await createSession(pool, resident.rows[0]!.id);
-      return { token: session.token, expiresAt: session.expiresAt.toISOString() };
+      const residentId = resident.rows[0]!.id;
+      // Дома и Роли — по текущему участию в Домовых чатах.
+      const pendingHouseSetups = config.houseChats
+        ? await syncResidentHouses(config.houseChats, { id: residentId, maxUserId: user.id }, request.body.chatId ?? null)
+        : [];
+      const session = await createSession(pool, residentId);
+      return { token: session.token, expiresAt: session.expiresAt.toISOString(), pendingHouseSetups };
     },
   );
 

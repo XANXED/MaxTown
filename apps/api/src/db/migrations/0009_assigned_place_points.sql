@@ -1,4 +1,4 @@
--- Точка Закреплённого места на карте. Её ставит Староста (docs/adr/0003):
+-- Точка Закреплённого места на карте. Её ставит Староста (docs/adr/0008):
 -- это его ввод, а не данные 2ГИС, поэтому хранить можно.
 ALTER TABLE house_assigned_places
   ADD COLUMN lat double precision CHECK (lat IS NULL OR lat BETWEEN -90 AND 90),

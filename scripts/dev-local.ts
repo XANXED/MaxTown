@@ -1,12 +1,14 @@
-// Локальный запуск без VK одной командой: npm run local [-- --users 3]
+// Локальный запуск без клиента MAX одной командой: npm run local [-- --users 3]
 // Порты по умолчанию 3000, 5173, 5174; другие — API_PORT, MINIAPP_PORT, ADMIN_PORT.
 //
-// 1. Нет .env — создаёт его с локальными значениями (VK условный, Модератор
+// 1. Нет .env — создаёт его с локальными значениями (Модератор
 //    moderator/moderator). Существующий .env не трогает.
 // 2. Проверяет Postgres и подсказывает, что сделать, если он не готов.
 // 3. Запускает API, мини-апп и панель Модератора; Ctrl+C останавливает всё.
 // 4. Печатает подписанные ссылки входа (как у npm run dev:link) для
-//    нескольких Жильцов — каждую открывайте в своей вкладке.
+//    нескольких Жильцов — каждую открывайте в своей вкладке. Нет BOT_TOKEN в
+//    .env — API и ссылки получают локальный токен: вход работает, а
+//    Домовые чаты MAX — нет (для них нужен настоящий бот).
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -15,7 +17,7 @@ import { connect } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import pg from 'pg';
-import { signVkLaunchParams } from '../apps/api/src/auth/vk-launch-params.ts';
+import { LOCAL_BOT_TOKEN, maxLoginLink } from '../apps/api/src/dev/max-login-link.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const envPath = `${root}.env`;
@@ -49,10 +51,8 @@ if (!existsSync(envPath)) {
 DATABASE_URL=postgres://maxtown:maxtown@localhost:5432/maxtown
 API_PORT=3000
 
-# Условные значения VK: ими подписываются ссылки входа, ими же API проверяет подпись.
-VK_APP_ID=1
-VK_APP_SECRET=local-dev-secret
-VK_API_VERSION=5.199
+# Токен бота MAX. Пусто — npm run local подпишет вход локальным токеном.
+BOT_TOKEN=
 
 # Модератор: логин moderator, пароль moderator
 MODERATOR_USERNAME=moderator
@@ -69,14 +69,7 @@ const env = process.env;
 
 if (env.NODE_ENV === 'production') fail('npm run local — только для локального запуска, а в окружении NODE_ENV=production');
 
-const appId = env.VK_APP_ID?.trim();
-const appSecret = env.VK_APP_SECRET?.trim();
-if (!appId || !/^\d+$/.test(appId) || !appSecret) {
-  fail(
-    'В .env не заданы VK_APP_ID и VK_APP_SECRET',
-    'Для локального запуска подойдут любые значения, например:\n  VK_APP_ID=1\n  VK_APP_SECRET=local-dev-secret',
-  );
-}
+const botToken = env.BOT_TOKEN?.trim() || LOCAL_BOT_TOKEN;
 const databaseUrl = env.DATABASE_URL?.trim();
 if (!databaseUrl) fail('В .env не задан DATABASE_URL', 'Например: DATABASE_URL=postgres://maxtown:maxtown@localhost:5432/maxtown');
 
@@ -150,7 +143,10 @@ const children: ChildProcess[] = [];
 let stopping = false;
 
 function start(label: string, tint: (text: string) => string, args: string[]): void {
-  const child = spawn('npm', args, { cwd: root, env: { ...env, FORCE_COLOR: '1' }, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  // Процессу API — тот же токен, которым подписаны ссылки, и неделя жизни
+  // initData, чтобы ссылка из консоли не протухала через 15 минут.
+  const childEnv = { ...env, FORCE_COLOR: '1', BOT_TOKEN: botToken, MAX_INIT_DATA_TTL_SECONDS: env.MAX_INIT_DATA_TTL_SECONDS ?? '604800' };
+  const child = spawn('npm', args, { cwd: root, env: childEnv, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   const prefix = tint(label.padEnd(8));
   const pipe = (stream: NodeJS.ReadableStream, out: NodeJS.WriteStream) => {
     let rest = '';
@@ -210,14 +206,7 @@ async function waitFor(url: string, seconds: number): Promise<boolean> {
 }
 
 function loginLink(userId: number): string {
-  const params: Record<string, string> = {
-    vk_app_id: appId as string,
-    vk_user_id: String(userId),
-    vk_platform: 'desktop_web',
-    vk_language: 'ru',
-    vk_ts: String(Math.floor(Date.now() / 1000)),
-  };
-  return `${MINIAPP_URL}?${new URLSearchParams({ ...params, sign: signVkLaunchParams(params, appSecret as string) })}`;
+  return maxLoginLink({ base: MINIAPP_URL, maxUserId: userId, botToken });
 }
 
 const [apiReady, miniappReady] = await Promise.all([

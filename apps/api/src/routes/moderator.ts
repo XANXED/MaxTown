@@ -30,7 +30,7 @@ function toRegistration(row: RegistrationRow): HouseRegistration {
     ...(row.gar_house_guid ? { garHouseGuid: row.gar_house_guid } : {}),
     headman: {
       name: row.display_name, apartment: row.apartment_number,
-      ...(row.username ? { vkUsername: row.username } : {}), ...(row.phone ? { phone: row.phone } : {}),
+      ...(row.username ? { username: row.username } : {}), ...(row.phone ? { phone: row.phone } : {}),
     },
     submittedAt: row.submitted_at.toISOString(), status: row.status,
     ...(row.decided_at ? { decidedAt: row.decided_at.toISOString() } : {}),
@@ -103,7 +103,7 @@ export function registerModeratorRoutes(app: FastifyInstance, pool: Pool): void 
             'INSERT INTO apartments (house_id, number) VALUES ($1, $2) RETURNING id', [houseId, row.apartment_number],
           );
           await client.query(
-            "INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'headman')",
+            "INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'admin')",
             [houseId, apartment.rows[0]!.id, row.submitted_by_resident_id],
           );
         }

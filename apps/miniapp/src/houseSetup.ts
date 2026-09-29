@@ -1,6 +1,11 @@
-import type { HouseAccess, HouseAddressSuggestion, PendingHouseSetup } from '@maxtown/shared';
+import type { HouseAddressSuggestion, PendingHouseSetup } from '@maxtown/shared';
 import { RequestTimeoutError, withTimeout } from '@maxtown/shared/http';
+import { apiFetch, getSession } from './auth/session.ts';
 import { currentMaxInitData, launchParameter } from './maxLaunch.ts';
+
+// Подключение Дома: бот не узнал адрес по названию Домового чата, и его
+// администратор выбирает Дом из подсказок DaData. Кто выбирает — сервер знает
+// из сессии, права в чате и выбранный GUID он проверяет сам.
 
 export class HouseSetupRequestError extends Error {
   readonly status: number;
@@ -34,7 +39,9 @@ export function launchSetupChatId(): number | null {
     ?? setupChatId(new URLSearchParams(currentMaxInitData()).get('start_param'));
 }
 
-async function setupRequest(path: string, body: Record<string, unknown>, fetcher: typeof fetch) {
+type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+async function setupRequest(path: string, body: Record<string, unknown>, fetcher: Fetcher) {
   try {
     return await withTimeout(async (signal) => {
       const response = await fetcher(path, {
@@ -51,6 +58,11 @@ async function setupRequest(path: string, body: Record<string, unknown>, fetcher
     }
     throw error;
   }
+}
+
+/** Вне MAX, в dev-предпросмотре без сессии — примеры вместо запросов. */
+function demo(): boolean {
+  return import.meta.env.DEV && getSession() === null;
 }
 
 export function demoPendingHouseSetup(): PendingHouseSetup {
@@ -74,9 +86,19 @@ async function responseData(response: Response): Promise<unknown> {
   }
 }
 
+const errorMessages: Record<string, string> = {
+  house_setup_forbidden: 'Выбрать адрес может только администратор этого чата',
+  house_setup_not_found: 'Адрес этого чата уже выбран или настройка не найдена',
+  bot_is_not_admin: 'Сначала верните боту MaxTown права администратора чата',
+  house_address_not_found: 'Этого дома нет в ГАР. Выберите адрес из списка',
+  address_provider_not_configured: 'На сервере не настроен поиск адресов',
+  address_provider_unavailable: 'Сервис адресов не ответил. Попробуйте ещё раз',
+  max_unavailable: 'MAX не ответил. Попробуйте ещё раз',
+};
+
 function responseError(data: unknown, response: Response, fallback: string): HouseSetupRequestError {
-  const message = isRecord(data) && typeof data.error === 'string' ? data.error : fallback;
-  return new HouseSetupRequestError(message, response.status);
+  const code = isRecord(data) && typeof data.error === 'string' ? data.error : '';
+  return new HouseSetupRequestError(errorMessages[code] ?? fallback, response.status);
 }
 
 const demoSuggestions: HouseAddressSuggestion[] = [
@@ -95,13 +117,11 @@ const demoSuggestions: HouseAddressSuggestion[] = [
 export async function suggestSetupAddresses(
   setup: PendingHouseSetup,
   query: string,
-  fetcher: typeof fetch = globalThis.fetch,
-  initData: string | undefined = currentMaxInitData(),
+  fetcher: Fetcher = apiFetch,
 ): Promise<HouseAddressSuggestion[]> {
-  if (!initData && import.meta.env.DEV) return demoSuggestions;
-  if (!initData) throw new HouseSetupRequestError('Откройте настройку из чата MAX', 401);
+  if (demo()) return demoSuggestions;
 
-  const { response, data } = await setupRequest('/api/house-setup/suggestions', { initData, chatId: setup.chatId, query }, fetcher);
+  const { response, data } = await setupRequest('/api/house-setup/suggestions', { chatId: setup.chatId, query }, fetcher);
   if (!response.ok) throw responseError(data, response, 'Не удалось найти адрес');
   if (!isRecord(data) || !Array.isArray(data.suggestions) || !data.suggestions.every(isSuggestion)) {
     throw new HouseSetupRequestError('Сервер вернул адреса неизвестного формата', response.status);
@@ -109,29 +129,18 @@ export async function suggestSetupAddresses(
   return data.suggestions;
 }
 
+/** Создать Дом по выбранному адресу. Возвращает id Дома. */
 export async function confirmSetupAddress(
   setup: PendingHouseSetup,
   address: HouseAddressSuggestion,
-  fetcher: typeof fetch = globalThis.fetch,
-  initData: string | undefined = currentMaxInitData(),
-): Promise<HouseAccess> {
-  if (!initData && import.meta.env.DEV) return {
-    houseId: `max-chat:${setup.chatId}`, houseLabel: address.value,
-    maxChatRole: 'administrator', canManageHouse: true, apartment: null, roles: ['admin'],
-  };
-  if (!initData) throw new HouseSetupRequestError('Откройте настройку из чата MAX', 401);
+  fetcher: Fetcher = apiFetch,
+): Promise<string> {
+  if (demo()) return `demo-${setup.chatId}`;
 
-  const { response, data } = await setupRequest('/api/house-setup/confirm', {
-    initData,
-    chatId: setup.chatId,
-    garHouseGuid: address.garHouseGuid,
-  }, fetcher);
+  const { response, data } = await setupRequest('/api/house-setup/confirm', { chatId: setup.chatId, garHouseGuid: address.garHouseGuid }, fetcher);
   if (!response.ok) throw responseError(data, response, 'Не удалось сохранить адрес');
-  if (!isRecord(data) || !isRecord(data.house) || typeof data.house.houseLabel !== 'string') {
+  if (!isRecord(data) || typeof data.houseId !== 'string') {
     throw new HouseSetupRequestError('Сервер не подтвердил создание Дома', response.status);
   }
-  if (!isRecord(data.access) || typeof data.access.houseId !== 'string' || !Array.isArray(data.access.roles)) {
-    throw new HouseSetupRequestError('Сервер не подтвердил доступ к созданному Дому', response.status);
-  }
-  return data.access as HouseAccess;
+  return data.houseId;
 }

@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import bridge from '@vkontakte/vk-bridge';
 import { ArrowClockwise, ChatCircle, PaperPlaneRight, Plus } from '@phosphor-icons/react';
 import { Button, Input, Spinner, Textarea, Typography } from '../components/platform-ui.tsx';
 import type { CommunityMessage, CommunityPoll, HouseRole } from '@maxtown/shared';
+import { roleLabels } from '../auth/membership.tsx';
 import { getCurrentResident } from '../auth/session.ts';
-import { loadVkMessagePermission, requestVkMessagesPermission, setVkMessagePermission } from '../data/notifications.ts';
 import {
   createCommunityPoll,
   loadCommunityMessages,
@@ -30,8 +29,6 @@ export function CommunityScreen({ houseId, role, selectedPollId }: { houseId: st
   const [showPollForm, setShowPollForm] = useState(false);
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState('');
-  const [messagePermission, setMessagePermission] = useState<{ status: 'unknown' | 'allowed' | 'denied' | 'opted_out'; groupId: number | null } | null>(null);
-  const [permissionSaving, setPermissionSaving] = useState(false);
 
   const refresh = useCallback(async (initial = false) => {
     if (!resolvedHouseId) return;
@@ -63,14 +60,6 @@ export function CommunityScreen({ houseId, role, selectedPollId }: { houseId: st
     const timer = window.setInterval(() => { void refresh(); }, 15_000);
     return () => window.clearInterval(timer);
   }, [refresh]);
-
-  useEffect(() => {
-    if (!resolvedHouseId) return;
-    let active = true;
-    void loadVkMessagePermission().then((permission) => { if (active) setMessagePermission(permission); })
-      .catch(() => { if (active) setMessagePermission(null); });
-    return () => { active = false; };
-  }, [resolvedHouseId]);
 
   useEffect(() => {
     if (status !== 'ready' || !selectedPollId) return;
@@ -128,34 +117,6 @@ export function CommunityScreen({ houseId, role, selectedPollId }: { houseId: st
     finally { setSending(false); }
   };
 
-  const allowVkMessages = async () => {
-    const groupId = messagePermission?.groupId;
-    if (!groupId) return;
-    setPermissionSaving(true);
-    setNotice('');
-    try {
-      const allowed = await requestVkMessagesPermission(bridge, groupId);
-      if (!allowed) throw new Error('VK не подтвердил разрешение');
-      setMessagePermission({ status: 'allowed', groupId });
-      setNotice('Уведомления VK включены. Уведомления в приложении доступны всегда.');
-    } catch {
-      setNotice('Не удалось включить сообщения VK. Уведомления в приложении останутся доступны.');
-    } finally { setPermissionSaving(false); }
-  };
-
-  const optOutOfVkMessages = async () => {
-    const groupId = messagePermission?.groupId;
-    if (!groupId) return;
-    setPermissionSaving(true);
-    try {
-      await setVkMessagePermission(false);
-      setMessagePermission({ status: 'opted_out', groupId });
-      setNotice('Сообщения VK отключены. Уведомления в приложении останутся доступны.');
-    } catch {
-      setNotice('Не удалось сохранить настройку уведомлений. Попробуйте ещё раз.');
-    } finally { setPermissionSaving(false); }
-  };
-
   if (!resolvedHouseId) {
     return (
       <main className="screen screen--inner inner-content" id="main-content">
@@ -187,21 +148,7 @@ export function CommunityScreen({ houseId, role, selectedPollId }: { houseId: st
             {canCreatePoll ? <Button size="small" variant="secondary" iconBefore={<Plus className="icon icon--small" aria-hidden />} onClick={() => setShowPollForm((value) => !value)}>Создать</Button> : null}
           </div>
           <Typography.Text asChild variant="description" color="secondary"><p>Голоса анонимны: видны только суммарные результаты и ваш выбор. Опрос не заменяет собрание собственников.</p></Typography.Text>
-          <div className="community-permission">
-            <Typography.Text asChild variant="description" color="secondary"><p>Уведомления в приложении приходят всем Жильцам. Ссылки на новые Опросы можно дополнительно получать в сообщениях VK.</p></Typography.Text>
-            {messagePermission?.groupId ? (
-              messagePermission.status === 'allowed' ? (
-                <Button size="small" variant="secondary" loading={permissionSaving} onClick={() => void optOutOfVkMessages()}>Отключить сообщения VK</Button>
-              ) : (
-                <div className="community-permission__actions">
-                  <Button size="small" variant="secondary" loading={permissionSaving} onClick={() => void allowVkMessages()}>
-                    {messagePermission.status === 'opted_out' || messagePermission.status === 'denied' ? 'Разрешить сообщения VK' : 'Включить уведомления VK'}
-                  </Button>
-                  {messagePermission.status !== 'opted_out' ? <Button size="small" variant="ghost" disabled={permissionSaving} onClick={() => void optOutOfVkMessages()}>Оставить только уведомления в приложении</Button> : null}
-                </div>
-              )
-            ) : null}
-          </div>
+          <Typography.Text asChild variant="description" color="secondary"><p>О новом Опросе узнают все Жильцы: в уведомлениях приложения и из сообщения бота в Домовом чате.</p></Typography.Text>
           {showPollForm ? (
             <form className="community-form" onSubmit={submitPoll}>
               <Input mode="contrast" size="large" aria-label="Вопрос Опроса" placeholder="О чём спросить соседей?" value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={500} />
@@ -243,7 +190,7 @@ export function CommunityScreen({ houseId, role, selectedPollId }: { houseId: st
           <ol className="community-messages" aria-live="polite">
             {messages.map((message) => (
               <li className="community-message" key={message.id}>
-                <div className="community-message__meta"><span>{message.authorName} · {message.authorRole === 'headman' ? 'Староста' : message.authorRole === 'responsible' ? 'Ответственный' : message.authorRole === 'concierge' ? 'Консьерж' : 'Жилец'}</span><time dateTime={message.createdAt}>{timeFormat.format(new Date(message.createdAt))}</time></div>
+                <div className="community-message__meta"><span>{message.authorName} · {roleLabels[message.authorRole]}</span><time dateTime={message.createdAt}>{timeFormat.format(new Date(message.createdAt))}</time></div>
                 <p>{message.body}</p>
               </li>
             ))}

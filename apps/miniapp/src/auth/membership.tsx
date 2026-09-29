@@ -7,7 +7,7 @@ import type { HouseMembershipSummary, HouseRole } from '@maxtown/shared';
 
 type MembershipState = {
   membership: HouseMembershipSummary | null;
-  /** Перечитать /api/me: после вступления или одобрения Дома. */
+  /** Перечитать /api/me: после вступления по Приглашению или подключения Дома. */
   refresh: () => Promise<void>;
 };
 
@@ -22,14 +22,24 @@ export function useRefreshMembership(): () => Promise<void> {
   return useContext(MembershipContext).refresh;
 }
 
+/** Роли по docs/adr/0007: выводятся из участия в Домовом чате MAX. */
 export const roleLabels: Record<HouseRole, string> = {
-  headman: 'Староста',
-  responsible: 'Ответственный',
-  concierge: 'Консьерж',
+  admin: 'Администратор Дома',
+  'management-company': 'УК',
   resident: 'Жилец',
 };
 
-/** «Квартира 42. Вы Староста», «Вы Консьерж». */
+/** Может ли Роль вести Контакты, Места и Провайдеров Дома. */
+export function canManageHouse(role: HouseRole | null): boolean {
+  return role === 'admin';
+}
+
+/** Может ли Роль вести режим ремонта и услуги дома: Администратор и УК. */
+export function canManageServices(role: HouseRole | null): boolean {
+  return role === 'admin' || role === 'management-company';
+}
+
+/** «Квартира 42. Вы Администратор Дома», «Вы УК». */
 export function membershipLine(membership: HouseMembershipSummary): string {
   const role = `Вы ${roleLabels[membership.role]}`;
   return membership.apartmentNumber ? `Квартира ${membership.apartmentNumber}. ${role}` : role;

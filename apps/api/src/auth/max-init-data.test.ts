@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { validateMaxInitData } from './max-init-data.ts';
-import { BOT_TOKEN, NOW, signedInitData } from './test-helpers.ts';
+import { BOT_TOKEN, NOW, signedInitData } from '../max/test-helpers.ts';
 
 describe('проверка initData MAX', () => {
   it('возвращает подтверждённого пользователя для корректной подписи', () => {

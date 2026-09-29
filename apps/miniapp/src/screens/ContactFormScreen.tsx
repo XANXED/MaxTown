@@ -51,10 +51,10 @@ export function ContactFormScreen({
   const [error, setError] = useState<string | null>(null);
   const isDemo = demoMode() === 'filled';
   const resolvedHouseId = houseId ?? (isDemo ? 'demo-house' : null);
-  const resolvedRole = role ?? (isDemo ? 'headman' : null);
+  const resolvedRole = role ?? (isDemo ? 'admin' : null);
 
   useEffect(() => {
-    if (!contactId || !resolvedHouseId || resolvedRole !== 'headman') return;
+    if (!contactId || !resolvedHouseId || resolvedRole !== 'admin') return;
     let cancelled = false;
     setStatus('loading');
     const request = isDemo
@@ -80,8 +80,8 @@ export function ContactFormScreen({
   if (!resolvedHouseId) {
     return <MessageState title="Сначала вступите в Дом" description="Контакты доступны Жильцам Дома." />;
   }
-  if (resolvedRole !== 'headman') {
-    return <MessageState title="Изменение недоступно" description="Добавлять и изменять контакты может только Староста." />;
+  if (resolvedRole !== 'admin') {
+    return <MessageState title="Изменение недоступно" description="Добавлять и изменять контакты может только Администратор Дома." />;
   }
   if (status === 'loading') {
     return <main className="screen screen--inner inner-content join-checking" id="main-content"><Spinner size={20} />Загружаем контакт…</main>;

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { Pool, PoolClient } from 'pg';
 import type { HouseService, HouseServiceTariff } from '@maxtown/shared';
-import { findHouseAccess } from '../auth/house-access.ts';
+import { canManageServices, findHouseAccess } from '../auth/house-access.ts';
 import { requireAuthentication } from '../auth/sessions.ts';
 
 type HouseParams = { houseId: string };
@@ -109,7 +109,7 @@ export function registerServicesDirectoryRoutes(app: FastifyInstance, pool: Pool
   }, async (request, reply) => {
     const access = await findHouseAccess(pool, request.authSession!.resident.id, request.params.houseId);
     if (!access) return reply.code(403).send({ error: 'forbidden' });
-    if (access.role !== 'headman' && access.role !== 'responsible') return reply.code(403).send({ error: 'service_edit_forbidden' });
+    if (!canManageServices(access)) return reply.code(403).send({ error: 'service_edit_forbidden' });
     if (!validInput(request.body)) return reply.code(400).send({ error: 'invalid_service_or_tariff' });
     const id = await inTransaction(pool, (client) => saveService(client, request.params.houseId, request.body));
     const service = (await readServices(pool, request.params.houseId)).find((item) => item.id === id)!;
@@ -121,7 +121,7 @@ export function registerServicesDirectoryRoutes(app: FastifyInstance, pool: Pool
   }, async (request, reply) => {
     const access = await findHouseAccess(pool, request.authSession!.resident.id, request.params.houseId);
     if (!access) return reply.code(403).send({ error: 'forbidden' });
-    if (access.role !== 'headman' && access.role !== 'responsible') return reply.code(403).send({ error: 'service_edit_forbidden' });
+    if (!canManageServices(access)) return reply.code(403).send({ error: 'service_edit_forbidden' });
     if (!validInput(request.body)) return reply.code(400).send({ error: 'invalid_service_or_tariff' });
     const id = await inTransaction(pool, (client) => saveService(client, request.params.houseId, request.body, request.params.serviceId));
     if (!id) return reply.code(404).send({ error: 'service_not_found' });

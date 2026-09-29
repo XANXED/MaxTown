@@ -1,6 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Button, Spinner, Typography } from './components/platform-ui.tsx';
-import { CaretLeft, WifiSlash } from '@phosphor-icons/react';
+import { Button, Spinner } from './components/platform-ui.tsx';
+import { CaretLeft, HouseLine, LockKey, WifiSlash } from '@phosphor-icons/react';
+import type { HouseMembershipSummary, HouseRole, PendingHouseSetup } from '@maxtown/shared';
+import { EmptyState, ScreenHeading } from './components/ui.tsx';
 import { ContactsScreen } from './screens/ContactsScreen.tsx';
 import { ContactFormScreen } from './screens/ContactFormScreen.tsx';
 import { EventScreen } from './screens/EventScreen.tsx';
@@ -19,6 +21,7 @@ import { ServicesScreen } from './screens/ServicesScreen.tsx';
 import { InternetProvidersScreen } from './screens/InternetProvidersScreen.tsx';
 import { InternetProviderFormScreen } from './screens/InternetProviderFormScreen.tsx';
 import { WelcomeScreen } from './screens/WelcomeScreen.tsx';
+import { HouseSetupScreen } from './screens/HouseSetupScreen.tsx';
 import { AssignedPlaceFormScreen } from './screens/AssignedPlaceFormScreen.tsx';
 import { NearestPlacesScreen } from './screens/NearestPlacesScreen.tsx';
 import {
@@ -36,25 +39,30 @@ import {
   type AppRoute,
 } from './routes.ts';
 import { launchInviteCode } from './data/join.ts';
+import { demoMode } from './data/loadable.ts';
+import { demoPendingHouseSetup, launchSetupChatId } from './houseSetup.ts';
+import { currentMaxInitData, launchPoll, maxNavigationHash, waitForMaxInitData } from './maxLaunch.ts';
 import { useOnline } from './network.ts';
 import { hasSeenWelcome, markWelcomeSeen } from './welcome.ts';
-import { authenticateWithVk, getCurrentResident } from './auth/session.ts';
-import type { HouseMembershipSummary, HouseRole } from '@maxtown/shared';
+import { authenticateWithMax, AuthRequestError, getCurrentResident } from './auth/session.ts';
 import { MembershipContext } from './auth/membership.tsx';
 import './app.css';
 
 const NOTICE_DURATION_MS = 3200;
 /** Столько длится анимация исчезновения уведомления в app.css (--motion-base). */
 const NOTICE_EXIT_MS = 240;
-const launchParams = window.__VK_LAUNCH_PARAMS__ ?? new URLSearchParams(window.location.search).toString();
-const REQUIRE_SERVER_AUTH = !import.meta.env.DEV || Boolean(new URLSearchParams(launchParams).get('sign'));
+/** Внутри MAX (или по ссылке npm run dev:link) — вход через сервер; в dev без MAX — примеры. */
+const INSIDE_MAX = Boolean(currentMaxInitData());
+const REQUIRE_SERVER_AUTH = !import.meta.env.DEV || INSIDE_MAX;
 const CommunityScreen = lazy(() => import('./screens/CommunityScreen.tsx').then(({ CommunityScreen: Screen }) => ({ default: Screen })));
 const RepairModeScreen = lazy(() => import('./screens/RepairModeScreen.tsx').then(({ RepairModeScreen: Screen }) => ({ default: Screen })));
 
 function initialRoute(): AppRoute {
   // Открыли по ссылке-приглашению — сразу к вступлению, приветствие не нужно.
   if (launchInviteCode()) return ROUTES.join;
-  if (new URLSearchParams(window.location.search).has('poll_id')) return ROUTES.community;
+  if (launchPoll()) return ROUTES.community;
+  // В MAX человек пришёл из своего Домового чата — приветствие не нужно.
+  if (INSIDE_MAX) return routeFromHash(window.location.hash);
   return startRoute(window.location.hash, hasSeenWelcome());
 }
 
@@ -64,6 +72,32 @@ function initialRoute(): AppRoute {
  * «Назад» ведёт не в историю браузера, а к родительскому экрану.
  */
 type HistoryEntry = { step: number; scrollY?: number };
+
+type AuthState = { status: 'loading' } | { status: 'ready' } | { status: 'error'; message: string };
+
+/** Вход ещё идёт или не удался: объясняем, что происходит, и даём повторить. */
+function AuthScreen({ state, onRetry }: { state: Exclude<AuthState, { status: 'ready' }>; onRetry: () => void }) {
+  const loading = state.status === 'loading';
+  return (
+    <div className="app-shell">
+      <main className="screen screen--inner inner-content" id="main-content">
+        <ScreenHeading description="MaxTown открывают из Домового чата в MAX">Доступ к дому</ScreenHeading>
+        <div className="list-card">
+          <EmptyState
+            icon={loading ? HouseLine : LockKey}
+            title={loading ? 'Проверяем участие в чате' : state.message}
+            description={loading ? 'Это займёт несколько секунд' : 'Проверьте интернет и попробуйте ещё раз'}
+            action={loading ? <Spinner size={20} /> : (
+              <Button size="small" variant="secondary" onClick={onRetry}>
+                Проверить снова
+              </Button>
+            )}
+          />
+        </div>
+      </main>
+    </div>
+  );
+}
 
 function currentEntry(): HistoryEntry {
   const state = window.history.state as Partial<HistoryEntry> | null;
@@ -75,8 +109,11 @@ export function App() {
   const [notice, setNotice] = useState<{ message: string; leaving: boolean } | null>(null);
   const noticeTimers = useRef<number[]>([]);
   const online = useOnline();
-  const [authState, setAuthState] = useState<'loading' | 'ready' | 'error'>(REQUIRE_SERVER_AUTH ? 'loading' : 'ready');
+  const [authState, setAuthState] = useState<AuthState>({ status: REQUIRE_SERVER_AUTH ? 'loading' : 'ready' });
   const [authAttempt, setAuthAttempt] = useState(0);
+  /** Домовые чаты, где человек может выбрать Адрес Дома; выбранные убираем. */
+  const [pendingSetups, setPendingSetups] = useState<PendingHouseSetup[]>([]);
+  const [demoSetupDone, setDemoSetupDone] = useState(false);
   const [activeHouseId, setActiveHouseId] = useState<string | null>(null);
   const [activeHouseRole, setActiveHouseRole] = useState<HouseRole | null>(null);
   const [activeMembership, setActiveMembership] = useState<HouseMembershipSummary | null>(null);
@@ -89,41 +126,44 @@ export function App() {
     setActiveHouseRole(membership?.role ?? null);
   }, []);
 
-  const refreshMembership = useCallback(async () => {
+  const refreshMembershipIn = useCallback(async (preferredHouseId: string | null) => {
     if (!REQUIRE_SERVER_AUTH) return;
     try {
       const { memberships } = await getCurrentResident();
-      applyMemberships(memberships, activeHouseId);
+      applyMemberships(memberships, preferredHouseId);
     } catch {
       // Не вышло — останется прежнее членство; следующий вход перечитает.
     }
-  }, [activeHouseId, applyMemberships]);
-  const [communityPollId, setCommunityPollId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('poll_id'));
+  }, [applyMemberships]);
+  const refreshMembership = useCallback(() => refreshMembershipIn(activeHouseId), [activeHouseId, refreshMembershipIn]);
+  const [communityPollId, setCommunityPollId] = useState<string | null>(() => launchPoll()?.pollId ?? null);
   /** Куда прокрутить после смены экрана: наверх или туда, где Жилец был до перехода. */
   const pendingScroll = useRef(0);
 
   useEffect(() => {
     if (!REQUIRE_SERVER_AUTH) return;
     let active = true;
-    if (!launchParams) {
-      setAuthState('error');
-      return () => { active = false; };
-    }
-
-    setAuthState('loading');
-    authenticateWithVk(launchParams)
-      .then(() => getCurrentResident())
-      .then(({ memberships }) => {
+    setAuthState({ status: 'loading' });
+    // Мост MAX может заполнить initData позже, чем запустился React.
+    waitForMaxInitData()
+      .then((initData) => authenticateWithMax(initData ?? '', launchSetupChatId()))
+      .then(async ({ pendingHouseSetups }) => {
+        const { memberships } = await getCurrentResident();
         if (!active) return;
-        applyMemberships(memberships, new URLSearchParams(window.location.search).get('house_id'));
-        setAuthState('ready');
+        setPendingSetups(pendingHouseSetups);
+        applyMemberships(memberships, launchPoll()?.houseId ?? null);
+        setAuthState({ status: 'ready' });
       })
-      .catch(() => { if (active) setAuthState('error'); });
+      .catch((error: unknown) => {
+        if (!active) return;
+        setAuthState({ status: 'error', message: error instanceof AuthRequestError ? error.message : 'Не удалось подтвердить вход через MAX' });
+      });
     return () => { active = false; };
-  }, [authAttempt]);
+  }, [authAttempt, applyMemberships]);
 
   const navigate = useCallback((nextRoute: AppRoute) => {
-    const nextHash = hashForRoute(nextRoute);
+    // Параметры запуска MAX остаются во фрагменте: они нужны после перезагрузки WebView.
+    const nextHash = maxNavigationHash(hashForRoute(nextRoute));
     if (window.location.hash === nextHash) {
       setRoute(nextRoute);
       return;
@@ -144,7 +184,7 @@ export function App() {
 
     // Истории нет (экран открыли по ссылке) — поднимаемся к родителю, не выходя из приложения.
     const parent = parentRoute(route);
-    window.history.replaceState({ step: 0 } satisfies HistoryEntry, '', hashForRoute(parent));
+    window.history.replaceState({ step: 0 } satisfies HistoryEntry, '', maxNavigationHash(hashForRoute(parent)));
     pendingScroll.current = 0;
     setRoute(parent);
   }, [route]);
@@ -180,7 +220,7 @@ export function App() {
     };
 
     if (!window.location.hash) {
-      window.history.replaceState({ step: 0 } satisfies HistoryEntry, '', hashForRoute(initialRoute()));
+      window.history.replaceState({ step: 0 } satisfies HistoryEntry, '', maxNavigationHash(hashForRoute(initialRoute())));
     }
 
     window.addEventListener('popstate', syncRoute);
@@ -196,6 +236,20 @@ export function App() {
     pendingScroll.current = 0;
   }, [route]);
 
+  useEffect(() => {
+    // В MAX «Назад» — системная кнопка; в браузере её нет, там своя.
+    const backButton = INSIDE_MAX ? window.WebApp?.BackButton : undefined;
+    if (!backButton) return;
+    // Вкладки нижней навигации — корневые экраны, «Назад» на них не нужен.
+    if (isRootRoute(route)) {
+      backButton.hide();
+      return;
+    }
+    backButton.show();
+    backButton.onClick(goBack);
+    return () => backButton.offClick(goBack);
+  }, [goBack, route]);
+
   useEffect(
     () => () => {
       noticeTimers.current.forEach((timer) => window.clearTimeout(timer));
@@ -205,24 +259,31 @@ export function App() {
 
   let screen;
 
-  if (authState !== 'ready') {
+  if (authState.status !== 'ready') {
+    return <AuthScreen state={authState} onRetry={() => setAuthAttempt((attempt) => attempt + 1)} />;
+  }
+
+  // Подключение Дома: чат из кнопки «Указать адрес», а без неё — первый
+  // ожидающий, если своего Дома у человека ещё нет.
+  const requestedSetupChatId = launchSetupChatId();
+  const pendingHouseSetup = demoMode() === 'house-setup'
+    ? (demoSetupDone ? null : demoPendingHouseSetup())
+    : (requestedSetupChatId !== null
+      ? pendingSetups.find((setup) => setup.chatId === requestedSetupChatId)
+      : activeMembership === null ? pendingSetups[0] : undefined) ?? null;
+
+  if (pendingHouseSetup) {
     return (
-      <div className="screen screen--with-panel">
-        <main className="inner-content" id="main-content">
-          <div className="screen-heading">
-            <Typography.Text asChild variant="header"><h1>Вход через VK</h1></Typography.Text>
-            <Typography.Text asChild variant="body" color="secondary">
-              <p>{authState === 'loading' ? 'Проверяем учётную запись…' : 'Не удалось подтвердить вход. Проверьте подключение и попробуйте ещё раз.'}</p>
-            </Typography.Text>
-          </div>
-        </main>
-        {authState === 'error' ? (
-          <footer className="bottom-panel">
-            <Button size="medium" variant="primary" stretched onClick={() => setAuthAttempt((attempt) => attempt + 1)}>
-              Повторить вход
-            </Button>
-          </footer>
-        ) : null}
+      <div className="app-shell">
+        <HouseSetupScreen
+          setup={pendingHouseSetup}
+          onOpenHouse={(houseId) => {
+            setDemoSetupDone(true);
+            setPendingSetups((current) => current.filter((setup) => setup.chatId !== pendingHouseSetup.chatId));
+            markWelcomeSeen();
+            void refreshMembershipIn(houseId).then(() => navigate(ROUTES.home));
+          }}
+        />
       </div>
     );
   }
@@ -288,7 +349,7 @@ export function App() {
       screen = <NotificationsScreen navigate={navigate} openCommunityPoll={(houseId, pollId) => void openCommunityPoll(houseId, pollId)} />;
       break;
     case ROUTES.join:
-      screen = <JoinScreen navigate={navigate} notify={notify} />;
+      screen = <JoinScreen navigate={navigate} />;
       break;
     case ROUTES.house:
       screen = <HouseStateScreen navigate={navigate} />;
@@ -346,7 +407,7 @@ export function App() {
       )}
       {/* key перезапускает анимацию появления при смене экрана */}
       <div className="screen-transition" key={route}>
-        {!isRootRoute(route) ? (
+        {!isRootRoute(route) && !INSIDE_MAX ? (
           <div className="back-bar">
             <button className="text-action pressable back-bar__button" type="button" onClick={goBack}>
               <CaretLeft className="icon icon--small" weight="bold" aria-hidden />

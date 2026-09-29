@@ -1,0 +1,19 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "maxtown",
+  "main": "./src/index.ts",
+  "compatibility_date": "2026-09-26",
+  "assets": {
+    "directory": "../miniapp/dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // Куда пересылать /api/*: API на Node и Postgres (docs/adr/0010). Задайте
+  // переменную API_ORIGIN в настройках Worker'а или через
+  // `wrangler deploy --var API_ORIGIN:https://…`; без неё /api/* отвечает 503.
+  // keep_vars: деплой не стирает переменные, заданные в настройках Worker'а.
+  "keep_vars": true,
+  "observability": {
+    "enabled": true
+  }
+}

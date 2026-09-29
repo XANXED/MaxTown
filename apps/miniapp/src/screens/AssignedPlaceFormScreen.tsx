@@ -11,7 +11,7 @@ import { assignedKindLabels, assignedKinds, placesClient, useHouseLocation } fro
 import { ROUTES } from '../routes.ts';
 import type { Navigate, Notify } from './types.ts';
 
-/** Название по умолчанию — пока Староста сам его не поменял. */
+/** Название по умолчанию — пока Администратор Дома сам его не поменял. */
 function suggestedTitle(kind: AssignedPlaceKind): string {
   return kind === 'other' ? '' : assignedKindLabels[kind];
 }
@@ -24,7 +24,7 @@ type AssignedPlaceFormProps = {
   notify: Notify;
 };
 
-/** Закреплённое место: Староста вносит поликлинику по прикреплению, школу, участок. */
+/** Закреплённое место: Администратор Дома вносит поликлинику по прикреплению, школу, участок. */
 export function AssignedPlaceFormScreen({ houseId, role, placeId, navigate, notify }: AssignedPlaceFormProps) {
   const [kind, setKind] = useState<AssignedPlaceKind>('adult-clinic');
   const [title, setTitle] = useState(suggestedTitle('adult-clinic'));
@@ -32,7 +32,7 @@ export function AssignedPlaceFormScreen({ houseId, role, placeId, navigate, noti
   const [hours, setHours] = useState('');
   const [phone, setPhone] = useState('');
   const [note, setNote] = useState('');
-  /** Точка места, которую Староста отметил; null — места нет на карте. */
+  /** Точка места, которую Администратор Дома отметил; null — места нет на карте. */
   const [point, setPoint] = useState<GeoPoint | null>(null);
   /** Где сейчас прицел карты — его и отмечаем кнопкой. */
   const [center, setCenter] = useState<GeoPoint | null>(null);
@@ -42,11 +42,11 @@ export function AssignedPlaceFormScreen({ houseId, role, placeId, navigate, noti
   const [error, setError] = useState<string | null>(null);
   const isDemo = demoMode() === 'filled';
   const resolvedHouseId = houseId ?? (isDemo ? 'demo-house' : null);
-  const resolvedRole = role ?? (isDemo ? 'headman' : null);
+  const resolvedRole = role ?? (isDemo ? 'admin' : null);
   const houseLocation = useHouseLocation(resolvedHouseId);
 
   useEffect(() => {
-    if (!placeId || !resolvedHouseId || resolvedRole !== 'headman') return;
+    if (!placeId || !resolvedHouseId || resolvedRole !== 'admin') return;
     let cancelled = false;
     const request: Promise<AssignedPlace[]> = isDemo
       ? loadFixtures()!.then(({ sampleAssignedPlaces }) => sampleAssignedPlaces)
@@ -70,8 +70,8 @@ export function AssignedPlaceFormScreen({ houseId, role, placeId, navigate, noti
   }, [placeId, isDemo, resolvedHouseId, resolvedRole]);
 
   if (!resolvedHouseId) return <MessageState title="Сначала вступите в Дом" description="Места рядом видны Жильцам Дома." />;
-  if (resolvedRole !== 'headman') {
-    return <MessageState title="Изменение недоступно" description="Закреплённые места добавляет и меняет только Староста." />;
+  if (resolvedRole !== 'admin') {
+    return <MessageState title="Изменение недоступно" description="Закреплённые места добавляет и меняет только Администратор Дома." />;
   }
   if (status === 'loading') {
     return <main className="screen screen--inner inner-content join-checking" id="main-content"><Spinner size={20} />Загружаем место…</main>;

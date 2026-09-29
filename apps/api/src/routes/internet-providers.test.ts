@@ -22,14 +22,14 @@ describe.skipIf(!databaseUrl)('internet providers in a House', () => {
   let apartmentNumber = 0;
 
   async function person(key: string): Promise<{ id: string; token: string }> {
-    const result = await pool.query<{ id: string }>('INSERT INTO residents (vk_user_id, display_name) VALUES ($1, $1) RETURNING id', [key]);
+    const result = await pool.query<{ id: string }>('INSERT INTO residents (max_user_id, display_name) VALUES ($1, $1) RETURNING id', [key]);
     const session = await createSession(pool, result.rows[0]!.id);
     return { id: result.rows[0]!.id, token: session.token };
   }
 
-  async function addMember(targetHouseId: string, key: string, role: 'resident' | 'headman' | 'responsible' | 'concierge'): Promise<string> {
+  async function addMember(targetHouseId: string, key: string, role: 'resident' | 'admin' | 'management-company'): Promise<string> {
     const member = await person(key);
-    const apartmentId = role === 'concierge' ? null : await pool.query<{ id: string }>(
+    const apartmentId = role === 'resident' ? null : await pool.query<{ id: string }>(
       'INSERT INTO apartments (house_id, number) VALUES ($1, $2) RETURNING id',
       [targetHouseId, String(++apartmentNumber)],
     ).then(({ rows }) => rows[0]!.id);
@@ -64,9 +64,9 @@ describe.skipIf(!databaseUrl)('internet providers in a House', () => {
     otherHouseId = houses.rows[1]!.id;
     residentToken = await addMember(houseId, 'internet-resident', 'resident');
     secondResidentToken = await addMember(houseId, 'internet-second-resident', 'resident');
-    headmanToken = await addMember(houseId, 'internet-headman', 'headman');
-    responsibleToken = await addMember(houseId, 'internet-responsible', 'responsible');
-    conciergeToken = await addMember(houseId, 'internet-concierge', 'concierge');
+    headmanToken = await addMember(houseId, 'internet-headman', 'admin');
+    responsibleToken = await addMember(houseId, 'internet-responsible', 'management-company');
+    conciergeToken = await addMember(houseId, 'internet-uk', 'management-company');
     foreignToken = await addMember(otherHouseId, 'internet-foreign', 'resident');
     app = await buildApp({ pool, env: { NODE_ENV: 'test' } });
   });

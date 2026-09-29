@@ -26,22 +26,29 @@ it('keeps the bearer token in memory and clears it on logout', () => {
   expect(sessionModule.getSession()).toBeNull();
 });
 
-it('sends signed VK launch parameters to the API and saves only the returned server token', async () => {
+it('sends signed MAX initData to the API and saves only the returned server token', async () => {
   const token = 'Q'.repeat(43);
   const fetchMock = vi.fn(async (_input: RequestInfo | URL, _request?: RequestInit) => new Response(
-    JSON.stringify({ token, expiresAt: '2026-10-03T12:00:00.000Z' }),
+    JSON.stringify({ token, expiresAt: '2026-10-03T12:00:00.000Z', pendingHouseSetups: [] }),
     { status: 200, headers: { 'content-type': 'application/json' } },
   ));
   vi.stubGlobal('fetch', fetchMock);
 
-  expect(typeof sessionModule?.authenticateWithVk).toBe('function');
-  if (!sessionModule?.authenticateWithVk) return;
-  await sessionModule.authenticateWithVk('vk_app_id=123&sign=signature');
+  if (!sessionModule) return;
+  await sessionModule.authenticateWithMax('auth_date=1&hash=abc', -42);
 
-  const [, request] = fetchMock.mock.calls[0]!;
+  const [url, request] = fetchMock.mock.calls[0]!;
+  expect(url).toBe('/api/auth/max');
   expect(request?.method).toBe('POST');
-  expect(JSON.parse(String(request?.body))).toEqual({ launchParams: 'vk_app_id=123&sign=signature' });
+  expect(JSON.parse(String(request?.body))).toEqual({ initData: 'auth_date=1&hash=abc', chatId: -42 });
   expect(sessionModule.getSession()).toBe(token);
+});
+
+it('reports expired MAX launch data as 401 and does not keep a session', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{"error":"unauthorized"}', { status: 401 })));
+  if (!sessionModule) return;
+  await expect(sessionModule.authenticateWithMax('auth_date=1&hash=abc')).rejects.toMatchObject({ status: 401 });
+  expect(sessionModule.getSession()).toBeNull();
 });
 
 it('adds the in-memory bearer token to authenticated API calls', async () => {

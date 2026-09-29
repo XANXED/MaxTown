@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { currentMaxInitData, waitForMaxInitData } from './maxLaunch.ts';
+import { currentMaxInitData, launchPoll, launchStartParam, waitForMaxInitData } from './maxLaunch.ts';
 import { launchSetupChatId } from './houseSetup.ts';
 
 describe('запуск внутри MAX', () => {
@@ -26,5 +26,18 @@ describe('запуск внутри MAX', () => {
 
     await expect(waitForMaxInitData(wait, 2)).resolves.toBe('delayed-signed-init-data');
     expect(wait).toHaveBeenCalledOnce();
+  });
+
+  it('открывает Опрос из кнопки бота: Дом и Опрос в параметре запуска', () => {
+    const houseId = '3ce05158-0792-429c-9129-99c12e1e5366';
+    const pollId = 'a1b2c3d4-0000-4000-8000-000000000001';
+    vi.stubGlobal('window', { WebApp: { initDataUnsafe: { start_param: `poll_${houseId}_${pollId}` } }, location: { hash: '', search: '' } });
+    expect(launchStartParam()).toBe(`poll_${houseId}_${pollId}`);
+    expect(launchPoll()).toEqual({ houseId, pollId });
+  });
+
+  it('не принимает за Опрос чужой параметр запуска', () => {
+    vi.stubGlobal('window', { WebApp: { initDataUnsafe: { start_param: 'inv_abc123' } }, location: { hash: '', search: '' } });
+    expect(launchPoll()).toBeNull();
   });
 });

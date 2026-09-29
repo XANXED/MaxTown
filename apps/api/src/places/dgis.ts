@@ -1,6 +1,6 @@
 import type { GeoPoint, NearestPlace, NearestPlaceKind } from '@maxtown/shared';
 
-// Клиент 2ГИС для Ближайших мест (docs/adr/0003, docs/research/2gis-maps-api.md).
+// Клиент 2ГИС для Ближайших мест (docs/adr/0008, docs/research/2gis-maps-api.md).
 // Правила API 2ГИС запрещают сохранять полученные данные, кроме временного
 // кеша геокодирования: поэтому здесь только запросы и приведение ответа к
 // нашему типу, без записи куда-либо.

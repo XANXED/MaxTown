@@ -7,6 +7,7 @@ import { internetProvidersClient, internetTechnologyLabels } from '../data/inter
 import { demoMode, loadFixtures } from '../data/loadable.ts';
 import { ROUTES } from '../routes.ts';
 import type { Navigate, Notify } from './types.ts';
+import { canManageHouse } from '../auth/membership.tsx';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const technologies = Object.keys(internetTechnologyLabels) as Array<NonNullable<InternetTariffInput['technology']>>;
@@ -39,7 +40,7 @@ export function InternetProviderFormScreen({ houseId, role, providerId, navigate
   const [error, setError] = useState<string | null>(null);
   const isDemo = demoMode() === 'filled';
   const resolvedHouseId = houseId ?? (isDemo ? 'demo-house' : null);
-  const canEdit = role === 'headman' || isDemo;
+  const canEdit = canManageHouse(role) || isDemo;
 
   useEffect(() => {
     if (!providerId || !resolvedHouseId || !canEdit) return;
@@ -63,7 +64,7 @@ export function InternetProviderFormScreen({ houseId, role, providerId, navigate
   }, [canEdit, isDemo, providerId, resolvedHouseId]);
 
   if (!resolvedHouseId) return <Message title="Сначала вступите в Дом" description="Тарифы относятся к конкретному Дому." />;
-  if (!canEdit) return <Message title="Изменение недоступно" description="Поставщиков и Тарифы может добавлять и изменять только Староста." />;
+  if (!canEdit) return <Message title="Изменение недоступно" description="Поставщиков и Тарифы может добавлять и изменять только Администратор Дома." />;
   if (status === 'loading') return <main className="screen screen--inner inner-content join-checking" id="main-content"><Spinner size={20} />Загружаем Поставщика…</main>;
   if (status === 'error') return <Message title="Не удалось открыть Поставщика" description="Вернитесь к списку и попробуйте ещё раз." />;
 

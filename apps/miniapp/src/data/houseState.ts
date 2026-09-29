@@ -1,7 +1,7 @@
 import type { HouseState, HouseSystemState } from '@maxtown/shared';
 import { useLoadable, type Loadable } from './loadable.ts';
 import { glueRanges, plural } from './text.ts';
-import { useCurrentHouse } from '../houseSession.ts';
+import { useMembership } from '../auth/membership.tsx';
 
 // Состояние дома: работает ли каждая Система прямо сейчас. Авария важнее
 // Планового отключения — о ней говорим первой.
@@ -85,14 +85,14 @@ export function knownProblem(state: HouseState | null, category: string | null):
 }
 
 /**
- * Адрес подключённого Дома получен от сервера. До появления данных о системах
- * оставляем их список пустым и не утверждаем, что всё работает.
+ * Состояние Дома из серверной сессии. Данных о Системах в API ещё нет — их
+ * список пустой, и мы не утверждаем, что всё работает. Примеры для dev — см. loadable.ts.
  */
 export function useHouseState(): Loadable<HouseState | null> {
-  const house = useCurrentHouse();
+  const membership = useMembership();
   const result = useLoadable<HouseState | null>(null, ({ sampleHouseState }) => sampleHouseState());
-  return house ? {
+  return membership ? {
     ...result, status: 'ready',
-    data: { address: house.houseLabel, apartment: '', systems: [], updatedAt: '' },
+    data: { address: membership.address, apartment: membership.apartmentNumber ?? '', systems: [], updatedAt: '' },
   } : result;
 }

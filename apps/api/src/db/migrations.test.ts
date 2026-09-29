@@ -91,12 +91,12 @@ it('defines editable House Contacts and their import state', () => {
   expect(migration).toContain("status IN ('ready', 'not-found', 'ambiguous', 'failed', 'not-configured', 'not-applicable')");
 });
 
-it('defines Assigned places kept by the Староста', () => {
+it('defines Assigned places kept by the House administrator', () => {
   const migration = readFileSync(new URL('./migrations/0008_house_assigned_places.sql', import.meta.url), 'utf8');
   expect(migration).toContain('CREATE TABLE house_assigned_places');
   expect(migration).toContain("'adult-clinic', 'children-clinic', 'womens-clinic', 'school', 'kindergarten'");
   expect(migration).toContain('deleted_at');
-  // Ближайшие места из 2ГИС хранить нельзя (docs/adr/0003): таблицы под них нет.
+  // Ближайшие места из 2ГИС хранить нельзя (docs/adr/0008): таблицы под них нет.
   expect(migration).not.toMatch(/CREATE TABLE \w*nearest/);
 });
 
@@ -124,6 +124,18 @@ it('leaves provenance and sync state for a future provider import', () => {
   expect(migration).toContain("status IN ('not-configured', 'ready', 'running', 'failed')");
 });
 
+it('moves roles to MAX house chats: admin, resident, management company', () => {
+  const migration = readFileSync(new URL('./migrations/0012_max_house_chats.sql', import.meta.url), 'utf8');
+  expect(migration).toContain("CHECK (role IN ('admin', 'resident', 'management-company'))");
+  expect(migration).toContain("WHEN 'headman' THEN 'admin'");
+  expect(migration).toContain('CREATE TABLE house_chats');
+  expect(migration).toContain('chat_id bigint PRIMARY KEY');
+  expect(migration).toContain('house_id uuid NOT NULL UNIQUE');
+  expect(migration).toContain('DROP CONSTRAINT IF EXISTS houses_address_locality_key');
+  // Сессии, выданные по VK, после перехода недействительны.
+  expect(migration).toContain('UPDATE sessions SET revoked_at = now()');
+});
+
 it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent', async () => {
   expect(pool).not.toBeNull();
   if (!pool) return;
@@ -132,7 +144,7 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('11');
+  expect(result.rows[0]?.count).toBe('12');
 });
 
 it.skipIf(!databaseUrl)('preserves old public totals while deleting every historical voter link', async () => {

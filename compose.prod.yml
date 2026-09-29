@@ -1,0 +1,38 @@
+# Продакшн на сервере Timeweb Cloud поверх compose.yml (docs/adr/0011):
+#   docker compose -p maxtown -f compose.yml -f compose.prod.yml up -d --build
+# Обычно через ./deploy/deploy.sh. Значения — в .env (образец .env.production.example).
+
+services:
+  web:
+    build:
+      args:
+        # Ключ карты 2ГИС встраивается в сборку мини-аппа (он и так виден клиенту).
+        VITE_DGIS_API_KEY: ${DGIS_API_KEY:-}
+    environment:
+      # Сюда MAX шлёт события бота: /api/max/register подписывает этот адрес.
+      MAXTOWN_PUBLIC_URL: https://${DOMAIN:?set DOMAIN}
+      # Перед API — Caddy из частной сети Docker: адрес человека берём из
+      # X-Forwarded-For, но только от частных адресов. Снаружи порт API закрыт.
+      TRUST_PROXY: uniquelocal
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    networks: [public]
+
+volumes:
+  caddy-data:
+  caddy-config:

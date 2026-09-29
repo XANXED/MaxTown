@@ -66,7 +66,22 @@ jobs:
         run: docker build --file apps/api/Dockerfile --tag maxtown-api:ci .
 
       - name: Validate deployment shell scripts
-        run: bash -n deploy/compose-smoke.sh deploy/smoke.sh
+        run: bash -n deploy/compose-smoke.sh deploy/smoke.sh deploy/deploy.sh
+
+      - name: Validate Timeweb production Compose model
+        run: docker compose --file compose.yml --file compose.prod.yml config --quiet
+        env:
+          DOMAIN: maxtown.example.com
+          POSTGRES_DB: maxtown
+          POSTGRES_USER: maxtown
+          POSTGRES_PASSWORD: ci-only-password
+          COMPOSE_DATABASE_URL: postgres://maxtown:ci-only-password@postgres:5432/maxtown
+          BOT_TOKEN: ci-only-bot-token
+          MAX_WEBHOOK_SECRET: ci-only-webhook-secret
+          DADATA_API_KEY: ci-only-dadata-key
+          MODERATOR_USERNAME: ci
+          MODERATOR_PASSWORD_HASH: ci-only-not-a-usable-hash
+          POLL_VOTER_NULLIFIER_SECRET: ci-only-poll-voter-nullifier-secret-32-bytes
 
       - name: Clean-volume Compose deployment smoke
         run: ./deploy/compose-smoke.sh maxtown-api:ci

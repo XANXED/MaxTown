@@ -5,7 +5,7 @@ import { requireAuthentication } from '../auth/sessions.ts';
 
 type NotificationRow = { id: string; house_id: string; house_address: string; poll_id: string; question: string; created_at: Date; read_at: Date | null };
 
-export function registerNotificationRoutes(app: FastifyInstance, pool: Pool, groupId: number | null): void {
+export function registerNotificationRoutes(app: FastifyInstance, pool: Pool): void {
   const authenticated = requireAuthentication(pool);
   app.get('/api/notifications', { preHandler: authenticated }, async (request): Promise<{ notifications: UserNotification[] }> => {
     const residentId = request.authSession!.resident.id;
@@ -25,49 +25,6 @@ export function registerNotificationRoutes(app: FastifyInstance, pool: Pool, gro
       id: row.id, kind: 'community-poll', title: `Новый Опрос · ${row.house_address}`, text: row.question,
       at: row.created_at.toISOString(), read: row.read_at !== null, houseId: row.house_id, pollId: row.poll_id,
     })) };
-  });
-
-  app.get('/api/notifications/permission', { preHandler: authenticated }, async (request) => {
-    const residentId = request.authSession!.resident.id;
-    const result = await pool.query<{ status: 'allowed' | 'denied' | 'opted_out' }>(
-      'SELECT status FROM resident_message_permissions WHERE resident_id = $1', [residentId],
-    );
-    return { status: result.rows[0]?.status ?? 'unknown', groupId };
-  });
-
-  app.post<{ Body: { allowed: boolean } }>('/api/notifications/permission', {
-    preHandler: authenticated,
-    schema: { body: { type: 'object', required: ['allowed'], additionalProperties: false, properties: { allowed: { type: 'boolean' } } } },
-  }, async (request, reply) => {
-    if (!groupId) return reply.code(503).send({ error: 'vk_messages_unavailable' });
-    const status = request.body.allowed ? 'allowed' : 'opted_out';
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(
-        `INSERT INTO resident_message_permissions (resident_id, status, consented_at, updated_at)
-         VALUES ($1, $2, CASE WHEN $2 = 'allowed' THEN now() ELSE NULL END, now())
-         ON CONFLICT (resident_id) DO UPDATE
-           SET status = EXCLUDED.status,
-               consented_at = CASE WHEN EXCLUDED.status = 'allowed' THEN now() ELSE resident_message_permissions.consented_at END,
-               updated_at = now()`,
-        [request.authSession!.resident.id, status],
-      );
-      if (!request.body.allowed) {
-        await client.query(
-          `UPDATE vk_notification_outbox SET status = 'denied', locked_at = NULL, last_error_code = 'permission_revoked'
-            WHERE resident_id = $1 AND status IN ('pending', 'processing')`,
-          [request.authSession!.resident.id],
-        );
-      }
-      await client.query('COMMIT');
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-    return { status };
   });
 
   app.patch<{ Params: { notificationId: string } }>('/api/notifications/:notificationId/read', {

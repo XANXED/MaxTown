@@ -62,3 +62,23 @@ export async function waitForMaxInitData(
 
   return undefined;
 }
+
+/**
+ * Параметр запуска из ссылки `max.ru/<бот>?startapp=…` или кнопки бота:
+ * `inv_…` — Приглашение, `setup_…` — выбор адреса, `poll_…` — Опрос.
+ * Только маршрутизация: права всё равно проверяет сервер.
+ */
+export function launchStartParam(): string | undefined {
+  const fromBridge = window.WebApp?.initDataUnsafe?.start_param;
+  if (typeof fromBridge === 'string' && fromBridge) return fromBridge;
+  return launchParameter('WebAppStartParam') ?? nonEmpty(new URLSearchParams(currentMaxInitData() ?? '').get('start_param'));
+}
+
+const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const pollStartParam = new RegExp(`^poll_(${uuid})_(${uuid})$`, 'i');
+
+/** Опрос из кнопки бота «Проголосовать» в Домовом чате. */
+export function launchPoll(): { houseId: string; pollId: string } | null {
+  const match = pollStartParam.exec(launchStartParam() ?? '');
+  return match ? { houseId: match[1]!, pollId: match[2]! } : null;
+}

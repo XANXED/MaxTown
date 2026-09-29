@@ -7,7 +7,7 @@ import type {
   HouseInternetProviderImportState,
   InternetTariff,
 } from '@maxtown/shared';
-import { findHouseAccess } from '../auth/house-access.ts';
+import { canManageHouse, findHouseAccess } from '../auth/house-access.ts';
 import { requireAuthentication } from '../auth/sessions.ts';
 
 type HouseParams = { houseId: string };
@@ -301,7 +301,7 @@ export function registerInternetProviderRoutes(app: FastifyInstance, pool: Pool)
   }, async (request, reply) => {
     const access = await findHouseAccess(pool, request.authSession!.resident.id, request.params.houseId);
     if (!access) return reply.code(403).send({ error: 'forbidden' });
-    if (access.role !== 'headman') return reply.code(403).send({ error: 'internet_provider_edit_forbidden' });
+    if (!canManageHouse(access)) return reply.code(403).send({ error: 'internet_provider_edit_forbidden' });
     if (!validProvider(request.body)) return reply.code(400).send({ error: 'invalid_internet_provider' });
     const id = await inTransaction(pool, (client) => saveProvider(client, request.params.houseId, access.id, request.body));
     if (id === 'duplicate') return reply.code(409).send({ error: 'internet_provider_already_exists' });
@@ -314,7 +314,7 @@ export function registerInternetProviderRoutes(app: FastifyInstance, pool: Pool)
   }, async (request, reply) => {
     const access = await findHouseAccess(pool, request.authSession!.resident.id, request.params.houseId);
     if (!access) return reply.code(403).send({ error: 'forbidden' });
-    if (access.role !== 'headman') return reply.code(403).send({ error: 'internet_provider_edit_forbidden' });
+    if (!canManageHouse(access)) return reply.code(403).send({ error: 'internet_provider_edit_forbidden' });
     if (!validProvider(request.body)) return reply.code(400).send({ error: 'invalid_internet_provider' });
     const id = await inTransaction(pool, (client) => saveProvider(client, request.params.houseId, access.id, request.body, request.params.providerId));
     if (!id) return reply.code(404).send({ error: 'internet_provider_not_found' });
@@ -327,7 +327,7 @@ export function registerInternetProviderRoutes(app: FastifyInstance, pool: Pool)
   }, async (request, reply) => {
     const access = await findHouseAccess(pool, request.authSession!.resident.id, request.params.houseId);
     if (!access) return reply.code(403).send({ error: 'forbidden' });
-    if (access.role !== 'headman') return reply.code(403).send({ error: 'internet_provider_edit_forbidden' });
+    if (!canManageHouse(access)) return reply.code(403).send({ error: 'internet_provider_edit_forbidden' });
     const removed = await inTransaction(pool, async (client) => {
       const result = await client.query(
         "UPDATE house_services SET state = 'discontinued', manual_override = true, updated_at = now() WHERE id = $1 AND house_id = $2 AND category = 'internet' AND state <> 'discontinued' RETURNING provider",
@@ -350,7 +350,8 @@ export function registerInternetProviderRoutes(app: FastifyInstance, pool: Pool)
   }, async (request, reply) => {
     const access = await findHouseAccess(pool, request.authSession!.resident.id, request.params.houseId);
     if (!access) return reply.code(403).send({ error: 'forbidden' });
-    if (!access.apartmentId) return reply.code(403).send({ error: 'apartment_membership_required' });
+    // Оценивают те, кто живёт в Доме: Жилец и Администратор Дома, но не УК.
+    if (access.role === 'management-company') return reply.code(403).send({ error: 'resident_membership_required' });
     const provider = await pool.query(
       "SELECT 1 FROM house_services WHERE id = $1 AND house_id = $2 AND category = 'internet' AND state IN ('available', 'limited')",
       [request.params.providerId, request.params.houseId],

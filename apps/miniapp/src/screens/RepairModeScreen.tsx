@@ -4,6 +4,7 @@ import { Button, Input, Spinner, Textarea, Typography } from '../components/plat
 import type { HouseRole, RepairMode } from '@maxtown/shared';
 import { getCurrentResident } from '../auth/session.ts';
 import { fromDateTimeLocal, loadRepairMode, saveRepairMode, toDateTimeLocal } from '../data/repairMode.ts';
+import { canManageServices } from '../auth/membership.tsx';
 
 const dateTimeFormat = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -86,11 +87,11 @@ export function RepairModeScreen({ houseId, role }: { houseId: string | null; ro
     return <main className="screen screen--inner inner-content" id="main-content"><section className="decision-card"><Hammer className="icon" aria-hidden /><Typography.Text asChild variant="title"><h1>Сначала вступите в Дом</h1></Typography.Text><Typography.Text asChild variant="description" color="secondary"><p>Режим ремонта доступен Жильцам Дома.</p></Typography.Text></section></main>;
   }
 
-  const canEdit = resolvedRole === 'headman' || resolvedRole === 'responsible';
+  const canEdit = canManageServices(resolvedRole);
   return (
     <main className="screen screen--inner repair-screen" id="main-content">
       <div className="inner-content stagger">
-        <header className="repair-heading"><span><Typography.Text asChild variant="header"><h1>Режим ремонта</h1></Typography.Text><Typography.Text asChild variant="description" color="secondary"><p>Информация от Старосты или Ответственного</p></Typography.Text></span><Button size="small" variant="secondary" onClick={() => void refresh()}>Обновить</Button></header>
+        <header className="repair-heading"><span><Typography.Text asChild variant="header"><h1>Режим ремонта</h1></Typography.Text><Typography.Text asChild variant="description" color="secondary"><p>Информация от Администратора Дома или УК</p></Typography.Text></span><Button size="small" variant="secondary" onClick={() => void refresh()}>Обновить</Button></header>
         {status === 'loading' ? <div className="join-checking"><Spinner size={20} />Загружаем состояние…</div> : null}
         {status === 'error' ? <div className="community-error" role="alert">Не удалось загрузить режим ремонта. Проверьте подключение.</div> : null}
         {status === 'ready' && mode ? (

@@ -31,6 +31,7 @@ import { demoMode } from '../data/loadable.ts';
 import { openExternal } from '../links.ts';
 import { contactEditRoute, ROUTES } from '../routes.ts';
 import type { Navigate, Notify } from './types.ts';
+import { canManageHouse } from '../auth/membership.tsx';
 
 const kindVisuals: Record<HouseContact['kind'], { icon: IconComponent; tone: TileTone }> = {
   management: { icon: Buildings, tone: 'blue' },
@@ -67,7 +68,7 @@ export function ContactsScreen({
   const contacts = data?.contacts ?? null;
   const contactGroups = contacts ? groupHouseContacts(contacts) : [];
   const isDemo = demoMode() === 'filled';
-  const canEdit = role === 'headman' || isDemo;
+  const canEdit = canManageHouse(role) || isDemo;
   const importMessage = data ? importMessages[data.importState.status] : undefined;
 
   const refresh = async () => {
@@ -125,7 +126,7 @@ export function ContactsScreen({
                 icon={Headset}
                 tone="neutral"
                 title="Контактов пока нет"
-                description={canEdit ? 'Добавьте первый полезный номер для Жильцов' : 'Их добавляет Староста Дома'}
+                description={canEdit ? 'Добавьте первый полезный номер для Жильцов' : 'Их добавляет Администратор Дома'}
                 actionLabel={canEdit ? 'Добавить контакт' : undefined}
                 onAction={canEdit ? () => navigate(ROUTES.newContact) : undefined}
               />

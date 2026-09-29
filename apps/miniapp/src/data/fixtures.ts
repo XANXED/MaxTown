@@ -201,7 +201,7 @@ const eventDetails: Record<string, Omit<HouseEventDetails, keyof HouseEventSumma
     scope: 'Двор, у детской площадки',
     systems: [],
     advice: [],
-    author: { name: 'Марина Ковалёва', role: 'Староста' },
+    author: { name: 'Марина Ковалёва', role: 'Администратор Дома' },
   },
   e1: {
     description: 'Провайдер меняет оборудование в подвале Дома.',
@@ -288,7 +288,7 @@ export const sampleContacts: HouseContact[] = [
 /** Точка демо-Дома: ул. Лесная, 12 в Казани. */
 export const sampleHousePoint = { lat: 55.752, lon: 49.213 };
 
-/** Закреплённые места демо-Дома: их внёс Староста, он же поставил точки. */
+/** Закреплённые места демо-Дома: их внёс Администратор Дома, он же поставил точки. */
 export const sampleAssignedPlaces: AssignedPlace[] = [
   { id: 'a1', kind: 'adult-clinic', title: 'Поликлиника № 7', address: 'ул. Лесная, 31', hours: 'Пн–пт 7:30–20:00, сб 8:00–14:00', phone: '+7 843 221-10-07', note: 'Прикрепление — в регистратуре, 1 этаж', point: { lat: 55.7531, lon: 49.2159 }, updatedAt: '2026-09-20T09:00:00.000Z' },
   { id: 'a2', kind: 'children-clinic', title: 'Детская поликлиника № 10', address: 'просп. Победы, 56', hours: 'Пн–пт 8:00–19:00', point: { lat: 55.7508, lon: 49.2126 }, updatedAt: '2026-09-20T09:00:00.000Z' },

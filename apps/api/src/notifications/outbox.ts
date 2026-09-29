@@ -1,23 +1,26 @@
 import type { Pool, PoolClient } from 'pg';
+import type { MaxOpenAppButton } from '../max/api.ts';
 
-export type OutboxDelivery = {
+// Новый Опрос: каждому Жильцу — уведомление в мини-аппе, а в Домовой чат —
+// одно сообщение бота с кнопкой. Личных рассылок нет (docs/adr/0006):
+// бот не пишет людям, которые с ним не разговаривали.
+
+export type ChatAnnouncement = {
   id: string;
-  residentId: string;
-  vkUserId: string;
+  chatId: number;
+  houseId: string;
   pollId: string;
-  houseAddress: string;
   question: string;
-  appUrl: string;
-  randomId: number;
   attempt: number;
 };
 
-export type VkMessage = { userId: string; randomId: number; message: string };
-export type VkMessageSender = { send: (message: VkMessage) => Promise<void> };
+export type ChatMessageSender = {
+  sendChatMessage: (chatId: number, text: string, button?: MaxOpenAppButton) => Promise<void>;
+};
+
 export type OutboxStore = {
-  claim: (limit: number) => Promise<OutboxDelivery[]>;
+  claim: (limit: number) => Promise<ChatAnnouncement[]>;
   markSent: (id: string) => Promise<void>;
-  markDenied: (id: string) => Promise<void>;
   retry: (id: string, delayMs: number) => Promise<void>;
   fail: (id: string) => Promise<void>;
 };
@@ -32,13 +35,9 @@ export async function enqueuePollNotifications(client: PoolClient, houseId: stri
     [houseId, pollId],
   );
   await client.query(
-    `INSERT INTO vk_notification_outbox (poll_id, house_id, membership_id, resident_id, vk_user_id)
-     SELECT $2::uuid, membership.house_id, membership.id, membership.resident_id, resident.vk_user_id
-       FROM memberships membership
-       JOIN residents resident ON resident.id = membership.resident_id
-       JOIN resident_message_permissions permission ON permission.resident_id = resident.id AND permission.status = 'allowed'
-      WHERE membership.house_id = $1 AND membership.ended_at IS NULL AND resident.vk_user_id IS NOT NULL
-     ON CONFLICT (poll_id, membership_id) DO NOTHING`,
+    `INSERT INTO house_chat_outbox (house_id, poll_id)
+     SELECT $1, $2 WHERE EXISTS (SELECT 1 FROM house_chats WHERE house_id = $1 AND disconnected_at IS NULL)
+     ON CONFLICT (poll_id) DO NOTHING`,
     [houseId, pollId],
   );
 }
@@ -46,46 +45,38 @@ export async function enqueuePollNotifications(client: PoolClient, houseId: stri
 const MAX_ATTEMPTS = 8;
 const MAX_RETRY_DELAY_MS = 3_600_000;
 const MAX_BATCH_SIZE = 50;
+/** Сколько запись считается занятой отправкой, прежде чем её возьмут снова. */
+const CLAIM_LEASE = '5 minutes';
 
 export function retryDelayMs(attempt: number): number {
   return Math.min(MAX_RETRY_DELAY_MS, 5_000 * 2 ** Math.max(0, attempt - 1));
 }
 
-function vkErrorCode(error: unknown): number | null {
-  if (!error || typeof error !== 'object' || !('code' in error)) return null;
-  const code = error.code;
-  return typeof code === 'number' ? code : null;
+/** Параметр запуска мини-аппа: сразу открыть Опрос нужного Дома. */
+export function pollStartParam(houseId: string, pollId: string): string {
+  return `poll_${houseId}_${pollId}`;
 }
 
-function isRetryable(error: unknown): boolean {
-  return !error || typeof error !== 'object' || !('retryable' in error) || error.retryable !== false;
-}
-
-export async function flushNotificationOutbox(store: OutboxStore, sender: VkMessageSender, limit = 20): Promise<void> {
-  const deliveries = await store.claim(Math.min(MAX_BATCH_SIZE, Math.max(1, Math.floor(limit))));
-  for (const delivery of deliveries) {
+export async function flushNotificationOutbox(store: OutboxStore, sender: ChatMessageSender, limit = 20): Promise<void> {
+  const announcements = await store.claim(Math.min(MAX_BATCH_SIZE, Math.max(1, Math.floor(limit))));
+  for (const announcement of announcements) {
     try {
-      await sender.send({
-        userId: delivery.vkUserId,
-        randomId: delivery.randomId,
-        message: `В Доме по адресу ${delivery.houseAddress} начался анонимный опрос «${delivery.question}». Проголосуйте: ${delivery.appUrl}`,
-      });
-      await store.markSent(delivery.id);
-    } catch (error) {
-      if (vkErrorCode(error) === 901) {
-        await store.markDenied(delivery.id);
-      } else if (!isRetryable(error) || delivery.attempt >= MAX_ATTEMPTS) {
-        await store.fail(delivery.id);
-      } else {
-        await store.retry(delivery.id, retryDelayMs(delivery.attempt));
-      }
+      await sender.sendChatMessage(
+        announcement.chatId,
+        `Новый анонимный опрос: «${announcement.question}». Проголосовать можно в MaxTown.`,
+        { text: 'Проголосовать', payload: pollStartParam(announcement.houseId, announcement.pollId) },
+      );
+      await store.markSent(announcement.id);
+    } catch {
+      if (announcement.attempt >= MAX_ATTEMPTS) await store.fail(announcement.id);
+      else await store.retry(announcement.id, retryDelayMs(announcement.attempt));
     }
   }
 }
 
 export function startNotificationOutboxWorker(
   store: OutboxStore,
-  sender: VkMessageSender,
+  sender: ChatMessageSender,
   timer: { intervalMs: number; setInterval: (callback: () => void, delayMs: number) => unknown; clearInterval: (handle: unknown) => void },
 ): { stop: () => Promise<void>; readonly stopped: boolean } {
   let running = false;
@@ -110,44 +101,37 @@ export function startNotificationOutboxWorker(
   };
 }
 
-export function createPgOutboxStore(pool: Pool, appId: number): OutboxStore {
+export function createPgOutboxStore(pool: Pool): OutboxStore {
   return {
     async claim(limit) {
-      const result = await pool.query<OutboxDelivery>(
+      // Взятая запись откладывается на время аренды: упавшая отправка не
+      // потеряется, а параллельный проход её не возьмёт.
+      const result = await pool.query<ChatAnnouncement & { chatId: string }>(
         `WITH selected AS (
-           SELECT id FROM vk_notification_outbox
-            WHERE (status = 'pending' AND available_at <= now())
-               OR (status = 'processing' AND locked_at < now() - interval '5 minutes')
-            ORDER BY available_at, id
+           SELECT outbox.id FROM house_chat_outbox outbox
+            WHERE outbox.status = 'pending' AND outbox.next_attempt_at <= now()
+            ORDER BY outbox.next_attempt_at, outbox.id
             LIMIT $1 FOR UPDATE SKIP LOCKED
          )
-         UPDATE vk_notification_outbox outbox
-            SET status = 'processing', attempt_count = attempt_count + 1, locked_at = now()
-           FROM selected, polls, houses
-          WHERE outbox.id = selected.id AND polls.id = outbox.poll_id AND houses.id = outbox.house_id
-         RETURNING outbox.id, outbox.resident_id AS "residentId", outbox.vk_user_id AS "vkUserId",
-                   outbox.poll_id AS "pollId", houses.address AS "houseAddress", polls.question, outbox.provider_random_id AS "randomId",
-                   outbox.attempt_count AS attempt,
-                   ('https://vk.com/app' || $2 || '?house_id=' || outbox.house_id || '&poll_id=' || outbox.poll_id || '#community') AS "appUrl"`,
-        [limit, appId],
+         UPDATE house_chat_outbox outbox
+            SET attempts = outbox.attempts + 1, next_attempt_at = now() + interval '${CLAIM_LEASE}'
+           FROM selected, polls, house_chats chat
+          WHERE outbox.id = selected.id AND polls.id = outbox.poll_id
+            AND chat.house_id = outbox.house_id AND chat.disconnected_at IS NULL
+         RETURNING outbox.id, chat.chat_id AS "chatId", outbox.house_id AS "houseId", outbox.poll_id AS "pollId",
+                   polls.question, outbox.attempts AS attempt`,
+        [limit],
       );
-      return result.rows;
+      return result.rows.map((row) => ({ ...row, chatId: Number(row.chatId) }));
     },
     async markSent(id) {
-      await pool.query("UPDATE vk_notification_outbox SET status = 'sent', sent_at = now(), locked_at = NULL WHERE id = $1", [id]);
-    },
-    async markDenied(id) {
-      await pool.query("UPDATE vk_notification_outbox SET status = 'denied', locked_at = NULL, last_error_code = 'permission_denied' WHERE id = $1", [id]);
-      await pool.query(
-        `UPDATE resident_message_permissions SET status = 'denied', updated_at = now()
-          WHERE resident_id = (SELECT resident_id FROM vk_notification_outbox WHERE id = $1)`, [id],
-      );
+      await pool.query("UPDATE house_chat_outbox SET status = 'sent', sent_at = now() WHERE id = $1", [id]);
     },
     async retry(id, delayMs) {
-      await pool.query("UPDATE vk_notification_outbox SET status = 'pending', locked_at = NULL, available_at = now() + ($2 * interval '1 millisecond'), last_error_code = 'temporary_failure' WHERE id = $1", [id, delayMs]);
+      await pool.query("UPDATE house_chat_outbox SET next_attempt_at = now() + ($2 * interval '1 millisecond') WHERE id = $1", [id, delayMs]);
     },
     async fail(id) {
-      await pool.query("UPDATE vk_notification_outbox SET status = 'failed', locked_at = NULL, last_error_code = 'retry_exhausted' WHERE id = $1", [id]);
+      await pool.query("UPDATE house_chat_outbox SET status = 'failed' WHERE id = $1", [id]);
     },
   };
 }

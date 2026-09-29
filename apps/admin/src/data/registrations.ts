@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { parseDemoMode, useLoadable } from './loadable.ts';
 
 // Проверка регистрации Дома Модератором. Решение одно на регистрацию:
-// одобрить или отклонить с причиной, которую увидит Староста.
+// одобрить или отклонить с причиной, которую увидит заявитель.
 
 export type CheckState = 'ok' | 'warning' | 'problem';
 
@@ -37,7 +37,7 @@ function duplicateCheck(item: HouseRegistration, all: HouseRegistration[]): Regi
   return { label: 'Дом ещё не зарегистрирован', hint: 'Других регистраций этого адреса нет', state: 'ok' };
 }
 
-/** Что Модератору стоит проверить глазами: адрес в ГАР, повтор Дома, телефон Старосты. */
+/** Что Модератору стоит проверить глазами: адрес в ГАР, повтор Дома, телефон заявителя. */
 export function registrationChecks(item: HouseRegistration, all: HouseRegistration[]): RegistrationCheck[] {
   return [
     item.garHouseGuid
@@ -49,8 +49,8 @@ export function registrationChecks(item: HouseRegistration, all: HouseRegistrati
         },
     duplicateCheck(item, all),
     item.headman.phone
-      ? { label: 'Телефон указан Старостой', hint: item.headman.phone, state: 'ok' }
-      : { label: 'Телефон не указан', hint: 'Контакт Старосты не добавлен', state: 'warning' },
+      ? { label: 'Телефон указан заявителем', hint: item.headman.phone, state: 'ok' }
+      : { label: 'Телефон не указан', hint: 'Контакт заявителя не добавлен', state: 'warning' },
   ];
 }
 
@@ -66,10 +66,10 @@ export function reject(item: HouseRegistration, now: Date, reason: string): Hous
 
 const MINIMUM_REASON = 10;
 
-/** Причину прочитает Староста: пустая или короткая не объяснит, что исправить. */
+/** Причину прочитает заявитель: пустая или короткая не объяснит, что исправить. */
 export function rejectionError(reason: string): string | null {
   const trimmed = reason.trim();
-  if (!trimmed) return 'Напишите причину: её увидит Староста';
+  if (!trimmed) return 'Напишите причину: её увидит заявитель';
   if (trimmed.length < MINIMUM_REASON) return 'Слишком коротко: объясните, что исправить';
   return null;
 }

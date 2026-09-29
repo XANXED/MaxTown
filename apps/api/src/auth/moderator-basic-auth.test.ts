@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import bcrypt from 'bcryptjs';
 import { afterEach, describe, expect, it } from 'vitest';
+import { trustProxySetting } from '../app.ts';
 import { registerModeratorBasicAuth } from './moderator-basic-auth.ts';
 
 const password = 'correct horse battery staple';
@@ -159,6 +160,47 @@ describe('Moderator Basic Authentication', () => {
 
     expect(blocked.statusCode).toBe(429);
     expect(otherClient.statusCode).toBe(200);
+  });
+
+  it('behind Caddy on Timeweb limits each client, not the proxy address', async () => {
+    // Все запросы приходят с адреса Caddy в сети Docker, клиента берём из X-Forwarded-For.
+    app = Fastify({ trustProxy: trustProxySetting('uniquelocal') });
+    const passwordHash = await bcrypt.hash(password, 4);
+    registerModeratorBasicAuth(app, {
+      NODE_ENV: 'production',
+      MODERATOR_USERNAME: 'moderator@example.org',
+      MODERATOR_PASSWORD_HASH: passwordHash,
+    });
+    app.get('/admin/', async () => ({ ok: true }));
+    const request = (forwardedFor: string, secret: string) => app!.inject({
+      url: '/admin/',
+      remoteAddress: '172.18.0.5',
+      headers: { authorization: basic('moderator@example.org', secret), 'x-forwarded-for': forwardedFor },
+    });
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      // Подставленный клиентом адрес впереди не помогает: Caddy дописывает настоящий последним.
+      await request(`198.51.100.${attempt + 1}, 203.0.113.20`, 'incorrect password');
+    }
+
+    expect((await request('203.0.113.20', password)).statusCode).toBe(429);
+    expect((await request('203.0.113.21', password)).statusCode).toBe(200);
+  });
+
+  it('parses TRUST_PROXY: address list, true, or nothing', () => {
+    expect(trustProxySetting(undefined)).toBe(false);
+    expect(trustProxySetting(' ')).toBe(false);
+    expect(trustProxySetting('false')).toBe(false);
+    expect(trustProxySetting('true')).toBe(true);
+    expect(trustProxySetting('uniquelocal')).toEqual(['uniquelocal']);
+    expect(trustProxySetting('127.0.0.1, 172.18.0.0/16')).toEqual(['127.0.0.1', '172.18.0.0/16']);
+  });
+
+  it('does not trust X-Forwarded-For from a public address', async () => {
+    app = Fastify({ trustProxy: trustProxySetting('uniquelocal') });
+    app.get('/ip', async (request) => ({ ip: request.ip }));
+    const direct = await app.inject({ url: '/ip', remoteAddress: '203.0.113.50', headers: { 'x-forwarded-for': '198.51.100.7' } });
+    expect(direct.json()).toEqual({ ip: '203.0.113.50' });
   });
 
   it('bounds concurrent bcrypt checks from one client IP', async () => {

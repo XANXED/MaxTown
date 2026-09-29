@@ -1,5 +1,8 @@
-import type { HouseAddressSuggestion } from '@maxtown/shared';
+import type { GeoPoint, HouseAddressSuggestion } from '@maxtown/shared';
 import { withTimeout } from '@maxtown/shared/http';
+
+// Адрес Дома из подсказок DaData (ГАР). Ключ только серверный; тексту адреса
+// из браузера не верим — выбранный GUID перечитываем через findById.
 
 const DADATA_API_ORIGIN = 'https://suggestions.dadata.ru';
 
@@ -51,7 +54,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function parseSuggestion(value: unknown): HouseAddressSuggestion | null {
+/** Дом из DaData с точкой на карте, если DaData её знает. */
+export type DaDataHouse = HouseAddressSuggestion & { point: GeoPoint | null };
+
+function coordinate(value: unknown, limit: number): number | null {
+  const number = typeof value === 'string' && value.trim() ? Number(value) : typeof value === 'number' ? value : NaN;
+  return Number.isFinite(number) && Math.abs(number) <= limit ? number : null;
+}
+
+function parseSuggestion(value: unknown): DaDataHouse | null {
   if (!isRecord(value)) return null;
   const suggestion = value as DaDataSuggestion;
   if (!isRecord(suggestion.data)) return null;
@@ -80,15 +91,21 @@ function parseSuggestion(value: unknown): HouseAddressSuggestion | null {
     ),
   ];
 
+  const lat = coordinate(data.geo_lat, 90);
+  const lon = coordinate(data.geo_lon, 180);
   return {
     value: label,
     locality: localityParts.join(', ') || label,
     garHouseGuid,
+    point: lat !== null && lon !== null ? { lat, lon } : null,
   };
 }
 
 function addressTokens(value: string): string[] {
-  return (value.toLocaleLowerCase('ru-RU').replaceAll('ё', 'е').match(/[\p{L}\p{N}]+/gu) ?? [])
+  // «14к1», «14 к.1», «14 корп1» пишут слитно, а DaData — «д 14 к 1».
+  const spaced = value.toLocaleLowerCase('ru-RU').replaceAll('ё', 'е')
+    .replace(/(\d)\s*(к|корп|стр)\.?\s*(\d)/gu, '$1 $2 $3');
+  return (spaced.match(/[\p{L}\p{N}]+/gu) ?? [])
     .filter((token) => !ADDRESS_NOISE_WORDS.has(token));
 }
 
@@ -123,7 +140,7 @@ async function callDaData(
   path: string,
   body: Record<string, unknown>,
   fetcher: typeof fetch,
-): Promise<HouseAddressSuggestion[]> {
+): Promise<DaDataHouse[]> {
   if (!apiKey) throw new AddressProviderError('API-ключ DaData не настроен');
 
   let response: Response;
@@ -153,7 +170,7 @@ async function callDaData(
     throw new AddressProviderError('DaData вернула ответ без подсказок');
   }
 
-  const unique = new Map<string, HouseAddressSuggestion>();
+  const unique = new Map<string, DaDataHouse>();
   for (const item of data.suggestions) {
     const suggestion = parseSuggestion(item);
     if (suggestion) unique.set(suggestion.garHouseGuid, suggestion);
@@ -165,15 +182,20 @@ export function suggestHouseAddresses(
   apiKey: string,
   query: string,
   fetcher: typeof fetch = globalThis.fetch,
-): Promise<HouseAddressSuggestion[]> {
+): Promise<DaDataHouse[]> {
   return callDaData(apiKey, '/suggestions/api/4_1/rs/suggest/address', { query, count: 10 }, fetcher);
+}
+
+/** Подсказка для браузера: без точки, она нужна только серверу. */
+export function publicSuggestion({ value, locality, garHouseGuid }: DaDataHouse): HouseAddressSuggestion {
+  return { value, locality, garHouseGuid };
 }
 
 export async function resolveHouseAddressFromTitle(
   apiKey: string,
   chatTitle: string,
   fetcher: typeof fetch = globalThis.fetch,
-): Promise<HouseAddressSuggestion | null> {
+): Promise<DaDataHouse | null> {
   const suggestions = await suggestHouseAddresses(apiKey, chatTitle, fetcher);
   const exactMatches = suggestions.filter((address) => titleMatchesAddress(chatTitle, address));
   return exactMatches.length === 1 ? exactMatches[0] ?? null : null;
@@ -183,7 +205,7 @@ export async function findHouseAddressByGuid(
   apiKey: string,
   garHouseGuid: string,
   fetcher: typeof fetch = globalThis.fetch,
-): Promise<HouseAddressSuggestion | null> {
+): Promise<DaDataHouse | null> {
   const suggestions = await callDaData(
     apiKey,
     '/suggestions/api/4_1/rs/findById/address',

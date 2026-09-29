@@ -24,7 +24,7 @@ describe('production deployment contract', () => {
     expect(compose.services.web?.depends_on?.postgres?.condition).toBe('service_healthy');
     expect(compose.services.web?.environment?.PORT).toBe('3000');
     expect(compose.services.web?.environment?.DATABASE_URL).toBe('${COMPOSE_DATABASE_URL:-postgres://maxtown:change-me@postgres:5432/maxtown}');
-    for (const key of ['VK_APP_ID', 'VK_APP_SECRET', 'VK_GROUP_ID', 'VK_GROUP_TOKEN', 'VK_CALLBACK_SECRET', 'VK_CALLBACK_CONFIRMATION_CODE', 'POLL_VOTER_NULLIFIER_SECRET']) {
+    for (const key of ['BOT_TOKEN', 'MAX_WEBHOOK_SECRET', 'DADATA_API_KEY', 'POLL_VOTER_NULLIFIER_SECRET']) {
       expect(compose.services.web?.environment?.[key]).toBeTruthy();
     }
     expect(compose.services.web?.ports).toEqual(['${WEB_PUBLISH:-127.0.0.1:3000:3000}']);
@@ -57,5 +57,47 @@ describe('production deployment contract', () => {
     expect(ci).not.toContain('packages: write');
     expect(ci).not.toMatch(/VPS_|GHCR|ssh-keyscan|workflow_run/);
     expect(ci).toMatch(/Run tests, including Render Blueprint contract/);
+  });
+
+  it('runs production on a Timeweb server: Caddy terminates HTTPS for DOMAIN, the API stays private', async () => {
+    const production = parse(await readProjectFile('compose.prod.yml')) as {
+      services: Record<string, {
+        image?: string;
+        build?: { args?: Record<string, string> };
+        environment?: Record<string, string>;
+        ports?: string[];
+        volumes?: string[];
+        depends_on?: Record<string, { condition?: string }>;
+        networks?: string[];
+      }>;
+    };
+    const { caddy, web } = production.services;
+
+    expect(caddy?.image).toMatch(/^caddy:2/);
+    expect(caddy?.ports).toEqual(expect.arrayContaining(['80:80', '443:443']));
+    expect(caddy?.volumes).toContain('./Caddyfile:/etc/caddy/Caddyfile:ro');
+    expect(caddy?.depends_on?.web?.condition).toBe('service_healthy');
+    expect(caddy?.networks).toEqual(['public']);
+    // Наружу публикуется только Caddy; порт API из compose.yml остаётся на 127.0.0.1.
+    expect(web?.ports).toBeUndefined();
+    expect(web?.environment?.MAXTOWN_PUBLIC_URL).toBe('https://${DOMAIN:?set DOMAIN}');
+    expect(web?.environment?.TRUST_PROXY).toBe('uniquelocal');
+    expect(web?.build?.args?.VITE_DGIS_API_KEY).toBe('${DGIS_API_KEY:-}');
+
+    const caddyfile = await readProjectFile('Caddyfile');
+    expect(caddyfile).toContain('{$DOMAIN} {');
+    expect(caddyfile).toContain('reverse_proxy web:3000');
+    expect(caddyfile).toMatch(/www\.\{\$DOMAIN\} \{\s*redir https:\/\/\{\$DOMAIN\}\{uri\} 308/);
+
+    const productionEnv = await readProjectFile('.env.production.example');
+    expect(productionEnv).toMatch(/^DOMAIN=maxtown\.ru$/m);
+    for (const key of ['BOT_TOKEN', 'MAX_WEBHOOK_SECRET', 'MAXTOWN_INTERNAL_SECRET', 'DADATA_API_KEY', 'COMPOSE_DATABASE_URL', 'POLL_VOTER_NULLIFIER_SECRET']) {
+      expect(productionEnv).toMatch(new RegExp(`^${key}=`, 'm'));
+    }
+
+    const deploy = await readProjectFile('deploy/deploy.sh');
+    expect(deploy).toContain('--file compose.yml --file compose.prod.yml');
+    expect(deploy).toContain('pg_dump');
+    expect(await readProjectFile('.github/workflows/ci.yml')).toContain('docker compose --file compose.yml --file compose.prod.yml config --quiet');
   });
 });

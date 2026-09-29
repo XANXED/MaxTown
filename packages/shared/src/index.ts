@@ -5,7 +5,10 @@ export type HealthResponse = {
   status: 'ok';
 };
 
-/** Роли внутри Дома для хакатона. */
+/**
+ * Роль человека в конкретном Доме (docs/adr/0007): Администратор Дома, Жилец
+ * или УК. Выводится из участия в Домовом чате MAX и пересчитывается при входе.
+ */
 export type HouseRole = 'admin' | 'resident' | 'management-company';
 
 /** Подтверждённая сервером личность из подписанного initData MAX. */
@@ -19,20 +22,6 @@ export type MaxAuthUser = {
 
 /** Положение человека в Домовом чате, из которого выводится Роль в Доме. */
 export type MaxHouseChatRole = 'member' | 'administrator' | 'owner';
-
-/** Доступ к общим данным Дома, подтверждённый текущим участием в Домовом чате. */
-export type HouseAccess = {
-  houseId: string;
-  /** Точный адрес Дома из подсказки DaData. */
-  houseLabel: string;
-  maxChatRole: MaxHouseChatRole;
-  /** Администратор Дома может назначить аккаунт УК и управлять Домом. */
-  canManageHouse: boolean;
-  /** Привязка к Квартире пока не реализована. */
-  apartment: null;
-  /** Роли актуальны только для этого Дома. */
-  roles: HouseRole[];
-};
 
 /** Подключение Домового чата, для которого администратору нужно выбрать точный адрес. */
 export type PendingHouseSetup = {
@@ -49,13 +38,6 @@ export type HouseAddressSuggestion = {
 
 export type HouseAddressSuggestionsResponse = {
   suggestions: HouseAddressSuggestion[];
-};
-
-export type MaxAuthResponse = {
-  user: MaxAuthUser;
-  houses: HouseAccess[];
-  /** Видны только администратору или владельцу соответствующего чата. */
-  pendingHouseSetups: PendingHouseSetup[];
 };
 
 /**
@@ -399,7 +381,7 @@ export type AssignedPlaceKind =
   | 'military-office'
   | 'other';
 
-/** Закреплённое место: хранится у нас, список ведёт Староста. */
+/** Закреплённое место: хранится у нас, список ведёт Администратор Дома. */
 export type AssignedPlace = {
   id: string;
   kind: AssignedPlaceKind;
@@ -410,7 +392,7 @@ export type AssignedPlace = {
   phone?: string;
   /** Пояснение Старосты: «кабинет 12», «приём по вторникам». */
   note?: string;
-  /** Точка, которую Староста поставил на карте; без неё места нет на карте. */
+  /** Точка, которую Администратор Дома поставил на карте; без неё места нет на карте. */
   point?: GeoPoint;
   /** ISO 8601. */
   updatedAt: string;
@@ -428,7 +410,7 @@ export type AssignedPlaceInput = {
 
 /**
  * Вид Ближайшего места (CONTEXT.md). Такие места ищутся в 2ГИС вокруг Дома
- * при каждом открытии и не хранятся (docs/adr/0003).
+ * при каждом открытии и не хранятся (docs/adr/0008).
  */
 export type NearestPlaceKind =
   | 'trauma'
@@ -525,11 +507,11 @@ export type HouseRegistration = {
   locality: string;
   /** GUID дома в ГАР; нет — адреса нет в реестре (новостройка), сверять вручную. */
   garHouseGuid?: string;
-  /** Кто зарегистрировал: будущий Староста. Имя и ник — из VK. */
+  /** Кто зарегистрировал: будущий Администратор Дома. Имя и ник — из MAX. */
   headman: {
     name: string;
-    vkUsername?: string;
-    /** Телефон, который Староста передал при регистрации. */
+    username?: string;
+    /** Телефон, который будущий Администратор Дома передал при регистрации. */
     phone?: string;
     /** Квартира Старосты в этом Доме. */
     apartment: string;
@@ -539,7 +521,7 @@ export type HouseRegistration = {
   status: HouseRegistrationStatus;
   /** ISO 8601: когда Модератор решил. */
   decidedAt?: string;
-  /** Причина отказа — её увидит Староста. */
+  /** Причина отказа — её увидит заявитель. */
   rejectionReason?: string;
 };
 
@@ -557,7 +539,8 @@ export type HouseMembershipSummary = {
 /** Проверенные данные человека из текущей серверной сессии. */
 export type AuthResident = {
   id: string;
-  vkUserId: string | null;
+  /** MAX user ID; null у людей, заведённых до перехода на MAX. */
+  maxUserId: string | null;
   displayName: string;
   username: string | null;
   phone: string | null;
@@ -567,6 +550,11 @@ export type AuthResident = {
 export type AuthSessionResponse = {
   token: string;
   expiresAt: string;
+};
+
+/** Вход через MAX: сессия и Домовые чаты, где человек может выбрать Адрес Дома. */
+export type MaxAuthSessionResponse = AuthSessionResponse & {
+  pendingHouseSetups: PendingHouseSetup[];
 };
 
 /** Сообщение в отдельном Домовом сообществе; это не Комментарий к Заявке. */

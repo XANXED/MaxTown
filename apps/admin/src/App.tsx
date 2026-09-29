@@ -11,7 +11,7 @@ import {
 } from './data/registrations.ts';
 
 // Панель Модератора (ADR-0002): проверка Домов, которые зарегистрировали
-// Старосты. Десктоп: слева очередь, справа выбранная регистрация.
+// заявители. Десктоп: слева очередь, справа выбранная регистрация.
 
 const tabs: Array<{ value: HouseRegistrationStatus; label: string }> = [
   { value: 'pending', label: 'На проверке' },
@@ -122,7 +122,7 @@ export function App() {
                 {tab === 'pending' ? 'Все регистрации проверены' : tab === 'approved' ? 'Одобренных пока нет' : 'Отклонённых пока нет'}
               </p>
               <p className="muted">
-                {tab === 'pending' ? 'Новые появятся здесь, когда Староста зарегистрирует Дом.' : 'Здесь будут решения Модераторов.'}
+                {tab === 'pending' ? 'Новые появятся здесь, когда кто-то зарегистрирует Дом.' : 'Здесь будут решения Модераторов.'}
               </p>
             </div>
           ) : (
@@ -236,7 +236,7 @@ function Review({ item, all, onApprove, onReject }: ReviewProps) {
       {item.status === 'rejected' ? (
         <div className="outcome outcome--negative">
           <p>Отклонена{item.decidedAt ? ` ${formatDate(item.decidedAt)}` : ''}.</p>
-          {item.rejectionReason ? <p className="muted">Причина для Старосты: {item.rejectionReason}</p> : null}
+          {item.rejectionReason ? <p className="muted">Причина для заявителя: {item.rejectionReason}</p> : null}
         </div>
       ) : null}
 
@@ -259,14 +259,14 @@ function Review({ item, all, onApprove, onReject }: ReviewProps) {
 
       <section className="group" aria-labelledby="headman-title">
         <h3 className="group__title" id="headman-title">
-          Староста
+          Заявитель
         </h3>
         <dl className="facts">
           <div className="facts__row">
-            <dt>Имя в VK</dt>
+            <dt>Имя в MAX</dt>
             <dd>
               {item.headman.name}
-              {item.headman.vkUsername ? <span className="muted"> @{item.headman.vkUsername}</span> : null}
+              {item.headman.username ? <span className="muted"> @{item.headman.username}</span> : null}
             </dd>
           </div>
           <div className="facts__row">
@@ -314,7 +314,7 @@ function Review({ item, all, onApprove, onReject }: ReviewProps) {
               }}
             />
             <p className={error ? 'field-error' : 'muted'} id="reject-hint">
-              {error ?? 'Её увидит Староста: напишите, что исправить, чтобы зарегистрироваться заново.'}
+              {error ?? 'Её увидит заявитель: напишите, что исправить, чтобы зарегистрироваться заново.'}
             </p>
             <div className="decision__actions">
               <button className="button button--danger" type="submit">

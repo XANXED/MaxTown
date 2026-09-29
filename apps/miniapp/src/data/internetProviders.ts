@@ -72,7 +72,7 @@ export const internetTechnologyLabels: Record<NonNullable<InternetTariff['techno
 };
 
 export const internetProviderSourceLabels: Record<HouseInternetProvider['source'], string> = {
-  manual: 'Добавлено Старостой',
+  manual: 'Добавлено Администратором Дома',
   'partner-feed': 'Партнёрская выгрузка',
   'operator-api': 'API Поставщика',
   'gis-zhkh': 'ГИС ЖКХ',

@@ -38,13 +38,29 @@ function parsePairs(initData: string): Map<string, string> | null {
 }
 
 function signatureFor(pairs: Map<string, string>, botToken: string): Buffer {
-  const launchParams = [...pairs.entries()]
+  return createHmac('sha256', secretKeyFor(botToken)).update(dataCheckString(pairs)).digest();
+}
+
+function secretKeyFor(botToken: string): Buffer {
+  return createHmac('sha256', 'WebAppData').update(botToken).digest();
+}
+
+function dataCheckString(pairs: Map<string, string>): string {
+  return [...pairs.entries()]
     .filter(([key]) => key !== 'hash')
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
     .map(([key, value]) => `${key}=${value}`)
     .join('\n');
-  const secretKey = createHmac('sha256', 'WebAppData').update(botToken).digest();
-  return createHmac('sha256', secretKey).update(launchParams).digest();
+}
+
+/**
+ * Подписывает initData так же, как клиент MAX. Нужна локальному запуску
+ * (`npm run dev:link`) и тестам: API проверяет подпись как у настоящего MAX.
+ */
+export function signMaxInitData(values: Record<string, string>, botToken: string): string {
+  const pairs = new Map(Object.entries(values).filter(([key]) => key !== 'hash'));
+  const hash = signatureFor(pairs, botToken).toString('hex');
+  return new URLSearchParams({ ...Object.fromEntries(pairs), hash }).toString();
 }
 
 function toUser(value: string | undefined): MaxAuthUser | null {

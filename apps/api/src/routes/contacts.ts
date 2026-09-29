@@ -6,7 +6,7 @@ import type {
   HouseContactInput,
   HouseContactsResponse,
 } from '@maxtown/shared';
-import { findHouseAccess, type HouseAccess } from '../auth/house-access.ts';
+import { canManageHouse, findHouseAccess, type HouseAccess } from '../auth/house-access.ts';
 import { requireAuthentication } from '../auth/sessions.ts';
 import type { ContactImportResult, HouseContactSource } from '../contacts/data-mos.ts';
 
@@ -210,7 +210,7 @@ async function prepareImportState(pool: Pool, source: HouseContactSource | null,
 
 async function requireHeadman(pool: Pool, residentId: string, houseId: string): Promise<HouseAccess | null> {
   const access = await findHouseAccess(pool, residentId, houseId);
-  return access?.role === 'headman' ? access : null;
+  return canManageHouse(access) ? access : null;
 }
 
 async function writeAudit(

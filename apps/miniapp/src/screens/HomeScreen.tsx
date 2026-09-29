@@ -21,7 +21,7 @@ import { brokenFirst, houseSummary, useHouseState } from '../data/houseState.ts'
 import { unreadCount, useNotifications } from '../data/notifications.ts';
 import type { ServiceIcon } from '../data/services.ts';
 import { greeting } from '../data/text.ts';
-import { currentProfileUser } from '../vkUser.ts';
+import { currentProfileUser } from '../maxUser.ts';
 import { eventRoute, requestRoute, ROUTES } from '../routes.ts';
 import { membershipLine, useMembership } from '../auth/membership.tsx';
 import type { Navigate } from './types.ts';

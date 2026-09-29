@@ -38,7 +38,7 @@ describe.skipIf(!databaseUrl)('house onboarding routes', () => {
     apartmentId = apartments.rows.find(({ number }) => number === '1')!.id;
     const headman = await createResident('house-route-headman');
     headmanToken = headman.token;
-    await pool.query("INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'headman')", [houseId, apartmentId, headman.id]);
+    await pool.query("INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'admin')", [houseId, apartmentId, headman.id]);
     const resident = await createResident('house-route-resident');
     residentId = resident.id;
     residentToken = resident.token;

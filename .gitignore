@@ -8,9 +8,11 @@ dist/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 .scratch/
 test-results/
 playwright-report/
 .data/
+backups/
 .DS_Store

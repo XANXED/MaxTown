@@ -101,7 +101,7 @@ export function PlacesMap({ label, house, markers, selectedId, onSelect, onCente
     for (const marker of markers) place(marker.id, marker.point, 1);
     setElements(nextElements);
 
-    // В режиме выбора точки кадр не трогаем: Староста двигает карту сам.
+    // В режиме выбора точки кадр не трогаем: Администратор Дома двигает карту сам.
     if (!onCenterChange) {
       const points = [...(house ? [house] : []), ...markers.map(({ point }) => point)];
       const bounds = boundsOf(points);

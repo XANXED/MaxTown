@@ -13,26 +13,27 @@ services:
         value: production
       - key: MODERATOR_USERNAME
         value: moderator
-      - key: VK_APP_ID
+      # Бот MAX: токен, секрет webhook, секрет подписки (/api/max/register).
+      - key: BOT_TOKEN
         sync: false
-      - key: VK_APP_SECRET
+      - key: MAX_BOT_USERNAME
+        value: t25_hakaton_max_bot
+      - key: MAX_WEBHOOK_SECRET
         sync: false
-      - key: VK_GROUP_ID
+      - key: MAXTOWN_INTERNAL_SECRET
         sync: false
-      - key: VK_GROUP_TOKEN
+      # Публичный адрес, который знает MAX (Cloudflare Worker, apps/edge).
+      - key: MAXTOWN_PUBLIC_URL
+        value: https://maxtown.maxtown-bot.workers.dev
+      # Адрес Дома по названию Домового чата (ГАР).
+      - key: DADATA_API_KEY
         sync: false
-      - key: VK_CALLBACK_SECRET
-        sync: false
-      - key: VK_CALLBACK_CONFIRMATION_CODE
-        sync: false
-      - key: VK_API_VERSION
-        value: 5.199
       - key: MODERATOR_PASSWORD_HASH
         sync: false
       - key: POLL_VOTER_NULLIFIER_SECRET
         sync: false
       # Ключ 2ГИС: серверный — для Ближайших мест, VITE_ — для карты в мини-аппе.
-      # Запросы 2ГИС с иностранного IP не проходят (docs/adr/0003).
+      # Запросы 2ГИС с иностранного IP не проходят (docs/adr/0008).
       - key: DGIS_API_KEY
         sync: false
       - key: VITE_DGIS_API_KEY

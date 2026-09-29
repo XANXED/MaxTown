@@ -1,39 +1,25 @@
-import { signVkLaunchParams } from '../auth/vk-launch-params.ts';
+import { LOCAL_BOT_TOKEN, maxLoginLink } from './max-login-link.ts';
 
-// Ссылка для локального запуска мини-аппа без VK. VK подписывает
-// launch-параметры секретом приложения; здесь их подписываем тем же
-// VK_APP_SECRET из .env, и API проверяет подпись как обычно — отдельного
-// входа для разработки нет.
+// Ссылка входа в мини-апп без клиента MAX (см. max-login-link.ts).
 //
-//   npm run dev:link              → Жилец с vk_user_id=1
+//   npm run dev:link              → человек с MAX ID 1
 //   npm run dev:link -- 2         → другой человек (открывайте в другой вкладке)
-//   npm run dev:link -- 2 <hid>   → сразу в Дом с этим id
+//   npm run dev:link -- 2 setup_-100500  → с параметром запуска (выбор адреса чата)
+//
+// Ссылка живёт MAX_INIT_DATA_TTL_SECONDS (по умолчанию 15 минут), как настоящий
+// initData; `npm run local` запускает API с долгим сроком.
 
 if (process.env.NODE_ENV === 'production') {
   console.error('dev:link только для локального запуска');
   process.exit(1);
 }
 
-const appId = process.env.VK_APP_ID?.trim();
-const secret = process.env.VK_APP_SECRET?.trim();
-if (!appId || !/^\d+$/.test(appId) || !secret) {
-  console.error('Задайте в .env VK_APP_ID (число) и VK_APP_SECRET (любая строка для локального запуска)');
-  process.exit(1);
-}
-
-const [userId = '1', houseId] = process.argv.slice(2);
+const [userId = '1', startParam] = process.argv.slice(2);
 if (!/^\d+$/.test(userId) || Number(userId) < 1) {
-  console.error('vk_user_id — положительное число, например 1 или 2');
+  console.error('MAX ID — положительное число, например 1 или 2');
   process.exit(1);
 }
 
-const params: Record<string, string> = {
-  vk_app_id: appId,
-  vk_user_id: userId,
-  vk_platform: 'desktop_web',
-  vk_language: 'ru',
-  vk_ts: String(Math.floor(Date.now() / 1000)),
-};
-const query = new URLSearchParams({ ...params, sign: signVkLaunchParams(params, secret), ...(houseId ? { house_id: houseId } : {}) });
+const botToken = process.env.BOT_TOKEN?.trim() || LOCAL_BOT_TOKEN;
 const base = process.env.MINIAPP_URL?.trim() || 'http://localhost:5173/';
-console.log(`${base}?${query.toString()}`);
+console.log(maxLoginLink({ base, maxUserId: Number(userId), botToken, ...(startParam ? { startParam } : {}) }));

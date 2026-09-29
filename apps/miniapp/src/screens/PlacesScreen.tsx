@@ -1,6 +1,6 @@
 import { MapPin, Stethoscope } from '@phosphor-icons/react';
 import type { AssignedPlace, HouseRole } from '@maxtown/shared';
-import { useMembership } from '../auth/membership.tsx';
+import { canManageHouse, useMembership } from '../auth/membership.tsx';
 import { PlacesMap } from '../components/PlacesMap.tsx';
 import { assignedVisuals, nearestVisuals } from '../components/placeVisuals.ts';
 import { Button, Typography } from '../components/platform-ui.tsx';
@@ -35,7 +35,7 @@ export function PlacesScreen({ navigate, houseId, role }: PlacesScreenProps) {
   const membership = useMembership();
   const isDemo = demoMode() === 'filled';
   const inHouse = Boolean(houseId) || isDemo;
-  const canEdit = role === 'headman' || isDemo;
+  const canEdit = canManageHouse(role) || isDemo;
 
   if (!inHouse) {
     return (
@@ -132,7 +132,7 @@ function AssignedSection({ houseId, locality, canEdit, navigate }: AssignedSecti
             description={
               canEdit
                 ? 'Добавьте места, за которыми закреплён Дом: поликлинику, школу, избирательный участок, участковый пункт'
-                : 'Их добавляет Староста Дома'
+                : 'Их добавляет Администратор Дома'
             }
           />
         </div>

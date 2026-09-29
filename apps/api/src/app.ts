@@ -10,9 +10,11 @@ import { registerModeratorRoutes } from './routes/moderator.ts';
 import { registerCommunityRoutes } from './routes/community.ts';
 import { registerRepairModeRoutes } from './routes/repair-mode.ts';
 import { registerNotificationRoutes } from './routes/notifications.ts';
-import { registerVkCallbackRoutes } from './routes/vk-callback.ts';
+import { registerMaxWebhookRoutes } from './routes/max-webhook.ts';
+import { registerHouseSetupRoutes } from './routes/house-setup.ts';
 import { createPgOutboxStore, startNotificationOutboxWorker } from './notifications/outbox.ts';
-import { createVkMessageClient } from './vk/client.ts';
+import { createMaxApi, type MaxApi } from './max/api.ts';
+import type { HouseChatDeps } from './max/house-chats.ts';
 import { registerServicesDirectoryRoutes } from './routes/services-directory.ts';
 import { registerInternetProviderRoutes } from './routes/internet-providers.ts';
 import { registerContactRoutes } from './routes/contacts.ts';
@@ -27,7 +29,28 @@ export type BuildAppOptions = {
   contactSource?: HouseContactSource | null;
   /** Клиент 2ГИС для Ближайших мест; без него берётся DGIS_API_KEY, без ключа — выключено. */
   dgis?: DgisClient | null;
+  /** Клиент MAX Bot API; без него берётся BOT_TOKEN. Тесты подставляют поддельный. */
+  max?: MaxApi | null;
+  /** fetch для DaData — тестам. */
+  dadataFetch?: typeof fetch;
 };
+
+const DEFAULT_MAX_BOT_USERNAME = 't25_hakaton_max_bot';
+const DEFAULT_INIT_DATA_TTL_SECONDS = 900;
+
+/**
+ * От каких адресов доверять X-Forwarded-*: список адресов, подсетей или имён
+ * proxy-addr через запятую («uniquelocal» — частные сети контейнеров Docker,
+ * там Caddy на Timeweb) либо «true». Пусто — не доверяем: иначе любой клиент
+ * подделал бы свой адрес и обошёл лимит входа Модератора. Число звеньев
+ * Fastify не принимает — оно не проверяет, кто перед ним.
+ */
+export function trustProxySetting(value: string | undefined): boolean | string[] {
+  const text = value?.trim();
+  if (!text || text === 'false') return false;
+  if (text === 'true') return true;
+  return text.split(',').map((item) => item.trim()).filter(Boolean);
+}
 
 function isHtmlNavigation(request: { method: string; headers: { accept?: string } }, path: string): boolean {
   return request.method === 'GET'
@@ -35,13 +58,24 @@ function isHtmlNavigation(request: { method: string; headers: { accept?: string 
     && !path.split('/').some((segment) => segment.includes('.'));
 }
 
-export async function buildApp({ pool, env, staticAssets, contactSource, dgis }: BuildAppOptions): Promise<FastifyInstance> {
-  const app = Fastify({ logger: env.NODE_ENV === 'production' });
-  const groupId = env.VK_GROUP_ID && /^\d+$/.test(env.VK_GROUP_ID) ? Number(env.VK_GROUP_ID) : null;
-  const worker = groupId && env.VK_GROUP_TOKEN && env.VK_APP_ID
+export async function buildApp({ pool, env, staticAssets, contactSource, dgis, max, dadataFetch }: BuildAppOptions): Promise<FastifyInstance> {
+  const app = Fastify({ logger: env.NODE_ENV === 'production', trustProxy: trustProxySetting(env.TRUST_PROXY) });
+  const botToken = env.BOT_TOKEN?.trim() || null;
+  const maxApi = max !== undefined
+    ? max
+    : botToken ? createMaxApi({ token: botToken, botUsername: env.MAX_BOT_USERNAME?.trim().replace(/^@/, '') || DEFAULT_MAX_BOT_USERNAME }) : null;
+  const houseChats: HouseChatDeps | null = maxApi ? {
+    pool,
+    max: maxApi,
+    dadataKey: env.DADATA_API_KEY?.trim() || null,
+    ...(dadataFetch ? { dadataFetch } : {}),
+    log: (message, error) => app.log.warn({ err: error }, message),
+  } : null;
+  const ttl = Number(env.MAX_INIT_DATA_TTL_SECONDS ?? DEFAULT_INIT_DATA_TTL_SECONDS);
+  const worker = maxApi && env.MAX_CHAT_NOTIFICATIONS !== 'off'
     ? startNotificationOutboxWorker(
-      createPgOutboxStore(pool, Number(env.VK_APP_ID)),
-      createVkMessageClient({ token: env.VK_GROUP_TOKEN, groupId, apiVersion: env.VK_API_VERSION }),
+      createPgOutboxStore(pool),
+      maxApi,
       { intervalMs: 15_000, setInterval: (callback, delay) => setInterval(callback, delay), clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) },
     )
     : null;
@@ -79,7 +113,19 @@ export async function buildApp({ pool, env, staticAssets, contactSource, dgis }:
     }
   });
 
-  registerAuthRoutes(app, pool, env);
+  registerAuthRoutes(app, pool, {
+    botToken,
+    initDataTtlSeconds: Number.isSafeInteger(ttl) && ttl > 0 ? ttl : DEFAULT_INIT_DATA_TTL_SECONDS,
+    houseChats,
+  });
+  if (houseChats) registerHouseSetupRoutes(app, houseChats);
+  if (houseChats && env.MAX_WEBHOOK_SECRET?.trim()) {
+    registerMaxWebhookRoutes(app, houseChats, {
+      webhookSecret: env.MAX_WEBHOOK_SECRET.trim(),
+      internalSecret: env.MAXTOWN_INTERNAL_SECRET?.trim() || null,
+      publicOrigin: env.MAXTOWN_PUBLIC_URL?.trim() || null,
+    });
+  }
   registerHouseRoutes(app, pool);
   registerModeratorRoutes(app, pool);
   registerCommunityRoutes(app, pool, env.POLL_VOTER_NULLIFIER_SECRET ?? 'development-only-poll-voter-nullifier-secret');
@@ -94,10 +140,7 @@ export async function buildApp({ pool, env, staticAssets, contactSource, dgis }:
   registerPlaceRoutes(app, pool, {
     dgis: dgis === undefined ? (env.DGIS_API_KEY?.trim() ? createDgisClient({ key: env.DGIS_API_KEY.trim() }) : null) : dgis,
   });
-  registerNotificationRoutes(app, pool, groupId);
-  if (groupId && env.VK_CALLBACK_SECRET && env.VK_CALLBACK_CONFIRMATION_CODE) {
-    registerVkCallbackRoutes(app, pool, { groupId, secret: env.VK_CALLBACK_SECRET, confirmationCode: env.VK_CALLBACK_CONFIRMATION_CODE });
-  }
+  registerNotificationRoutes(app, pool);
 
   const assets = staticAssets ?? (env.NODE_ENV === 'production' ? {
     miniAppRoot: fileURLToPath(new URL('../../miniapp/dist', import.meta.url)),

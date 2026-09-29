@@ -49,7 +49,7 @@ export function WelcomeScreen({ onJoin, onContinue }: WelcomeScreenProps) {
 
         <div className="welcome__copy stagger">
           <Typography.Text asChild variant="hero">
-            <h1>Ваш дом в VK</h1>
+            <h1>Ваш дом в MAX</h1>
           </Typography.Text>
           <Typography.Text asChild variant="body" color="secondary">
             <p>Состояние дома, Заявки и нужные Контакты — в одном месте, без звонков и личных походов.</p>

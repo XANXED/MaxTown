@@ -1,0 +1,16 @@
+# Продакшн на Timeweb Cloud (docs/adr/0011): Caddy принимает HTTPS для DOMAIN
+# и передаёт всё в API — он сам отдаёт мини-апп, панель Модератора и /api.
+# Сертификат Let's Encrypt Caddy получает и продлевает сам: нужны A-записи
+# DOMAIN и www.DOMAIN на этот сервер и открытые порты 80 и 443.
+
+{$DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+	# X-Forwarded-For Caddy ставит сам и не доверяет присланному клиентом,
+	# поэтому API (TRUST_PROXY=uniquelocal) видит настоящий адрес человека.
+	reverse_proxy web:3000
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} 308
+}

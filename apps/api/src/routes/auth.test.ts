@@ -1,91 +1,117 @@
-import { createHash, createHmac } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { Pool } from 'pg';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../app.ts';
+import { signMaxInitData } from '../auth/max-init-data.ts';
 import { runMigrations } from '../db/migrate.ts';
 import { createPool } from '../db/pool.ts';
+import { createFakeMax, member, type FakeMax } from '../max/fake-max.ts';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
-const VK_APP_ID = '12345678';
-const VK_APP_SECRET = 'vk-test-app-secret';
+const BOT_TOKEN = 'test-bot-token';
 
-function signedLaunchParams(userId: string): string {
-  const values = { vk_app_id: VK_APP_ID, vk_user_id: userId, vk_language: 'ru', vk_platform: 'android' };
-  const canonical = Object.entries(values).sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&');
-  return new URLSearchParams({ ...values, sign: createHmac('sha256', VK_APP_SECRET).update(canonical).digest('base64url') }).toString();
+function initData(userId: number, firstName = `Жилец ${userId}`): string {
+  return signMaxInitData({
+    auth_date: String(Math.floor(Date.now() / 1000)),
+    user: JSON.stringify({ id: userId, first_name: firstName, username: `user${userId}` }),
+  }, BOT_TOKEN);
 }
 
-describe.skipIf(!databaseUrl)('VK authentication routes', () => {
+describe.skipIf(!databaseUrl)('вход через MAX', () => {
   let pool: Pool;
   let app: FastifyInstance;
+  let max: FakeMax;
+
+  const login = (userId: number, extra: Record<string, unknown> = {}) =>
+    app.inject({ method: 'POST', url: '/api/auth/max', payload: { initData: initData(userId), ...extra } });
+  const me = (token: string) => app.inject({ method: 'GET', url: '/api/me', headers: { authorization: `Bearer ${token}` } });
 
   beforeEach(async () => {
     pool = createPool(databaseUrl!);
     await runMigrations(pool);
+    await pool.query('TRUNCATE TABLE houses CASCADE');
     await pool.query('TRUNCATE TABLE residents CASCADE');
-    app = await buildApp({ pool, env: { NODE_ENV: 'test', VK_APP_ID, VK_APP_SECRET } });
+    await pool.query('TRUNCATE TABLE house_chat_onboardings');
+    max = createFakeMax();
+    app = await buildApp({ pool, env: { NODE_ENV: 'test', BOT_TOKEN, MAX_CHAT_NOTIFICATIONS: 'off' }, max });
   });
 
   afterEach(async () => { await app.close(); });
 
-  it('exchanges a signed VK identity for a hashed server session and returns /api/me', async () => {
-    const login = await app.inject({ method: 'POST', url: '/api/auth/vk', payload: { launchParams: signedLaunchParams('90101') } });
+  it('меняет подписанный initData на серверную сессию и отдаёт /api/me', async () => {
+    const response = await login(90101);
 
-    expect(login.statusCode).toBe(200);
-    const session = login.json<{ token: string; expiresAt: string }>();
+    expect(response.statusCode, response.body).toBe(200);
+    const session = response.json<{ token: string; expiresAt: string; pendingHouseSetups: unknown[] }>();
     expect(session.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(new Date(session.expiresAt).getTime()).toBeGreaterThan(Date.now());
+    expect(session.pendingHouseSetups).toEqual([]);
 
-    const stored = await pool.query<{ token_hash: Buffer; vk_user_id: string | null }>(
-      `SELECT s.token_hash, r.vk_user_id FROM sessions s JOIN residents r ON r.id = s.resident_id WHERE r.vk_user_id = $1`,
-      ['90101'],
+    const stored = await pool.query<{ token_hash: Buffer }>(
+      'SELECT s.token_hash FROM sessions s JOIN residents r ON r.id = s.resident_id WHERE r.max_user_id = $1', ['90101'],
     );
-    expect(stored.rows).toHaveLength(1);
-    expect(stored.rows[0]!.vk_user_id).toBe('90101');
     expect(stored.rows[0]!.token_hash).toEqual(createHash('sha256').update(session.token).digest());
-    expect(JSON.stringify(stored.rows[0])).not.toContain(session.token);
 
-    const me = await app.inject({ method: 'GET', url: '/api/me', headers: { authorization: `Bearer ${session.token}` } });
-    expect(me.statusCode).toBe(200);
-    expect(me.json()).toMatchObject({ resident: { vkUserId: '90101', displayName: 'Жилец 90101' }, memberships: [] });
-    expect(me.body).not.toContain(session.token);
+    const profile = await me(session.token);
+    expect(profile.json()).toMatchObject({ resident: { maxUserId: '90101', displayName: 'Жилец 90101', username: 'user90101' }, memberships: [] });
   });
 
-  it('rejects forged launch params and unknown bearer tokens', async () => {
-    const tampered = new URLSearchParams(signedLaunchParams('90102'));
-    tampered.set('vk_user_id', '999999');
-    const login = await app.inject({ method: 'POST', url: '/api/auth/vk', payload: { launchParams: tampered.toString() } });
-    const me = await app.inject({ method: 'GET', url: '/api/me', headers: { authorization: `Bearer ${'x'.repeat(43)}` } });
+  it('отклоняет подделанный initData, чужой токен бота и неизвестную сессию', async () => {
+    const forged = new URLSearchParams(initData(90102));
+    forged.set('user', JSON.stringify({ id: 1, first_name: 'Чужой' }));
+    const otherBot = signMaxInitData({ auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id: 5, first_name: 'Бот' }) }, 'other-token');
 
-    expect(login.statusCode).toBe(401);
-    expect(me.statusCode).toBe(401);
+    expect((await app.inject({ method: 'POST', url: '/api/auth/max', payload: { initData: forged.toString() } })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'POST', url: '/api/auth/max', payload: { initData: otherBot } })).statusCode).toBe(401);
+    expect((await me('x'.repeat(43))).statusCode).toBe(401);
   });
 
-  it('revokes an authenticated session on logout', async () => {
-    const login = await app.inject({ method: 'POST', url: '/api/auth/vk', payload: { launchParams: signedLaunchParams('90103') } });
-    expect(login.statusCode).toBe(200);
-    const { token } = login.json<{ token: string }>();
+  it('даёт Дом и Роль по участию в Домовом чате и снимает их, когда человек ушёл', async () => {
+    const house = await pool.query<{ id: string }>("INSERT INTO houses (address, locality) VALUES ('Комендантский пр-кт, д 14 к 1', 'г Санкт-Петербург') RETURNING id");
+    await pool.query('INSERT INTO house_chats (chat_id, house_id, created_by_max_user_id) VALUES ($1, $2, $3)', [-500, house.rows[0]!.id, 7]);
+    max.chats.set(-500, { title: 'Комендантский 14к1', botIsAdmin: true, members: [member(7), member(8, { isAdmin: true }), member(9)] });
+
+    const roles = async (userId: number) => {
+      const { token } = (await login(userId)).json<{ token: string }>();
+      return (await me(token)).json<{ memberships: Array<{ role: string; houseId: string }> }>().memberships.map(({ role }) => role);
+    };
+    expect(await roles(7)).toEqual(['admin']); // добавил бота
+    expect(await roles(8)).toEqual(['admin']); // администратор чата
+    expect(await roles(9)).toEqual(['resident']);
+    expect(await roles(10)).toEqual([]); // не в чате
+
+    max.chats.get(-500)!.members = [member(7), member(8, { isAdmin: true })];
+    expect(await roles(9)).toEqual([]);
+  });
+
+  it('не выкидывает человека из Дома, если MAX не ответил', async () => {
+    const house = await pool.query<{ id: string }>("INSERT INTO houses (address, locality) VALUES ('ул. Лесная, 12', 'Казань') RETURNING id");
+    await pool.query('INSERT INTO house_chats (chat_id, house_id) VALUES ($1, $2)', [-501, house.rows[0]!.id]);
+    max.chats.set(-501, { title: 'Лесная 12', botIsAdmin: true, members: [member(11)] });
+    await login(11);
+
+    max.failing = true;
+    const response = await login(11);
+    expect(response.statusCode).toBe(200);
+    expect((await me(response.json<{ token: string }>().token)).json()).toMatchObject({ memberships: [{ role: 'resident' }] });
+  });
+
+  it('показывает выбор адреса только администратору чата', async () => {
+    await pool.query("INSERT INTO house_chat_onboardings (chat_id, chat_title, address_required_at) VALUES (-502, 'Наш дом', now())");
+    max.chats.set(-502, { title: 'Наш дом', botIsAdmin: true, members: [member(12, { isOwner: true }), member(13)] });
+
+    expect((await login(12)).json()).toMatchObject({ pendingHouseSetups: [{ chatId: -502, chatTitle: 'Наш дом' }] });
+    expect((await login(13)).json()).toMatchObject({ pendingHouseSetups: [] });
+  });
+
+  it('отзывает сессию при выходе, а без BOT_TOKEN вход выключен', async () => {
+    const { token } = (await login(90103)).json<{ token: string }>();
     const logout = await app.inject({ method: 'POST', url: '/api/auth/logout', headers: { authorization: `Bearer ${token}` } });
-    const me = await app.inject({ method: 'GET', url: '/api/me', headers: { authorization: `Bearer ${token}` } });
-
     expect(logout.statusCode).toBe(204);
-    expect(me.statusCode).toBe(401);
-  });
-
-  it('rejects expired stored sessions and missing VK app configuration', async () => {
-    const login = await app.inject({ method: 'POST', url: '/api/auth/vk', payload: { launchParams: signedLaunchParams('90104') } });
-    expect(login.statusCode).toBe(200);
-    const { token } = login.json<{ token: string }>();
-    const tokenHash = createHash('sha256').update(token).digest();
-    await pool.query('UPDATE sessions SET created_at = $1, expires_at = $2 WHERE token_hash = $3', [new Date(Date.now() - 5000), new Date(Date.now() - 1000), tokenHash]);
-    const me = await app.inject({ method: 'GET', url: '/api/me', headers: { authorization: `Bearer ${token}` } });
-    expect(me.statusCode).toBe(401);
+    expect((await me(token)).statusCode).toBe(401);
 
     await app.close();
-    app = await buildApp({ pool: createPool(databaseUrl!), env: { NODE_ENV: 'test' } });
-    const unconfigured = await app.inject({ method: 'POST', url: '/api/auth/vk', payload: { launchParams: signedLaunchParams('90105') } });
-    expect(unconfigured.statusCode).toBe(503);
+    app = await buildApp({ pool: createPool(databaseUrl!), env: { NODE_ENV: 'test' }, max: null });
+    expect((await login(90104)).statusCode).toBe(503);
   });
 });

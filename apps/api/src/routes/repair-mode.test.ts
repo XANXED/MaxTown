@@ -36,11 +36,11 @@ describe.skipIf(!databaseUrl)('house repair mode', () => {
     residentToken = resident.token;
     const responsible = await createPerson('repair-responsible');
     responsibleToken = responsible.token;
-    const responsibleMembership = await pool.query<{ id: string }>("INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'responsible') RETURNING id", [houseId, apartment.rows[0]!.id, responsible.id]);
+    const responsibleMembership = await pool.query<{ id: string }>("INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'management-company') RETURNING id", [houseId, apartment.rows[0]!.id, responsible.id]);
     responsibleMembershipId = responsibleMembership.rows[0]!.id;
     const headman = await createPerson('repair-headman');
     headmanToken = headman.token;
-    await pool.query("INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'headman')", [houseId, apartment.rows[0]!.id, headman.id]);
+    await pool.query("INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'admin')", [houseId, apartment.rows[0]!.id, headman.id]);
     await pool.query("INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'resident')", [houseId, apartment.rows[0]!.id, resident.id]);
     const foreignHouse = await pool.query<{ id: string }>("INSERT INTO houses (address, locality) VALUES ('ул. Чужая, 1', 'Казань') RETURNING id");
     const foreignHouseId = foreignHouse.rows[0]!.id;
@@ -73,7 +73,7 @@ describe.skipIf(!databaseUrl)('house repair mode', () => {
     };
     const active = await app.inject({ method: 'PUT', url: `/api/houses/${houseId}/repair-mode`, headers, payload: activePayload });
     expect(active.statusCode).toBe(200);
-    expect(active.json<{ repairMode: Record<string, unknown> }>().repairMode).toMatchObject({ ...activePayload, updatedBy: { role: 'responsible' } });
+    expect(active.json<{ repairMode: Record<string, unknown> }>().repairMode).toMatchObject({ ...activePayload, updatedBy: { role: 'management-company' } });
     const edited = await app.inject({ method: 'PUT', url: `/api/houses/${houseId}/repair-mode`, headers, payload: { ...activePayload, expectedCompletionAt: '2026-09-28T18:00:00.000Z' } });
     expect(edited.statusCode).toBe(200);
     const completed = await app.inject({ method: 'PUT', url: `/api/houses/${houseId}/repair-mode`, headers, payload: { isActive: false } });
@@ -111,6 +111,6 @@ describe.skipIf(!databaseUrl)('house repair mode', () => {
       payload: { isActive: true, title: 'Покраска подъезда', description: 'Работы на первом этаже.', startsAt: '2026-09-27T08:00:00.000Z' },
     });
     expect(response.statusCode).toBe(200);
-    expect(response.json<{ repairMode: { updatedBy: { role: string } } }>().repairMode.updatedBy.role).toBe('headman');
+    expect(response.json<{ repairMode: { updatedBy: { role: string } } }>().repairMode.updatedBy.role).toBe('admin');
   });
 });

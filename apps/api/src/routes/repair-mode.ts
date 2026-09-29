@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { Pool, PoolClient } from 'pg';
 import type { HouseRole, RepairMode } from '@maxtown/shared';
-import { findHouseAccess } from '../auth/house-access.ts';
+import { canManageServices, findHouseAccess } from '../auth/house-access.ts';
 import { requireAuthentication } from '../auth/sessions.ts';
 
 type HouseParams = { houseId: string };
@@ -106,7 +106,7 @@ export function registerRepairModeRoutes(app: FastifyInstance, pool: Pool): void
     async (request, reply) => {
       const access = await findHouseAccess(pool, request.authSession!.resident.id, request.params.houseId);
       if (!access) return reply.code(403).send({ error: 'forbidden' });
-      if (access.role !== 'headman' && access.role !== 'responsible') return reply.code(403).send({ error: 'repair_mode_edit_forbidden' });
+      if (!canManageServices(access)) return reply.code(403).send({ error: 'repair_mode_edit_forbidden' });
 
       const body = request.body;
       const title = body.isActive ? body.title?.trim() : null;

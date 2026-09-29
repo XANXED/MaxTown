@@ -80,7 +80,7 @@ describe.skipIf(!databaseUrl)('moderator registration routes', () => {
     expect(list.json<{ registrations: Array<{ id: string }> }>().registrations[0]?.id).toBe(registrationId);
     const decision = await app.inject({ method: 'POST', url: `/api/moderator/registrations/${registrationId}/decision`, headers, payload: { decision: 'approve' } });
     expect(decision.statusCode, decision.body).toBe(200);
-    expect(await pool.query("SELECT 1 FROM houses h JOIN house_registrations r ON r.house_id = h.id JOIN memberships m ON m.house_id = h.id WHERE r.id = $1 AND m.role = 'headman'", [registrationId]).then(({ rowCount }) => rowCount)).toBe(1);
+    expect(await pool.query("SELECT 1 FROM houses h JOIN house_registrations r ON r.house_id = h.id JOIN memberships m ON m.house_id = h.id WHERE r.id = $1 AND m.role = 'admin'", [registrationId]).then(({ rowCount }) => rowCount)).toBe(1);
     expect(await pool.query('SELECT decided_by_principal FROM house_registrations WHERE id = $1', [registrationId]).then(({ rows }) => rows[0]?.decided_by_principal)).toBe('moderator@example.org');
 
     const duplicatePerson = await pool.query<{ id: string }>("INSERT INTO residents (max_user_id, display_name) VALUES ('moderator-duplicate', 'Сосед') RETURNING id");

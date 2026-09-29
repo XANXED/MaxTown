@@ -2,11 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import type { Pool, PoolClient } from 'pg';
 import type { AssignedPlace, AssignedPlaceInput, HouseLocationResponse, NearestPlaceKind, NearestPlacesResponse } from '@maxtown/shared';
 import { NEAREST_PLACE_KINDS } from '@maxtown/shared';
-import { findHouseAccess, type HouseAccess } from '../auth/house-access.ts';
+import { canManageHouse, findHouseAccess, type HouseAccess } from '../auth/house-access.ts';
 import { requireAuthentication } from '../auth/sessions.ts';
 import type { DgisClient, GeoPoint } from '../places/dgis.ts';
 
-// Места рядом (docs/adr/0003):
+// Места рядом (docs/adr/0008):
 // - Закреплённые места хранятся у нас, читает любой член Дома, правит Староста;
 // - Ближайшие места ищутся в 2ГИС на каждый запрос и не сохраняются.
 //   Кешируется только точка Дома — это результат геокодирования, его правила
@@ -145,10 +145,20 @@ export function registerPlaceRoutes(app: FastifyInstance, pool: Pool, { dgis }: 
 
   async function requireHeadman(residentId: string, houseId: string): Promise<HouseAccess | null> {
     const access = await findHouseAccess(pool, residentId, houseId);
-    return access?.role === 'headman' ? access : null;
+    return canManageHouse(access) ? access : null;
   }
 
+  /** Точка Дома, сохранённая при Подключении Дома из DaData. */
+  async function storedPoint(houseId: string): Promise<GeoPoint | undefined> {
+    const result = await pool.query<{ lat: number | null; lon: number | null }>('SELECT lat, lon FROM houses WHERE id = $1', [houseId]);
+    const row = result.rows[0];
+    return row && row.lat !== null && row.lon !== null ? { lat: row.lat, lon: row.lon } : undefined;
+  }
+
+  /** Точка Дома: сохранённая из DaData, а если её нет — геокодер 2ГИС. */
   async function housePoint(client: DgisClient, access: HouseAccess): Promise<GeoPoint | undefined> {
+    const stored = await storedPoint(access.houseId);
+    if (stored) return stored;
     // Ключ — адрес, а не id Дома: поправили адрес — ищем точку заново,
     // а не показываем старую (или старый «не найден»).
     const key = `${access.houseId}|${access.locality}|${access.address}`;
@@ -243,8 +253,11 @@ export function registerPlaceRoutes(app: FastifyInstance, pool: Pool, { dgis }: 
   }, async (request, reply): Promise<HouseLocationResponse | undefined> => {
     const access = await findHouseAccess(pool, request.authSession!.resident.id, request.params.houseId);
     if (!access) return reply.code(403).send({ error: 'forbidden' });
-    if (!dgis) return reply.code(503).send({ error: 'nearest_places_not_configured' });
     reply.header('Cache-Control', 'no-store');
+    // Точка из DaData есть — карте Дома 2ГИС-геокодер не нужен.
+    const stored = await storedPoint(access.houseId);
+    if (stored) return { house: stored };
+    if (!dgis) return reply.code(503).send({ error: 'nearest_places_not_configured' });
     try {
       const point = await housePoint(dgis, access);
       if (!point) return reply.code(404).send({ error: 'house_location_unknown' });
