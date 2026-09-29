@@ -122,7 +122,9 @@ describe.skipIf(!databaseUrl)('house community and polls', () => {
     expect(results.json()).toMatchObject({ totalVotes: 1, myVoteOptionId: poll.options[0]!.id, options: [{ id: poll.options[0]!.id, votes: 1 }, { id: poll.options[1]!.id, votes: 0 }] });
     expect(JSON.stringify(results.json())).not.toContain(residentId);
     expect(JSON.stringify(results.json())).not.toContain('author');
-    const ballots = await pool.query<{ column_name: string }>("SELECT column_name FROM information_schema.columns WHERE table_name = 'poll_ballots'");
+    const ballots = await pool.query<{ column_name: string }>(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'poll_ballots'",
+    );
     expect(ballots.rows.map(({ column_name }) => column_name).sort()).toEqual(['option_id', 'poll_id', 'voter_nullifier']);
     const ballot = await pool.query<{ voter_nullifier: Buffer }>('SELECT voter_nullifier FROM poll_ballots WHERE poll_id = $1', [poll.id]);
     expect(ballot.rows[0]?.voter_nullifier).toBeInstanceOf(Buffer);

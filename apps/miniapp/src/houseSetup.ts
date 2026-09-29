@@ -1,7 +1,7 @@
 import type { HouseAddressSuggestion, PendingHouseSetup } from '@maxtown/shared';
 import { RequestTimeoutError, withTimeout } from '@maxtown/shared/http';
 import { apiFetch, getSession } from './auth/session.ts';
-import { currentMaxInitData, launchParameter } from './maxLaunch.ts';
+import { launchStartParam } from './maxLaunch.ts';
 
 // Подключение Дома: бот не узнал адрес по названию Домового чата, и его
 // администратор выбирает Дом из подсказок DaData. Кто выбирает — сервер знает
@@ -29,14 +29,8 @@ function setupChatId(value: unknown): number | null {
 }
 
 export function launchSetupChatId(): number | null {
-  const bridgeStartParam = window.WebApp?.initDataUnsafe?.start_param;
-  const bridgeChatId = setupChatId(bridgeStartParam);
-  if (bridgeChatId !== null) return bridgeChatId;
-
-  // MAX также передаёт payload запуска в GET-параметре WebAppStartParam.
-  // В некоторых клиентах он появляется раньше, чем initDataUnsafe заполняется мостом.
-  return setupChatId(launchParameter('WebAppStartParam'))
-    ?? setupChatId(new URLSearchParams(currentMaxInitData()).get('start_param'));
+  // URL — лишь подсказка; участие и права в этом чате сервер проверяет отдельно.
+  return setupChatId(launchStartParam());
 }
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;

@@ -150,7 +150,11 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
 it.skipIf(!databaseUrl)('preserves old public totals while deleting every historical voter link', async () => {
   const admin = createPool(databaseUrl!);
   const schema = `anonymous_migration_${randomUUID().replaceAll('-', '')}`;
-  const scoped = new Pool({ connectionString: databaseUrl!, options: `-c search_path=${schema}` });
+  // TEST_DATABASE_URL обычно уже содержит options с тестовой search_path.
+  // Убираем её из URL, чтобы явная случайная схема этого теста имела приоритет.
+  const scopedUrl = new URL(databaseUrl!);
+  scopedUrl.searchParams.delete('options');
+  const scoped = new Pool({ connectionString: scopedUrl.toString(), options: `-c search_path=${schema}` });
   try {
     await admin.query(`CREATE SCHEMA ${schema}`);
     const client = await scoped.connect();
