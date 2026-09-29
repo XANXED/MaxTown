@@ -92,7 +92,7 @@ export function RepairModeScreen({ houseId, role }: { houseId: string | null; ro
   const [history, setHistory] = useState<Record<string, HouseRepairHistoryEntry[]>>({});
   const [openHistoryId, setOpenHistoryId] = useState<string | null>(null);
   const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
-  const [statusNote, setStatusNote] = useState('');
+  const [statusNotes, setStatusNotes] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     if (!resolvedHouseId) return;
@@ -153,14 +153,15 @@ export function RepairModeScreen({ houseId, role }: { houseId: string | null; ro
 
   const changeStatus = (repair: HouseRepair, next: HouseRepairStatus) => {
     if (!resolvedHouseId) return;
-    if (repair.status === 'completed' && next === 'in_progress' && !statusNote.trim()) {
+    const note = statusNotes[repair.id]?.trim() ?? '';
+    if (repair.status === 'completed' && next === 'in_progress' && !note) {
       setNotice('Укажите, почему работы возобновляются.');
       return;
     }
     setSaving(true);
     setNotice('');
-    void updateHouseRepair(resolvedHouseId, repair.id, { status: next, note: statusNote.trim() || undefined })
-      .then(async () => { setStatusNote(''); setNotice('Статус обновлён.'); await refresh(); })
+    void updateHouseRepair(resolvedHouseId, repair.id, { status: next, note: note || undefined })
+      .then(async () => { setStatusNotes((current) => ({ ...current, [repair.id]: '' })); setNotice('Статус обновлён.'); await refresh(); })
       .catch(() => setNotice('Не удалось изменить статус. Попробуйте ещё раз.'))
       .finally(() => setSaving(false));
   };
@@ -192,7 +193,7 @@ export function RepairModeScreen({ houseId, role }: { houseId: string | null; ro
         <Button size="small" variant="secondary" onClick={() => beginEdit(repair)}>Изменить</Button>
         {repairStatusActions(repair.status).map((action) => <Button key={action.status} size="small" variant="secondary" disabled={saving} onClick={() => changeStatus(repair, action.status)}>{action.label}</Button>)}
       </div> : null}
-      {canEdit && repair.status === 'completed' ? <label className="repair-field"><span>Причина возобновления</span><Input mode="contrast" size="large" aria-label={`Причина возобновления: ${repair.title}`} value={statusNote} onChange={(event) => setStatusNote(event.target.value)} /></label> : null}
+      {canEdit && repair.status === 'completed' ? <label className="repair-field"><span>Причина возобновления</span><Input mode="contrast" size="large" aria-label={`Причина возобновления: ${repair.title}`} value={statusNotes[repair.id] ?? ''} onChange={(event) => setStatusNotes((current) => ({ ...current, [repair.id]: event.target.value }))} /></label> : null}
       <button className="text-action repair-history-toggle" type="button" aria-expanded={openHistoryId === repair.id} onClick={() => toggleHistory(repair.id)}>
         {openHistoryId === repair.id ? 'Скрыть историю' : 'История изменений'}
       </button>
