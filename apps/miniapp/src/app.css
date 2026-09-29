@@ -1428,6 +1428,146 @@ time,
   background: color-mix(in srgb, var(--warning) 10%, var(--background-card));
 }
 
+/*
+ * Режим ЧС (docs/adr/0012): открытая Авария вместо общей сводки. Та же
+ * сигнальная подложка, что у сводки с Аварией, и тонкая рамка в её тоне;
+ * факты — строками, как ячейки VK: подпись слева, значение справа.
+ */
+.emergency-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-16);
+  border: 1px solid color-mix(in srgb, var(--text-negative) 24%, transparent);
+  border-radius: var(--radius-20);
+  background: color-mix(in srgb, var(--text-negative) 8%, var(--background-card));
+}
+
+.emergency-panel__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-8);
+}
+
+.emergency-panel__head h2 {
+  margin: var(--space-0);
+  text-wrap: balance;
+}
+
+.emergency-panel__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-8);
+  background: var(--button-negative);
+  color: var(--button-primary-contrast);
+  font-size: var(--font-size-label-caps);
+  font-weight: var(--font-weight-label-caps);
+  line-height: var(--line-height-label-caps);
+  letter-spacing: var(--letter-spacing-label-caps);
+  text-transform: uppercase;
+}
+
+.emergency-panel__facts {
+  margin: var(--space-0);
+}
+
+/*
+ * Подпись и значение в строку; не влезают (узкий экран, крупный системный
+ * шрифт) — значение переносится под подпись и встаёт к левому краю.
+ */
+.emergency-panel__fact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-12);
+  padding-block: var(--space-10);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+}
+
+.emergency-panel__fact + .emergency-panel__fact {
+  border-top: 1px solid var(--divider-primary);
+}
+
+.emergency-panel__fact:first-child {
+  padding-block-start: var(--space-0);
+}
+
+.emergency-panel__fact:last-child {
+  padding-block-end: var(--space-0);
+}
+
+.emergency-panel__fact dt {
+  color: var(--text-secondary);
+}
+
+.emergency-panel__fact dd {
+  margin: var(--space-0);
+  color: var(--text-primary);
+  font-weight: var(--font-weight-body-strong);
+}
+
+/*
+ * «У меня тоже …» не обрезается многоточием, как по умолчанию у кнопок VKUI:
+ * на узком экране подпись переходит на вторую строку, кнопка растёт.
+ */
+.emergency-panel .vkuiButton__content {
+  padding-block: var(--space-8);
+  white-space: normal;
+  text-wrap: balance;
+}
+
+.emergency-panel__status--repairing {
+  color: var(--text-negative-readable);
+}
+
+.emergency-panel__status--checking {
+  color: var(--text-warning-readable);
+}
+
+.emergency-panel__mine {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+  margin: var(--space-0);
+}
+
+.emergency-panel__mine > .icon {
+  flex: none;
+  color: var(--icon-positive);
+}
+
+.emergency-panel__hint {
+  margin: calc(var(--space-4) * -1) var(--space-0) var(--space-0);
+  text-align: center;
+  text-wrap: balance;
+}
+
+.emergency-panel__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: calc(var(--space-20) * 2);
+  padding: var(--space-8) var(--space-12);
+  border: var(--space-0);
+  border-radius: var(--radius-12);
+  background: transparent;
+  color: var(--text-themed);
+  font-size: var(--font-size-action-small);
+  font-weight: var(--font-weight-action-small);
+  line-height: var(--line-height-action-small);
+}
+
+/* Ход работ в карточке Аварии: подписи полей с воздухом над ними. */
+.accident-controls__label {
+  margin-top: var(--space-10);
+}
+
 .house-hint {
   display: flex;
   flex-direction: column;
@@ -1691,6 +1831,100 @@ time,
 .contact-delete-confirm > h2,
 .contact-delete-confirm > p {
   margin: var(--space-0);
+}
+
+/* Приёмная УК: плоская публичная переписка без вложенных декоративных карточек. */
+.management-info {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-8);
+  padding: var(--space-12);
+  border-radius: var(--radius-12);
+  background: var(--background-card);
+  color: var(--text-secondary);
+}
+
+.management-info > p,
+.management-history h2,
+.management-history ol,
+.management-composer > label {
+  margin: var(--space-0);
+}
+
+.management-messages {
+  padding: var(--space-16);
+}
+
+.management-message {
+  max-width: 92%;
+}
+
+.management-message__photos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.management-message__photos img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--radius-8);
+  object-fit: cover;
+}
+
+.management-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.management-history ol {
+  padding: var(--space-0);
+  border-radius: var(--radius-16);
+  background: var(--background-card);
+  list-style: none;
+}
+
+.management-history li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding: var(--space-12) var(--space-16);
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+}
+
+.management-history li + li {
+  border-top: 1px solid var(--divider-primary);
+}
+
+.management-history time {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+.management-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.management-composer > label {
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+}
+
+.management-composer__input {
+  width: 100%;
+  padding: var(--space-12);
+  border: 1px solid var(--writebar-input-stroke);
+  border-radius: var(--radius-16);
+  background: var(--writebar-input-flat);
 }
 
 .contact-delete-confirm {
@@ -2379,7 +2613,7 @@ time,
   color: var(--text-negative);
 }
 
-/* Режим ремонта */
+/* Ремонт Квартиры и Работы в Доме */
 
 .repair-screen .inner-content {
   display: flex;
@@ -2468,6 +2702,122 @@ time,
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
+}
+
+.house-works-section,
+.apartment-repair-section,
+.apartment-repair-list,
+.apartment-layout-overview,
+.apartment-layout-overview__entrance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.repair-section-actions,
+.repair-card__title,
+.repair-actions--wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.repair-section-actions,
+.repair-actions--wrap {
+  flex-wrap: wrap;
+}
+
+.repair-card__title h2,
+.apartment-repair-list h2,
+.apartment-layout p,
+.apartment-layout-overview h2,
+.apartment-layout-overview p,
+.repair-card__details {
+  margin: 0;
+}
+
+.repair-card__details {
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+}
+
+.apartment-layout__coordinates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-12);
+}
+
+.apartment-layout__row,
+.repair-work-types {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.apartment-layout__row legend,
+.repair-work-types legend {
+  margin-bottom: var(--space-8);
+  color: var(--text-secondary);
+  font-size: var(--font-size-description);
+  line-height: var(--line-height-description);
+}
+
+.apartment-layout__cells {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(var(--space-24), 1fr);
+  gap: var(--space-8);
+  overflow-x: auto;
+  padding-bottom: var(--space-4);
+}
+
+.apartment-layout__cell {
+  min-width: calc(var(--space-24) * 3);
+  min-height: calc(var(--space-24) * 2);
+  padding: var(--space-8);
+  border: 1px solid var(--divider-primary);
+  border-radius: var(--radius-10);
+  background: var(--background-primary);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.apartment-layout__cell:disabled {
+  color: var(--text-secondary);
+  background: var(--background-tertiary);
+}
+
+.apartment-layout__cell--selected {
+  border-color: var(--controls-active);
+  color: var(--text-themed);
+  background: var(--accent-fade);
+}
+
+.apartment-layout-overview__floor {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-12);
+  padding-block: var(--space-8);
+  border-bottom: 1px solid var(--divider-secondary);
+  color: var(--text-secondary);
+}
+
+.repair-work-types {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.repair-work-types legend {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 359px) {
+  .repair-work-types,
+  .apartment-layout__coordinates {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .house-service-card,

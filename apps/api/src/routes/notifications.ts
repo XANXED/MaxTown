@@ -12,6 +12,8 @@ type NotificationRow = {
   question: string | null;
   request_id: string | null;
   accident_id: string | null;
+  apartment_repair_id: string | null;
+  management_question_id: string | null;
   title: string | null;
   body: string | null;
   created_at: Date;
@@ -33,6 +35,8 @@ function toNotification(row: NotificationRow): UserNotification {
     ...(row.body ? { text: row.body } : {}),
     ...(row.request_id ? { requestId: row.request_id } : {}),
     ...(row.accident_id ? { eventId: row.accident_id } : {}),
+    ...(row.apartment_repair_id ? { repairId: row.apartment_repair_id } : {}),
+    ...(row.management_question_id ? { managementQuestionId: row.management_question_id } : {}),
   };
 }
 
@@ -43,6 +47,8 @@ export function registerNotificationRoutes(app: FastifyInstance, pool: Pool): vo
     const result = await pool.query<NotificationRow>(
       `SELECT notification.id, notification.kind, notification.house_id, house.address AS house_address,
               notification.poll_id, poll.question, notification.request_id, notification.accident_id,
+              notification.apartment_repair_id,
+              notification.management_question_id,
               notification.title, notification.body, notification.created_at, notification.read_at
          FROM in_app_notifications notification
          JOIN houses house ON house.id = notification.house_id

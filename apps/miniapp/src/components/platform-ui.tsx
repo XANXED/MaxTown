@@ -28,6 +28,9 @@ export function Button({ size = 'medium', variant = 'primary', type = 'button', 
   return (
     <VKButton
       {...props}
+      // VKUI при loading снимает onClick, но не ставит disabled: кнопка
+      // type="submit" отправила бы форму ещё раз — и повторным нажатием, и Enter.
+      onClickCapture={props.loading ? (event) => event.preventDefault() : props.onClickCapture}
       type={type}
       size={vkSize(size)}
       before={iconBefore}

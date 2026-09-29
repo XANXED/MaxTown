@@ -123,6 +123,47 @@ test('ошибка отметки уведомлений не создаёт л�
   await expect(page.getByText('1 новое')).toBeVisible();
 });
 
+test('прочитанные уведомления исчезают из ленты', async ({ page }) => {
+  await maxBridge(page);
+  let notificationRead = false;
+  await page.route('**/api/**', (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    if (pathname === '/api/auth/max') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ token: 'Q'.repeat(43), expiresAt: '2030-01-01T00:00:00.000Z', pendingHouseSetups: [] }) });
+    }
+    if (pathname === '/api/me') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ resident: { id: 'resident-1', maxUserId: String(userId), displayName: 'Анна', username: null }, memberships: [] }) });
+    }
+    if (pathname === '/api/notifications' && request.method() === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: [{ id: 'notice-1', kind: 'request-status', title: 'Заявка обновлена', at: new Date().toISOString(), read: notificationRead, requestId: 'request-1' }] }) });
+    }
+    if (pathname === '/api/notifications/read-all' && request.method() === 'PATCH') {
+      notificationRead = true;
+      return route.fulfill({ status: 204, body: '' });
+    }
+    if (pathname === '/api/notifications/notice-1/read' && request.method() === 'PATCH') {
+      notificationRead = true;
+      return route.fulfill({ status: 204, body: '' });
+    }
+    return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+  });
+
+  await page.goto('/#/notifications');
+  await expect(page.getByText('Заявка обновлена')).toBeVisible();
+  await page.getByRole('button', { name: 'Прочитать все' }).click();
+  await expect(page.getByText('Заявка обновлена')).toHaveCount(0);
+
+  notificationRead = false;
+  await page.reload();
+  await expect(page.getByText('Заявка обновлена')).toBeVisible();
+  await page.getByText('Заявка обновлена').click();
+  await expect.poll(() => notificationRead).toBe(true);
+
+  await page.goto('/#/notifications');
+  await expect(page.getByText('Заявка обновлена')).toHaveCount(0);
+});
+
 test.describe('подключение Дома', () => {
   test.skip(!databaseUrl, 'Нужен TEST_DATABASE_URL: e2e ходит в настоящий API на Postgres');
 

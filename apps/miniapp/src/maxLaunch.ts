@@ -97,9 +97,23 @@ export function launchStartParam(): string | undefined {
 
 const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const pollStartParam = new RegExp(`^poll_(${uuid})_(${uuid})$`, 'i');
+const repairStartParam = new RegExp(`^repair_(${uuid})_(${uuid})$`, 'i');
+const managementQuestionStartParam = new RegExp(`^question_(${uuid})_(${uuid})$`, 'i');
 
 /** Опрос из кнопки бота «Проголосовать» в Домовом чате. */
 export function launchPoll(): { houseId: string; pollId: string } | null {
   const match = pollStartParam.exec(launchStartParam() ?? '');
   return match ? { houseId: match[1]!, pollId: match[2]! } : null;
+}
+
+/** Ремонт Квартиры из кнопки в личном сообщении MAX. */
+export function launchRepair(): { houseId: string; repairId: string } | null {
+  const match = repairStartParam.exec(launchStartParam() ?? '');
+  return match ? { houseId: match[1]!, repairId: match[2]! } : null;
+}
+
+/** Вопрос в УК из кнопки в личном сообщении MAX. */
+export function launchManagementQuestion(): { houseId: string; questionId: string } | null {
+  const match = managementQuestionStartParam.exec(launchStartParam() ?? '');
+  return match ? { houseId: match[1]!, questionId: match[2]! } : null;
 }

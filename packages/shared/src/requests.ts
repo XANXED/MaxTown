@@ -246,3 +246,32 @@ export function requestTitle(description: string): string {
   const lastSpace = cut.lastIndexOf(' ');
   return `${(lastSpace > TITLE_LIMIT / 2 ? cut.slice(0, lastSpace) : cut).replace(/[.,;:\s]+$/u, '')}…`;
 }
+
+/**
+ * Заголовок Аварии, которую открыл Порог, если по Заявкам не понять, что
+ * именно случилось: формулировка проблемы, а не «N человек пожаловались».
+ */
+export const ACCIDENT_DEFAULT_TITLES: Record<HouseSystemName, string> = {
+  Электричество: 'Нет электричества',
+  Вода: 'Нет воды',
+  Отопление: 'Нет отопления',
+  Лифты: 'Не работает лифт',
+  Интернет: 'Нет интернета',
+};
+
+/**
+ * Кнопка режима ЧС — по Системе, а не по заголовку Аварии: «Нет холодной
+ * воды» → «У меня тоже нет воды». Заголовок пишет человек, он бывает длинным,
+ * а кнопка должна влезть в узкий экран целиком.
+ */
+const ME_TOO_PHRASES: Record<HouseSystemName, string> = {
+  Электричество: 'нет света',
+  Вода: 'нет воды',
+  Отопление: 'нет отопления',
+  Лифты: 'не работает лифт',
+  Интернет: 'нет интернета',
+};
+
+export function meTooLabel(system: string): string {
+  return isHouseSystem(system) ? `У меня тоже ${ME_TOO_PHRASES[system]}` : 'У меня тоже';
+}

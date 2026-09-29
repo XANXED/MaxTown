@@ -29,8 +29,12 @@ describe('filterServiceGroups', () => {
     expect(titles('чат дома')).toEqual(['Чат Дома']);
   });
 
+  it('makes the management reception discoverable from the service directory', () => {
+    expect(titles('отопление спросить')).toEqual(['Связаться с УК']);
+  });
+
   it('makes repair mode discoverable from the service directory', () => {
-    expect(titles('режим ремонта')).toEqual(['Режим ремонта']);
+    expect(titles('соседи ремонт')).toEqual(['Ремонт']);
   });
 
   it('makes House internet providers discoverable from the service directory', () => {

@@ -1,6 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import type { Pool, PoolClient } from 'pg';
-import type { AccidentInput, HouseEventDetails, HouseEventSummary, HouseRole, HouseStateResponse, HouseSystemState } from '@maxtown/shared';
+import type {
+  AccidentEmergency,
+  AccidentInput,
+  AccidentUpdate,
+  AccidentWorkStatus,
+  HouseEmergency,
+  HouseEventDetails,
+  HouseEventSummary,
+  HouseRole,
+  HouseStateResponse,
+  HouseSystemState,
+} from '@maxtown/shared';
 import { HOUSE_SYSTEMS } from '@maxtown/shared/requests';
 import { canManageServices, findHouseAccess, type HouseAccess } from '../auth/house-access.ts';
 import { requireAuthentication } from '../auth/sessions.ts';
@@ -10,7 +21,8 @@ import { listHouseProblems } from '../requests/store.ts';
 import { linkRecentRequests } from '../requests/threshold.ts';
 
 // События дома и Состояние дома (docs/adr/0012). Пока События — только
-// Аварии: Плановые отключения и Объявления в API ещё не заведены.
+// Аварии: Плановые отключения и Объявления в API ещё не заведены. Открытая
+// Авария — режим ЧС: статус работ, срок и «У меня тоже».
 
 type HouseParams = { houseId: string };
 type EventParams = HouseParams & { eventId: string };
@@ -28,19 +40,79 @@ const roleLabels: Record<HouseRole, string> = {
 };
 
 type AccidentRow = {
-  id: string; system: string; title: string; description: string; scope: string | null; advice: string[];
+  id: string; house_id: string; system: string; title: string; description: string; scope: string | null; advice: string[];
   opened_at: Date; expected_resolution_at: Date | null; resolved_at: Date | null;
+  work_status: AccidentWorkStatus; deadline_revised: boolean;
   author_name: string | null; author_role: HouseRole | null; opened_automatically: boolean; linked_requests: number;
 };
 
 const SELECT_ACCIDENT = `
-  SELECT a.id, a.system, a.title, a.description, a.scope, a.advice, a.opened_at, a.expected_resolution_at, a.resolved_at,
+  SELECT a.id, a.house_id, a.system, a.title, a.description, a.scope, a.advice, a.opened_at, a.expected_resolution_at,
+         a.resolved_at, a.work_status, a.deadline_revised,
          author.display_name AS author_name, membership.role AS author_role,
          a.opened_by_membership_id IS NULL AS opened_automatically,
          (SELECT count(*)::int FROM requests r WHERE r.accident_id = a.id) AS linked_requests
     FROM accidents a
     LEFT JOIN memberships membership ON membership.id = a.opened_by_membership_id
     LEFT JOIN residents author ON author.id = membership.resident_id`;
+
+/**
+ * Кто сообщил о проблеме Аварии: отметил «У меня тоже» на ней, подал
+ * привязанную Заявку или отметил «У меня тоже» на такой Заявке. Отменённая,
+ * отклонённая или закрытая Заявка больше не подтверждает проблему.
+ * $1 — Авария.
+ */
+const AFFECTED_RESIDENTS = `
+  SELECT c.resident_id, NULL::text AS apartment FROM accident_confirmations c WHERE c.accident_id = $1
+  UNION ALL
+  SELECT r.author_resident_id, r.apartment_number FROM requests r
+   WHERE r.accident_id = $1 AND r.status IN ('new', 'in-progress', 'done')
+  UNION ALL
+  SELECT s.resident_id, NULL::text FROM request_supporters s JOIN requests r ON r.id = s.request_id
+   WHERE r.accident_id = $1 AND r.status IN ('new', 'in-progress', 'done')`;
+
+/**
+ * Режим ЧС для того, кто смотрит. Квартиры считаются по членству в Доме,
+ * иначе по Квартире из Заявки; если Квартира неизвестна, человек считается
+ * отдельной квартирой. Два Жильца одной квартиры — одна квартира.
+ */
+async function emergencyFor(db: Pool | PoolClient, accident: AccidentRow, residentId: string): Promise<AccidentEmergency> {
+  const result = await db.query<{ confirmed_apartments: number; affected_me: boolean; confirmed_directly: boolean }>(
+    `WITH affected AS (${AFFECTED_RESIDENTS}),
+     keyed AS (
+       SELECT affected.resident_id,
+              coalesce(upper(apartment.number), upper(affected.apartment), 'resident:' || affected.resident_id::text) AS apartment_key
+         FROM affected
+         LEFT JOIN memberships membership
+           ON membership.resident_id = affected.resident_id AND membership.house_id = $2 AND membership.ended_at IS NULL
+         LEFT JOIN apartments apartment ON apartment.id = membership.apartment_id AND apartment.house_id = membership.house_id
+     )
+     SELECT count(DISTINCT apartment_key)::int AS confirmed_apartments,
+            coalesce(bool_or(resident_id = $3), false) AS affected_me,
+            EXISTS (SELECT 1 FROM accident_confirmations c WHERE c.accident_id = $1 AND c.resident_id = $3) AS confirmed_directly
+       FROM keyed`,
+    [accident.id, accident.house_id, residentId],
+  );
+  const row = result.rows[0]!;
+  const open = accident.resolved_at === null;
+  return {
+    workStatus: accident.work_status,
+    confirmedApartments: row.confirmed_apartments,
+    deadlineRevised: accident.deadline_revised,
+    confirmedByMe: row.affected_me,
+    canConfirm: open && !row.affected_me,
+    canWithdraw: open && row.confirmed_directly,
+  };
+}
+
+/** Все, кто сообщил о проблеме Аварии, — им Уведомления о ходе работ. */
+async function affectedResidentIds(db: Pool | PoolClient, accidentId: string): Promise<string[]> {
+  const result = await db.query<{ resident_id: string }>(
+    `SELECT DISTINCT resident_id FROM (${AFFECTED_RESIDENTS}) affected`,
+    [accidentId],
+  );
+  return result.rows.map((row) => row.resident_id);
+}
 
 function toSummary(row: AccidentRow): HouseEventSummary {
   return {
@@ -53,7 +125,7 @@ function toSummary(row: AccidentRow): HouseEventSummary {
   };
 }
 
-function toDetails(row: AccidentRow): HouseEventDetails {
+function toDetails(row: AccidentRow, emergency: AccidentEmergency): HouseEventDetails {
   return {
     ...toSummary(row),
     description: row.description,
@@ -63,20 +135,36 @@ function toDetails(row: AccidentRow): HouseEventDetails {
     ...(row.author_name && row.author_role ? { author: { name: row.author_name, role: roleLabels[row.author_role] } } : {}),
     ...(row.opened_automatically ? { openedAutomatically: true } : {}),
     linkedRequests: row.linked_requests,
+    emergency,
   };
 }
 
-async function readAccident(db: Pool | PoolClient, houseId: string, eventId: string): Promise<AccidentRow | null> {
-  const result = await db.query<AccidentRow>(`${SELECT_ACCIDENT} WHERE a.house_id = $1 AND a.id = $2`, [houseId, eventId]);
+async function readAccident(db: Pool | PoolClient, houseId: string, eventId: string, lock = false): Promise<AccidentRow | null> {
+  const result = await db.query<AccidentRow>(
+    `${SELECT_ACCIDENT} WHERE a.house_id = $1 AND a.id = $2 ${lock ? 'FOR UPDATE OF a' : ''}`,
+    [houseId, eventId],
+  );
   return result.rows[0] ?? null;
+}
+
+async function detailsFor(db: Pool | PoolClient, row: AccidentRow, residentId: string): Promise<HouseEventDetails> {
+  return toDetails(row, await emergencyFor(db, row, residentId));
 }
 
 /** Состояние каждой Системы: Авария важнее проблемы Дома, проблема — важнее «работает». */
 async function houseState(pool: Pool, access: HouseAccess): Promise<HouseStateResponse> {
-  const accidents = await pool.query<{ id: string; system: string; opened_at: Date; expected_resolution_at: Date | null }>(
-    'SELECT id, system, opened_at, expected_resolution_at FROM accidents WHERE house_id = $1 AND resolved_at IS NULL',
+  const accidents = await pool.query<AccidentRow>(
+    `${SELECT_ACCIDENT} WHERE a.house_id = $1 AND a.resolved_at IS NULL ORDER BY a.opened_at DESC`,
     [access.houseId],
   );
+  const emergencies = await Promise.all(accidents.rows.map(async (accident): Promise<HouseEmergency> => ({
+    ...await emergencyFor(pool, accident, access.residentId),
+    id: accident.id,
+    title: accident.title,
+    system: accident.system,
+    openedAt: accident.opened_at.toISOString(),
+    ...(accident.expected_resolution_at ? { expectedResolutionAt: accident.expected_resolution_at.toISOString() } : {}),
+  })));
   const problems = await listHouseProblems(pool, {
     houseId: access.houseId, residentId: access.residentId, residentName: '', processor: canManageServices(access), apartmentNumber: null,
   });
@@ -98,7 +186,7 @@ async function houseState(pool: Pool, access: HouseAccess): Promise<HouseStateRe
     if (reported) return { name, status: 'reported', requestId: reported.id, since: reported.created_at.toISOString() };
     return { name, status: 'working' };
   });
-  return { systems, problems, updatedAt: new Date().toISOString() };
+  return { systems, emergencies, problems, updatedAt: new Date().toISOString() };
 }
 
 export function registerHouseEventRoutes(app: FastifyInstance, pool: Pool): void {
@@ -134,7 +222,7 @@ export function registerHouseEventRoutes(app: FastifyInstance, pool: Pool): void
     if (!member) return reply.code(403).send({ error: 'forbidden' });
     const accident = await readAccident(pool, member.houseId, request.params.eventId);
     if (!accident) return reply.code(404).send({ error: 'event_not_found' });
-    return { event: toDetails(accident) };
+    return { event: await detailsFor(pool, accident, member.residentId) };
   });
 
   app.post<{ Params: HouseParams; Body: AccidentInput }>('/api/houses/:houseId/events', {
@@ -179,7 +267,8 @@ export function registerHouseEventRoutes(app: FastifyInstance, pool: Pool): void
       await notifyResidents(client, await processorIds(client, member.houseId), {
         kind: 'accident', houseId: member.houseId, accidentId, title: `Открыта Авария: ${title}`, body: `Система: ${body.system}`,
       }, member.residentId);
-      return readAccident(client, member.houseId, accidentId);
+      const accident = await readAccident(client, member.houseId, accidentId);
+      return accident ? detailsFor(client, accident, member.residentId) : null;
     });
     if (!opened) {
       const existing = await pool.query<{ id: string }>(
@@ -188,8 +277,101 @@ export function registerHouseEventRoutes(app: FastifyInstance, pool: Pool): void
       );
       return reply.code(409).send({ error: 'accident_already_open', eventId: existing.rows[0]?.id });
     }
-    return reply.code(201).send({ event: toDetails(opened) });
+    return reply.code(201).send({ event: opened });
   });
+
+  // УК и Администратор Дома ведут открытую Аварию: заголовок, статус работ, срок.
+  app.patch<{ Params: EventParams; Body: AccidentUpdate }>('/api/houses/:houseId/events/:eventId', {
+    preHandler: authenticated,
+    schema: {
+      params: eventParams,
+      body: {
+        type: 'object', additionalProperties: false, minProperties: 1,
+        properties: {
+          title: { type: 'string', minLength: 1, maxLength: 120 },
+          workStatus: { type: 'string', enum: ['checking', 'repairing'] },
+          expectedResolutionAt: { anyOf: [{ type: 'string', format: 'date-time' }, { type: 'null' }] },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const member = await access(request.authSession!.resident.id, request.params.houseId);
+    if (!member) return reply.code(403).send({ error: 'forbidden' });
+    if (!canManageServices(member)) return reply.code(403).send({ error: 'accident_edit_forbidden' });
+    const body = request.body;
+    const title = body.title?.trim();
+    if (body.title !== undefined && !title) return reply.code(400).send({ error: 'invalid_request' });
+
+    const updated = await inTransaction(pool, async (client) => {
+      const before = await readAccident(client, member.houseId, request.params.eventId, true);
+      if (!before) return { error: 404 as const };
+      if (before.resolved_at) return { error: 409 as const };
+      const deadline = body.expectedResolutionAt === undefined
+        ? before.expected_resolution_at
+        : body.expectedResolutionAt === null ? null : new Date(body.expectedResolutionAt);
+      const deadlineChanged = (deadline?.getTime() ?? null) !== (before.expected_resolution_at?.getTime() ?? null);
+      const statusChanged = body.workStatus !== undefined && body.workStatus !== before.work_status;
+      await client.query(
+        `UPDATE accidents
+            SET title = $3, work_status = $4, expected_resolution_at = $5,
+                deadline_revised = deadline_revised OR ($6 AND expected_resolution_at IS NOT NULL)
+          WHERE house_id = $1 AND id = $2`,
+        [member.houseId, before.id, title ?? before.title, body.workStatus ?? before.work_status, deadline, deadlineChanged],
+      );
+      const after = (await readAccident(client, member.houseId, before.id))!;
+      // Жильцам, которые сообщили о проблеме, — что изменилось в работах.
+      const change = statusChanged && after.work_status === 'repairing' ? `Начались аварийные работы: ${after.title}`
+        : deadlineChanged && deadline ? `${before.expected_resolution_at ? 'Новый срок' : 'Назначен срок'}: ${after.title}`
+        : deadlineChanged ? `Срок уточняется: ${after.title}`
+        : null;
+      if (change) {
+        await notifyResidents(client, await affectedResidentIds(client, after.id), {
+          kind: 'accident', houseId: member.houseId, accidentId: after.id, title: change, body: 'Подробности — в карточке Аварии',
+        }, member.residentId);
+      }
+      return { event: await detailsFor(client, after, member.residentId) };
+    });
+    if ('error' in updated) {
+      return updated.error === 404
+        ? reply.code(404).send({ error: 'event_not_found' })
+        : reply.code(409).send({ error: 'accident_already_resolved' });
+    }
+    return { event: updated.event };
+  });
+
+  // «У меня тоже» на Аварии: Жилец подтверждает проблему без своей Заявки.
+  for (const method of ['POST', 'DELETE'] as const) {
+    app.route<{ Params: EventParams }>({
+      method,
+      url: '/api/houses/:houseId/events/:eventId/confirm',
+      preHandler: authenticated,
+      schema: { params: eventParams },
+      handler: async (request, reply) => {
+        const member = await access(request.authSession!.resident.id, request.params.houseId);
+        if (!member) return reply.code(403).send({ error: 'forbidden' });
+        const result = await inTransaction(pool, async (client) => {
+          const accident = await readAccident(client, member.houseId, request.params.eventId, true);
+          if (!accident) return { error: 404 as const };
+          if (accident.resolved_at) return { error: 409 as const };
+          if (method === 'POST') {
+            await client.query(
+              'INSERT INTO accident_confirmations (accident_id, resident_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+              [accident.id, member.residentId],
+            );
+          } else {
+            await client.query('DELETE FROM accident_confirmations WHERE accident_id = $1 AND resident_id = $2', [accident.id, member.residentId]);
+          }
+          return { event: await detailsFor(client, accident, member.residentId) };
+        });
+        if ('error' in result) {
+          return result.error === 404
+            ? reply.code(404).send({ error: 'event_not_found' })
+            : reply.code(409).send({ error: 'accident_already_resolved' });
+        }
+        return { event: result.event };
+      },
+    });
+  }
 
   app.post<{ Params: EventParams }>('/api/houses/:houseId/events/:eventId/resolve', {
     preHandler: authenticated, schema: { params: eventParams },
@@ -214,17 +396,26 @@ export function registerHouseEventRoutes(app: FastifyInstance, pool: Pool): void
           RETURNING id, number, author_resident_id`,
         [accident.id],
       );
+      const notified = new Set<string>();
       for (const request of closed.rows) {
         await client.query(
           "INSERT INTO request_status_changes (request_id, status, note, actor_resident_id) VALUES ($1, 'closed', 'Авария устранена', NULL)",
           [request.id],
         );
-        await notifyResidents(client, [request.author_resident_id, ...await supporterIds(client, request.id)], {
+        const recipients = [request.author_resident_id, ...await supporterIds(client, request.id)];
+        recipients.forEach((id) => notified.add(id));
+        await notifyResidents(client, recipients, {
           kind: 'request-status', houseId: member.houseId, requestId: request.id,
           title: `Заявка № ${request.number} закрыта`, body: `Авария «${accident.title}» устранена`,
         }, member.residentId);
       }
-      return readAccident(client, member.houseId, accident.id);
+      // Кто отметил «У меня тоже» на самой Аварии, без Заявки, — тоже узнают.
+      const confirmers = (await affectedResidentIds(client, accident.id)).filter((id) => !notified.has(id));
+      await notifyResidents(client, confirmers, {
+        kind: 'accident', houseId: member.houseId, accidentId: accident.id, title: `Авария устранена: ${accident.title}`,
+      }, member.residentId);
+      const row = await readAccident(client, member.houseId, accident.id);
+      return row ? detailsFor(client, row, member.residentId) : null;
     });
     if (!resolved) {
       const existing = await readAccident(pool, member.houseId, request.params.eventId);
@@ -232,6 +423,6 @@ export function registerHouseEventRoutes(app: FastifyInstance, pool: Pool): void
         ? reply.code(409).send({ error: 'accident_already_resolved' })
         : reply.code(404).send({ error: 'event_not_found' });
     }
-    return { event: toDetails(resolved) };
+    return { event: resolved };
   });
 }

@@ -1,4 +1,5 @@
 import type { GeoPoint, NearestPlace, NearestPlaceKind } from '@maxtown/shared';
+import { HOUSE_TIME_ZONE } from '../house-time.ts';
 
 // Клиент 2ГИС для Ближайших мест (docs/adr/0008, docs/research/2gis-maps-api.md).
 // Правила API 2ГИС запрещают сохранять полученные данные, кроме временного
@@ -66,8 +67,6 @@ export function distanceMetres(a: GeoPoint, b: GeoPoint): number {
 }
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
-/** Дома пока в одном поясе: Москва, Петербург, Казань. */
-const HOUSE_TIME_ZONE = 'Europe/Moscow';
 
 /** «09:30» → «9:30», «24:00» остаётся. */
 const clock = (value: string) => value.replace(/^0(\d)/, '$1');

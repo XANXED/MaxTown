@@ -8,12 +8,16 @@ import {
   matchCard,
   matchContactEditor,
   matchInternetProviderEditor,
+  managementQuestionRoute,
+  matchManagementQuestion,
   matchNearestPlaces,
   matchPlaceEditor,
+  matchRepair,
   nearestPlacesRoute,
   placeEditRoute,
   parentRoute,
   requestRoute,
+  repairRoute,
   routeFromHash,
   ROUTES,
   startRoute,
@@ -40,6 +44,19 @@ describe('miniapp routes', () => {
     expect(matchCard(routeFromHash('#/events/hot-water'))).toEqual({ kind: 'event', id: 'hot-water' });
     expect(matchCard(requestRoute('r4'))).toEqual({ kind: 'request', id: 'r4' });
     expect(matchCard(eventRoute('e1'))).toEqual({ kind: 'event', id: 'e1' });
+  });
+
+  it('opens an apartment repair and returns to the Repair screen', () => {
+    expect(routeFromHash('#/repair-mode/repair-17')).toBe('/repair-mode/repair-17');
+    expect(matchRepair(repairRoute('repair-17'))).toEqual({ id: 'repair-17' });
+    expect(parentRoute(repairRoute('repair-17'))).toBe(ROUTES.repairMode);
+  });
+
+  it('opens a management question and returns to the reception', () => {
+    expect(routeFromHash('#/management-questions/question-17')).toBe('/management-questions/question-17');
+    expect(matchManagementQuestion(managementQuestionRoute('question-17'))).toEqual({ id: 'question-17' });
+    expect(parentRoute(managementQuestionRoute('question-17'))).toBe(ROUTES.managementQuestions);
+    expect(parentRoute(ROUTES.newManagementQuestion)).toBe(ROUTES.managementQuestions);
   });
 
   it('keeps the new request form a screen, not a card', () => {

@@ -130,11 +130,14 @@ export async function listRequests(db: Db, context: RequestContext): Promise<Req
   return result.rows.map((row) => toSummary(row, context));
 }
 
-/** Проблемы Дома: открытые Заявки об Общем имуществе, новые сверху. */
+/**
+ * Проблемы Дома: открытые Заявки об Общем имуществе, новые сверху. Заявка,
+ * привязанная к Аварии, — уже часть Аварии: её показывает панель режима ЧС.
+ */
 export async function listHouseProblems(db: Db, context: RequestContext): Promise<RequestSummary[]> {
   const result = await db.query<RequestRow>(
     `${SELECT_REQUEST}
-      WHERE r.house_id = $1 AND r.place = 'common-property' AND r.status IN ${OPEN_STATUSES}
+      WHERE r.house_id = $1 AND r.place = 'common-property' AND r.status IN ${OPEN_STATUSES} AND r.accident_id IS NULL
       ORDER BY r.created_at DESC, r.number DESC
       LIMIT ${LIST_LIMIT}`,
     [context.houseId, context.residentId],

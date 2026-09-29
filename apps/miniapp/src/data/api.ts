@@ -29,7 +29,7 @@ export async function readApiJson<T>(response: Response, fallback: string, messa
   return data as T;
 }
 
-export function jsonRequest(method: 'POST' | 'PUT' | 'DELETE', body?: unknown): RequestInit {
+export function jsonRequest(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', body?: unknown): RequestInit {
   return body === undefined
     ? { method }
     : { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };

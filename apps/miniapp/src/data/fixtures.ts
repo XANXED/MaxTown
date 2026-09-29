@@ -169,14 +169,25 @@ function october(day: number, hours: number): string {
 }
 
 export const sampleEvents: HouseEventSummary[] = [
-  { id: 'e4', kind: 'accident', title: 'Не работает лифт во 2-м подъезде', startsAt: todayAt(8, 40) },
+  { id: 'e4', kind: 'accident', title: 'Не работает лифт во 2-м подъезде', startsAt: todayAt(8, 40), endsAt: daysFromNow(1, 18).toISOString() },
   { id: 'e3', kind: 'planned-outage', title: 'Отключение горячей воды', startsAt: october(12, 9), endsAt: october(14, 21) },
   { id: 'e2', kind: 'announcement', title: 'Собрание жильцов во дворе', startsAt: october(16, 19) },
   { id: 'e1', kind: 'planned-outage', title: 'Отключение интернета', startsAt: october(20, 10), endsAt: october(20, 16) },
 ];
 
+/** Режим ЧС в примере: аварийные работы, срок уже переносили. */
+const sampleEmergency = {
+  workStatus: 'repairing' as const,
+  confirmedApartments: 12,
+  deadlineRevised: true,
+  confirmedByMe: false,
+  canConfirm: true,
+  canWithdraw: false,
+};
+
 const eventDetails: Record<string, Omit<HouseEventDetails, keyof HouseEventSummary>> = {
   e4: {
+    emergency: sampleEmergency,
     description: 'Лифт остановился между 5-м и 6-м этажами, внутри никого нет. Лифтовая служба уже едет.',
     scope: '2-й подъезд',
     systems: ['Лифты'],
@@ -231,6 +242,14 @@ export function sampleHouseState(): HouseState {
       { name: 'Лифты', status: 'accident', eventId: 'e4', since: todayAt(8, 40) },
       { name: 'Интернет', status: 'working', nextOutage: { eventId: 'e1', startsAt: october(20, 10), endsAt: october(20, 16) } },
     ],
+    emergencies: [{
+      id: 'e4',
+      title: 'Не работает лифт во 2-м подъезде',
+      system: 'Лифты',
+      openedAt: todayAt(8, 40),
+      expectedResolutionAt: daysFromNow(1, 18).toISOString(),
+      ...sampleEmergency,
+    }],
     problems: sampleRequests().filter((request) => request.place === 'common-property' && request.status === 'new'),
   };
 }

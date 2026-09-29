@@ -1,4 +1,5 @@
 import type { PoolClient } from 'pg';
+import { ACCIDENT_DEFAULT_TITLES, findSubcategory, isHouseSystem, OTHER_SUBCATEGORY_ID } from '@maxtown/shared/requests';
 import { notifyResidents, processorIds } from '../notifications/in-app.ts';
 
 // Порог (docs/adr/0012): три разных Жильца за 2 часа сообщили об одной
@@ -76,6 +77,24 @@ export async function linkRecentRequests(
   return linked.rowCount ?? 0;
 }
 
+/**
+ * Заголовок Аварии от Порога: что именно случилось, по самой частой
+ * подкатегории свежих Заявок («Лифт не работает»). Не понять — формулировка
+ * по Системе («Нет воды»), но не «N человек пожаловались».
+ */
+async function thresholdTitle(client: PoolClient, houseId: string, system: string): Promise<string> {
+  const result = await client.query<{ subcategory: string }>(
+    `SELECT r.subcategory FROM requests r
+      WHERE ${RECENT_OPEN_REQUESTS} AND r.subcategory IS NOT NULL AND r.subcategory <> $3
+      GROUP BY r.subcategory
+      ORDER BY count(*) DESC, min(r.created_at)
+      LIMIT 1`,
+    [houseId, system, OTHER_SUBCATEGORY_ID],
+  );
+  const label = findSubcategory(system, result.rows[0]?.subcategory)?.label;
+  return label ?? (isHouseSystem(system) ? ACCIDENT_DEFAULT_TITLES[system] : `Неполадка: ${system}`);
+}
+
 /** Открытая Авария Системы в Доме, если она есть. */
 export async function openAccidentId(client: PoolClient, houseId: string, system: string): Promise<string | null> {
   const result = await client.query<{ id: string }>(
@@ -94,17 +113,19 @@ export async function checkThreshold(client: PoolClient, houseId: string, system
   const reporters = await countReporters(client, houseId, system);
   if (reporters < THRESHOLD_RESIDENTS) return null;
 
+  const title = await thresholdTitle(client, houseId, system);
+  // Авария от Порога: причину ещё выясняют, срок неизвестен.
   const inserted = await client.query<{ id: string }>(
-    `INSERT INTO accidents (house_id, system, title, description)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO accidents (house_id, system, title, description, work_status)
+     VALUES ($1, $2, $3, $4, 'checking')
      ON CONFLICT (house_id, system) WHERE resolved_at IS NULL DO NOTHING
      RETURNING id`,
     [
       houseId,
       system,
-      `Неполадка: ${system}`,
-      `О неполадке сообщили ${reporters} ${residentsWord(reporters)} за ${THRESHOLD_WINDOW_HOURS} часа. `
-        + 'Авария открыта автоматически, УК и Администратор Дома видят Заявки.',
+      title,
+      'Несколько Жильцов сообщили о неполадке, Авария открыта автоматически. '
+        + 'УК и Администратор Дома видят Заявки и выясняют причину.',
     ],
   );
   const accidentId = inserted.rows[0]?.id;
@@ -115,8 +136,8 @@ export async function checkThreshold(client: PoolClient, houseId: string, system
     kind: 'accident',
     houseId,
     accidentId,
-    title: `Открыта Авария: ${system}`,
-    body: `О неполадке сообщили ${reporters} ${residentsWord(reporters)}. Её открыл Порог`,
+    title: `Открыта Авария: ${title}`,
+    body: `Система: ${system}. О неполадке сообщили ${reporters} ${residentsWord(reporters)}`,
   });
   return accidentId;
 }

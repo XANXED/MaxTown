@@ -46,9 +46,14 @@ export function HomeScreen({ navigate, houseId }: HomeScreenProps) {
   const { status, isResident, processor, requests, events, retry } = useHomeData();
   const firstName = currentProfileUser()?.name.split(' ')[0];
   const unread = unreadCount(useNotifications().data);
+  // УК отвечает на вопросы, но не задаёт их: ей — список Приёмной.
+  const managementCompany = useMembership()?.role === 'management-company';
 
   const quickActions: QuickAction[] = [
     { label: 'Подать заявку', service: 'new-request', onClick: () => navigate(ROUTES.newRequest) },
+    managementCompany
+      ? { label: 'Приёмная УК', service: 'management-questions', onClick: () => navigate(ROUTES.managementQuestions) }
+      : { label: 'Задать вопрос УК', service: 'management-questions', onClick: () => navigate(ROUTES.newManagementQuestion) },
     { label: processor ? 'Заявки Дома' : 'Мои заявки', service: 'requests', onClick: () => navigate(ROUTES.requests) },
     { label: 'События дома', service: 'events', onClick: () => navigate(ROUTES.events) },
     { label: 'Передать показания', service: 'readings', onClick: () => navigate(ROUTES.readings) },
@@ -229,7 +234,7 @@ function HouseCard({ navigate }: { navigate: Navigate }) {
     );
   }
 
-  const summary = houseSummary(house.systems, house.problems);
+  const summary = houseSummary(house.systems, house.problems, house.emergencies);
   // Авария или проблема Дома меняют плашку целиком: тревогу видно с первого взгляда.
   const alarm = summary.tone === 'negative' || summary.tone === 'reported' ? ` join-card--${summary.tone}` : '';
   return (

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Pool, PoolClient } from 'pg';
-import type { HouseRole, RepairMode } from '@maxtown/shared';
+import type { HouseRepairMode, HouseRole } from '@maxtown/shared';
 import { canManageServices, findHouseAccess } from '../auth/house-access.ts';
 import { requireAuthentication } from '../auth/sessions.ts';
 
@@ -18,14 +18,14 @@ type RepairModeRow = {
   starts_at: Date | null; expected_completion_at: Date | null; instructions: string | null;
   updated_at: Date; updated_by_name: string | null; updated_by_role: HouseRole | null;
 };
-type RepairSnapshot = Omit<RepairMode, 'updatedAt' | 'updatedBy'>;
+type RepairSnapshot = Omit<HouseRepairMode, 'updatedAt' | 'updatedBy'>;
 
 const emptySnapshot: RepairSnapshot = {
   isActive: false, title: null, description: null, startsAt: null,
   expectedCompletionAt: null, instructions: null,
 };
 
-function mapRow(row: RepairModeRow): RepairMode {
+function mapRow(row: RepairModeRow): HouseRepairMode {
   return {
     isActive: row.is_active,
     title: row.title,
@@ -38,14 +38,14 @@ function mapRow(row: RepairModeRow): RepairMode {
   };
 }
 
-function snapshot(mode: RepairMode): RepairSnapshot {
+function snapshot(mode: HouseRepairMode): RepairSnapshot {
   return {
     isActive: mode.isActive, title: mode.title, description: mode.description,
     startsAt: mode.startsAt, expectedCompletionAt: mode.expectedCompletionAt, instructions: mode.instructions,
   };
 }
 
-async function readRepairMode(db: Pool | PoolClient, houseId: string): Promise<RepairMode | null> {
+async function readRepairMode(db: Pool | PoolClient, houseId: string): Promise<HouseRepairMode | null> {
   const result = await db.query<RepairModeRow>(
     `SELECT rm.is_active, rm.title, rm.description, rm.starts_at, rm.expected_completion_at,
             rm.instructions, rm.updated_at, r.display_name AS updated_by_name, m.role AS updated_by_role

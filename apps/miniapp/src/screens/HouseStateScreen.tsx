@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { CalendarBlank, CaretRight, CheckCircle, House, Megaphone, Warning, WarningCircle } from '@phosphor-icons/react';
 import { Button, Typography } from '../components/platform-ui.tsx';
-import type { HouseSystemState } from '@maxtown/shared';
+import type { HouseEmergency, HouseSystemState } from '@maxtown/shared';
 import { categoryVisual } from '../components/categoryVisuals.ts';
+import { EmergencyPanel } from '../components/EmergencyPanel.tsx';
 import {
   EmptyState,
   ErrorState,
@@ -14,11 +16,13 @@ import {
   type IconComponent,
   type TileTone,
 } from '../components/ui.tsx';
-import { houseSummary, systemStatusLine, useHouseState, type HouseSummary } from '../data/houseState.ts';
+import { ApiError } from '../data/api.ts';
+import { eventsClient } from '../data/eventDetails.ts';
+import { houseSummary, systemStatusLine, useHouseState, withEmergencyUpdate, type HouseSummary } from '../data/houseState.ts';
 import { formatUpdatedAt } from '../data/labels.ts';
 import { eventRoute, requestRoute, ROUTES } from '../routes.ts';
 import { canManageServices, useMembership } from '../auth/membership.tsx';
-import type { Navigate } from './types.ts';
+import type { Navigate, Notify } from './types.ts';
 
 const summaryVisuals: Record<HouseSummary['tone'], { icon: IconComponent; tone: TileTone }> = {
   positive: { icon: CheckCircle, tone: 'green' },
@@ -35,10 +39,34 @@ const statusIcons: Record<HouseSystemState['status'], IconComponent> = {
   reported: WarningCircle,
 };
 
-/** Состояние дома: работает ли каждая Система прямо сейчас. */
-export function HouseStateScreen({ navigate }: { navigate: Navigate }) {
-  const { status, data: house, retry } = useHouseState();
+/**
+ * Состояние дома: работает ли каждая Система прямо сейчас. При открытой
+ * Аварии сверху панель ЧС вместо общей сводки (docs/adr/0012).
+ */
+export function HouseStateScreen({ navigate, notify }: { navigate: Navigate; notify?: Notify }) {
+  const { status, data: house, retry, replace } = useHouseState();
   const membership = useMembership();
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  // «У меня тоже» на Аварии: ответ сервера сразу обновляет счётчик квартир.
+  const confirm = async (emergency: HouseEmergency, confirmed: boolean) => {
+    if (!membership || !house) {
+      notify?.('В примере отметка не сохраняется: войдите через MAX');
+      return;
+    }
+    setConfirming(emergency.id);
+    try {
+      const event = await eventsClient.confirm(membership.houseId, emergency.id, confirmed);
+      replace(withEmergencyUpdate(house, event));
+      notify?.(confirmed ? 'Отметили: у вас тоже. Уведомим, когда Аварию устранят' : 'Отметка снята');
+    } catch (error) {
+      notify?.(error instanceof Error ? error.message : 'Не удалось сохранить отметку');
+      // Аварию успели закрыть — показываем Дом как есть.
+      if (error instanceof ApiError && error.code === 'accident_already_resolved') retry();
+    } finally {
+      setConfirming(null);
+    }
+  };
 
   if (status === 'loading') {
     return (
@@ -95,7 +123,7 @@ export function HouseStateScreen({ navigate }: { navigate: Navigate }) {
     );
   }
 
-  const summary = houseSummary(house.systems, house.problems);
+  const summary = houseSummary(house.systems, house.problems, house.emergencies);
   const visual = summaryVisuals[summary.tone];
 
   return (
@@ -112,17 +140,29 @@ export function HouseStateScreen({ navigate }: { navigate: Navigate }) {
           Состояние дома
         </ScreenHeading>
 
-        <section className={`house-summary house-summary--${summary.tone}`} aria-live="polite">
-          <IconTile icon={visual.icon} tone={visual.tone} size="medium" />
-          <span className="house-summary__copy">
-            <Typography.Text asChild variant="title">
-              <h2>{summary.title}</h2>
-            </Typography.Text>
-            <Typography.Text asChild variant="description" color="secondary">
-              <p>{summary.description}</p>
-            </Typography.Text>
-          </span>
-        </section>
+        {house.emergencies.length > 0 ? (
+          house.emergencies.map((emergency) => (
+            <EmergencyPanel
+              key={emergency.id}
+              emergency={emergency}
+              busy={confirming === emergency.id}
+              onConfirm={(confirmed) => void confirm(emergency, confirmed)}
+              onOpen={() => navigate(eventRoute(emergency.id))}
+            />
+          ))
+        ) : (
+          <section className={`house-summary house-summary--${summary.tone}`} aria-live="polite">
+            <IconTile icon={visual.icon} tone={visual.tone} size="medium" />
+            <span className="house-summary__copy">
+              <Typography.Text asChild variant="title">
+                <h2>{summary.title}</h2>
+              </Typography.Text>
+              <Typography.Text asChild variant="description" color="secondary">
+                <p>{summary.description}</p>
+              </Typography.Text>
+            </span>
+          </section>
+        )}
 
         <ListCard label="Системы Дома">
           {house.systems.map((system) => {

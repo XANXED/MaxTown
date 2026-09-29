@@ -5,12 +5,14 @@ import type { PoolClient } from 'pg';
 // что и изменение, поэтому не теряются и не приходят о несостоявшемся.
 
 export type InAppNotification = {
-  kind: 'request-new' | 'request-status' | 'request-comment' | 'request-visit' | 'accident';
+  kind: 'request-new' | 'request-status' | 'request-comment' | 'request-visit' | 'accident' | 'management-question' | 'management-answer';
   houseId: string;
   title: string;
   body?: string;
   requestId?: string;
   accidentId?: string;
+  managementQuestionId?: string;
+  managementQuestionMessageId?: string;
 };
 
 /** Уведомить людей; повторы и того, кто сам сделал изменение, отбрасываем. */
@@ -23,8 +25,9 @@ export async function notifyResidents(
   const recipients = [...new Set(residentIds)].filter((id) => id !== exceptResidentId);
   if (recipients.length === 0) return;
   await client.query(
-    `INSERT INTO in_app_notifications (resident_id, house_id, kind, title, body, request_id, accident_id)
-     SELECT recipient, $2, $3, $4, $5, $6, $7 FROM unnest($1::uuid[]) AS recipient`,
+    `INSERT INTO in_app_notifications
+       (resident_id, house_id, kind, title, body, request_id, accident_id, management_question_id, management_question_message_id)
+     SELECT recipient, $2, $3, $4, $5, $6, $7, $8, $9 FROM unnest($1::uuid[]) AS recipient`,
     [
       recipients,
       notification.houseId,
@@ -33,6 +36,8 @@ export async function notifyResidents(
       notification.body ? notification.body.slice(0, 1000) : null,
       notification.requestId ?? null,
       notification.accidentId ?? null,
+      notification.managementQuestionId ?? null,
+      notification.managementQuestionMessageId ?? null,
     ],
   );
 }

@@ -25,14 +25,19 @@ import { WelcomeScreen } from './screens/WelcomeScreen.tsx';
 import { HouseSetupScreen } from './screens/HouseSetupScreen.tsx';
 import { AssignedPlaceFormScreen } from './screens/AssignedPlaceFormScreen.tsx';
 import { NearestPlacesScreen } from './screens/NearestPlacesScreen.tsx';
+import { ManagementQuestionsScreen } from './screens/ManagementQuestionsScreen.tsx';
+import { NewManagementQuestionScreen } from './screens/NewManagementQuestionScreen.tsx';
+import { ManagementQuestionScreen } from './screens/ManagementQuestionScreen.tsx';
 import {
   hashForRoute,
   isRootRoute,
   matchCard,
   matchContactEditor,
   matchInternetProviderEditor,
+  matchManagementQuestion,
   matchNearestPlaces,
   matchPlaceEditor,
+  matchRepair,
   parentRoute,
   routeFromHash,
   ROUTES,
@@ -42,7 +47,7 @@ import {
 import { launchInviteCode } from './data/join.ts';
 import { demoMode } from './data/loadable.ts';
 import { demoPendingHouseSetup, launchSetupChatId } from './houseSetup.ts';
-import { isMaxRuntime, launchPoll, maxNavigationHash, waitForMaxInitData } from './maxLaunch.ts';
+import { isMaxRuntime, launchManagementQuestion, launchPoll, launchRepair, maxNavigationHash, waitForMaxInitData } from './maxLaunch.ts';
 import { useOnline } from './network.ts';
 import { hasSeenWelcome, markWelcomeSeen } from './welcome.ts';
 import { authenticateWithMax, AuthRequestError, getCurrentResident } from './auth/session.ts';
@@ -62,6 +67,10 @@ function initialRoute(): AppRoute {
   // Открыли по ссылке-приглашению — сразу к вступлению, приветствие не нужно.
   if (launchInviteCode()) return ROUTES.join;
   if (launchPoll()) return ROUTES.community;
+  const repair = launchRepair();
+  if (repair) return `/repair-mode/${repair.repairId}`;
+  const question = launchManagementQuestion();
+  if (question) return `/management-questions/${question.questionId}`;
   // В MAX человек пришёл из своего Домового чата — приветствие не нужно.
   if (INSIDE_MAX) return routeFromHash(window.location.hash);
   return startRoute(window.location.hash, hasSeenWelcome());
@@ -152,7 +161,7 @@ export function App() {
         const { memberships } = await getCurrentResident();
         if (!active) return;
         setPendingSetups(pendingHouseSetups);
-        applyMemberships(memberships, launchPoll()?.houseId ?? null);
+        applyMemberships(memberships, launchPoll()?.houseId ?? launchRepair()?.houseId ?? launchManagementQuestion()?.houseId ?? null);
         setAuthState({ status: 'ready' });
       })
       .catch((error: unknown) => {
@@ -211,6 +220,46 @@ export function App() {
       notify('Не удалось открыть Опрос. Обновите экран и попробуйте снова.');
     }
   }, [navigate, notify]);
+
+  const openApartmentRepair = useCallback(async (houseId: string, repairId: string) => {
+    try {
+      const me = await getCurrentResident();
+      const membership = me.memberships.find((item) => item.houseId === houseId);
+      if (!membership) return;
+      applyMemberships(me.memberships, houseId);
+      navigate(`/repair-mode/${repairId}`);
+    } catch {
+      notify('Не удалось открыть Ремонт Квартиры. Обновите экран и попробуйте снова.');
+    }
+  }, [applyMemberships, navigate, notify]);
+
+  /** Заявка или Авария из Уведомления: если она из другого Дома, сначала переключаем Дом. */
+  const openHouseRoute = useCallback(async (houseId: string, nextRoute: AppRoute) => {
+    if (houseId === activeHouseId) {
+      navigate(nextRoute);
+      return;
+    }
+    try {
+      const me = await getCurrentResident();
+      if (!me.memberships.some((item) => item.houseId === houseId)) return;
+      applyMemberships(me.memberships, houseId);
+      navigate(nextRoute);
+    } catch {
+      notify('Не удалось открыть Уведомление. Обновите экран и попробуйте снова.');
+    }
+  }, [activeHouseId, applyMemberships, navigate, notify]);
+
+  const openManagementQuestion = useCallback(async (houseId: string, questionId: string) => {
+    try {
+      const me = await getCurrentResident();
+      const membership = me.memberships.find((item) => item.houseId === houseId);
+      if (!membership) return;
+      applyMemberships(me.memberships, houseId);
+      navigate(`/management-questions/${questionId}`);
+    } catch {
+      notify('Не удалось открыть Вопрос в УК. Обновите экран и попробуйте снова.');
+    }
+  }, [applyMemberships, navigate, notify]);
 
   useEffect(() => {
     // «Назад» и «Вперёд» браузера, ручная правка адреса. Оба события приходят
@@ -337,6 +386,12 @@ export function App() {
     case ROUTES.repairMode:
       screen = <RepairModeScreen houseId={activeHouseId} role={activeHouseRole} />;
       break;
+    case ROUTES.managementQuestions:
+      screen = <ManagementQuestionsScreen navigate={navigate} />;
+      break;
+    case ROUTES.newManagementQuestion:
+      screen = <NewManagementQuestionScreen navigate={navigate} notify={notify} />;
+      break;
     case ROUTES.contacts:
       screen = <ContactsScreen navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />;
       break;
@@ -350,13 +405,13 @@ export function App() {
       screen = <AssignedPlaceFormScreen navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />;
       break;
     case ROUTES.notifications:
-      screen = <NotificationsScreen navigate={navigate} openCommunityPoll={(houseId, pollId) => void openCommunityPoll(houseId, pollId)} />;
+      screen = <NotificationsScreen navigate={navigate} openCommunityPoll={(houseId, pollId) => void openCommunityPoll(houseId, pollId)} openApartmentRepair={(houseId, repairId) => void openApartmentRepair(houseId, repairId)} openManagementQuestion={(houseId, questionId) => void openManagementQuestion(houseId, questionId)} openHouseRoute={(houseId, nextRoute) => void openHouseRoute(houseId, nextRoute)} />;
       break;
     case ROUTES.join:
       screen = <JoinScreen navigate={navigate} />;
       break;
     case ROUTES.house:
-      screen = <HouseStateScreen navigate={navigate} />;
+      screen = <HouseStateScreen navigate={navigate} notify={notify} />;
       break;
     case ROUTES.home:
       screen = <HomeScreen navigate={navigate} houseId={activeHouseId} />;
@@ -367,6 +422,8 @@ export function App() {
       const internetProviderEditor = matchInternetProviderEditor(route);
       const placeEditor = matchPlaceEditor(route);
       const nearest = matchNearestPlaces(route);
+      const repair = matchRepair(route);
+      const managementQuestion = matchManagementQuestion(route);
       screen =
         card?.kind === 'request' ? (
           <RequestScreen id={card.id} navigate={navigate} notify={notify} />
@@ -380,6 +437,10 @@ export function App() {
           <AssignedPlaceFormScreen placeId={placeEditor.id} navigate={navigate} notify={notify} houseId={activeHouseId} role={activeHouseRole} />
         ) : nearest ? (
           <NearestPlacesScreen kind={nearest.kind} houseId={activeHouseId} />
+        ) : repair ? (
+          <RepairModeScreen houseId={activeHouseId} role={activeHouseRole} selectedRepairId={repair.id} />
+        ) : managementQuestion ? (
+          <ManagementQuestionScreen id={managementQuestion.id} notify={notify} />
         ) : (
           <HomeScreen navigate={navigate} houseId={activeHouseId} />
         );

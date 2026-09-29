@@ -1,4 +1,4 @@
-import { ChatCircle, Drop, FileText, House, MapPin, Phone, UsersThree, WifiHigh, Wrench, Hammer } from '@phosphor-icons/react';
+import { ChatCircle, ChatCircleText, Drop, FileText, House, MapPin, Phone, UsersThree, WifiHigh, Wrench, Hammer } from '@phosphor-icons/react';
 import type { ServiceIcon } from '../data/services.ts';
 import type { IconComponent, TileColor } from './ui.tsx';
 
@@ -17,4 +17,5 @@ export const serviceVisuals: Record<ServiceIcon, { icon: IconComponent; color: T
   community: { icon: ChatCircle, color: 'pink' },
   'repair-mode': { icon: Hammer, color: 'coral' },
   internet: { icon: WifiHigh, color: 'green' },
+  'management-questions': { icon: ChatCircleText, color: 'blue' },
 };

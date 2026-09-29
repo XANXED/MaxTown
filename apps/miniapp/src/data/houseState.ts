@@ -1,8 +1,17 @@
-import type { HouseState, HouseStateResponse, HouseSystemState, RequestSummary } from '@maxtown/shared';
+import type {
+  AccidentEmergency,
+  AccidentWorkStatus,
+  HouseEmergency,
+  HouseEventDetails,
+  HouseState,
+  HouseStateResponse,
+  HouseSystemState,
+  RequestSummary,
+} from '@maxtown/shared';
 import { apiFetch } from '../auth/session.ts';
 import { useMembership } from '../auth/membership.tsx';
 import { readApiJson, type Fetcher } from './api.ts';
-import { formatRange, formatSince, formatUntil } from './eventDetails.ts';
+import { formatEventTime, formatRange, formatSince, formatUntil } from './eventDetails.ts';
 import { useApiLoadable, type ApiLoadable } from './loadable.ts';
 import { glueRanges, plural } from './text.ts';
 
@@ -39,13 +48,91 @@ function problemsProgress(problems: RequestSummary[]): string {
   return `В работе: ${inWork}, ждут Ответственного: ${problems.length - inWork}`;
 }
 
+// Режим ЧС (docs/adr/0012): при открытой Аварии говорим, что случилось, что
+// с работами и когда устранят, — а не «N человек пожаловались».
+
+const workStatusLabels: Record<AccidentWorkStatus, string> = {
+  checking: 'выясняют причину',
+  repairing: 'аварийные работы',
+};
+
+/** «Статус: аварийные работы». */
+export function workStatusLabel(status: AccidentWorkStatus): string {
+  return workStatusLabels[status];
+}
+
+/** «Подтвердили проблему: 38 квартир». Число и слово не разрываются переносом. */
+export function apartmentsCount(count: number): string {
+  return `${count}\u00a0${plural(count, ['квартира', 'квартиры', 'квартир'])}`;
+}
+
+/** Срок устранения: «Новый срок: до 12 октября, 18:00» или «Срок: уточняется». */
+export function emergencyDeadline(
+  emergency: Pick<AccidentEmergency, 'deadlineRevised'> & { expectedResolutionAt?: string },
+): { label: string; value: string } {
+  if (!emergency.expectedResolutionAt) return { label: 'Срок', value: 'уточняется' };
+  return { label: emergency.deadlineRevised ? 'Новый срок' : 'Срок', value: `до ${formatEventTime(emergency.expectedResolutionAt)}` };
+}
+
+/** Что показывает панель ЧС: Авария из Состояния дома или из своей карточки. */
+export type EmergencyView = AccidentEmergency & Pick<HouseEmergency, 'title' | 'system' | 'expectedResolutionAt'>;
+
+/** Панель ЧС из карточки Аварии. Закрытая Авария и другие События — null. */
+export function eventEmergency(event: HouseEventDetails): EmergencyView | null {
+  if (event.kind !== 'accident' || event.resolvedAt || !event.emergency) return null;
+  return {
+    ...event.emergency,
+    title: event.title,
+    system: event.systems[0] ?? '',
+    ...(event.endsAt ? { expectedResolutionAt: event.endsAt } : {}),
+  };
+}
+
+/**
+ * Состояние дома после действия с Аварией: панель берёт свежие цифры из
+ * ответа сервера, закрытая Авария уходит из режима ЧС.
+ */
+export function withEmergencyUpdate<T extends Pick<HouseStateResponse, 'emergencies'>>(state: T, event: HouseEventDetails): T {
+  const fresh = eventEmergency(event);
+  if (!fresh) return { ...state, emergencies: state.emergencies.filter(({ id }) => id !== event.id) };
+  return {
+    ...state,
+    emergencies: state.emergencies.map((item) => {
+      if (item.id !== event.id) return item;
+      // Срок могли снять: старый не должен пережить свежий ответ.
+      const { expectedResolutionAt: _stale, ...rest } = item;
+      return { ...rest, ...fresh };
+    }),
+  };
+}
+
+/** Одна строка о работах для главной: «Аварийные работы, до 12 октября, 18:00». */
+function emergencyLine(emergency: HouseEmergency): string {
+  const status = workStatusLabel(emergency.workStatus);
+  const deadline = emergencyDeadline(emergency);
+  return `${status[0]!.toLocaleUpperCase('ru-RU')}${status.slice(1)}, ${deadline.value === 'уточняется' ? 'срок уточняется' : glued(deadline.value)}`;
+}
+
 /** Одна фраза о Доме для главной и шапки экрана. */
-export function houseSummary(systems: HouseSystemState[], problems: RequestSummary[] = []): HouseSummary {
-  if (systems.length === 0 && problems.length === 0) return {
+export function houseSummary(
+  systems: HouseSystemState[],
+  problems: RequestSummary[] = [],
+  emergencies: HouseEmergency[] = [],
+): HouseSummary {
+  if (systems.length === 0 && problems.length === 0 && emergencies.length === 0) return {
     tone: 'positive', title: 'Дом подключён', description: 'Данные о системах дома ещё не добавлены',
   };
   const accidents = systems.filter(({ status }) => status === 'accident');
   const outages = systems.filter(({ status }) => status === 'planned-outage');
+
+  if (emergencies.length > 0) {
+    const [first] = emergencies;
+    return {
+      tone: 'negative',
+      title: emergencies.length === 1 ? first!.title : `Аварии: ${emergencies.map(({ title }) => title).join(', ')}`,
+      description: emergencies.length === 1 ? emergencyLine(first!) : 'Подробности — в Состоянии дома',
+    };
+  }
 
   if (accidents.length > 0) {
     return {

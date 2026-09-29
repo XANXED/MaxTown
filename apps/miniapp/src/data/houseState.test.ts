@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { HouseSystemState, RequestSummary } from '@maxtown/shared';
-import { brokenFirst, houseSummary, knownProblem, reportedProblem, systemStatusLine } from './houseState.ts';
+import type { HouseEmergency, HouseEventDetails, HouseSystemState, RequestSummary } from '@maxtown/shared';
+import {
+  apartmentsCount,
+  brokenFirst,
+  emergencyDeadline,
+  eventEmergency,
+  houseSummary,
+  knownProblem,
+  reportedProblem,
+  systemStatusLine,
+  withEmergencyUpdate,
+  workStatusLabel,
+} from './houseState.ts';
 
 const working = (name: string, nextOutage?: HouseSystemState['nextOutage']): HouseSystemState => ({
   name,
@@ -126,5 +137,79 @@ describe('knownProblem и reportedProblem', () => {
     // Пока подкатегория не выбрана, не угадываем.
     expect(reportedProblem(state, 'Вода')).toBeNull();
     expect(reportedProblem(state, 'Уборка', 'bins')).toBeNull();
+  });
+});
+
+describe('режим ЧС', () => {
+  const emergency = (overrides: Partial<HouseEmergency> = {}): HouseEmergency => ({
+    id: 'a1', title: 'Нет холодной воды', system: 'Вода', openedAt: october(12, 8, 40),
+    workStatus: 'repairing', confirmedApartments: 38, deadlineRevised: true,
+    confirmedByMe: false, canConfirm: true, canWithdraw: false,
+    expectedResolutionAt: october(14, 18),
+    ...overrides,
+  });
+
+  const accident = (overrides: Partial<HouseEventDetails> = {}): HouseEventDetails => ({
+    id: 'a1', kind: 'accident', title: 'Нет холодной воды', startsAt: october(12, 8, 40), endsAt: october(15, 12),
+    description: 'Прорыв на вводе', systems: ['Вода'], advice: [],
+    emergency: { workStatus: 'repairing', confirmedApartments: 39, deadlineRevised: true, confirmedByMe: true, canConfirm: false, canWithdraw: true },
+    ...overrides,
+  });
+
+  it('считает квартиры, а не людей; число не отрывается от слова', () => {
+    expect(apartmentsCount(1)).toBe('1\u00a0квартира');
+    expect(apartmentsCount(3)).toBe('3\u00a0квартиры');
+    expect(apartmentsCount(11)).toBe('11\u00a0квартир');
+    expect(apartmentsCount(21)).toBe('21\u00a0квартира');
+    expect(apartmentsCount(38)).toBe('38\u00a0квартир');
+  });
+
+  it('пишет статус работ и срок, перенесённый срок — «Новый срок»', () => {
+    expect(workStatusLabel('repairing')).toBe('аварийные работы');
+    expect(workStatusLabel('checking')).toBe('выясняют причину');
+    expect(emergencyDeadline(emergency())).toEqual({ label: 'Новый срок', value: 'до 14 октября, 18:00' });
+    expect(emergencyDeadline(emergency({ deadlineRevised: false }))).toEqual({ label: 'Срок', value: 'до 14 октября, 18:00' });
+    expect(emergencyDeadline(emergency({ expectedResolutionAt: undefined }))).toEqual({ label: 'Срок', value: 'уточняется' });
+  });
+
+  it('сводка при Аварии — что случилось и что с работами, а не «N человек пожаловались»', () => {
+    const systems: HouseSystemState[] = [{ name: 'Вода', status: 'accident', eventId: 'a1' }, working('Лифты')];
+    expect(houseSummary(systems, [problem('Мусор на лестнице')], [emergency()])).toEqual({
+      tone: 'negative',
+      title: 'Нет холодной воды',
+      description: 'Аварийные работы, до\u00a014\u00a0октября,\u00a018:00',
+    });
+    expect(houseSummary(systems, [], [emergency({ workStatus: 'checking', expectedResolutionAt: undefined })]).description)
+      .toBe('Выясняют причину, срок уточняется');
+    expect(houseSummary(systems, [], [emergency(), emergency({ id: 'a2', title: 'Не работает лифт', system: 'Лифты' })])).toEqual({
+      tone: 'negative',
+      title: 'Аварии: Нет холодной воды, Не работает лифт',
+      description: 'Подробности — в Состоянии дома',
+    });
+  });
+
+  it('панель в карточке Аварии: срок из События, у закрытой Аварии панели нет', () => {
+    expect(eventEmergency(accident())).toEqual({
+      workStatus: 'repairing', confirmedApartments: 39, deadlineRevised: true, confirmedByMe: true, canConfirm: false, canWithdraw: true,
+      title: 'Нет холодной воды', system: 'Вода', expectedResolutionAt: october(15, 12),
+    });
+    expect(eventEmergency(accident({ endsAt: undefined }))).not.toHaveProperty('expectedResolutionAt');
+    expect(eventEmergency(accident({ resolvedAt: october(14, 12) }))).toBeNull();
+    expect(eventEmergency(accident({ emergency: undefined }))).toBeNull();
+  });
+
+  it('ответ на «У меня тоже» обновляет свою Аварию, закрытая уходит из Состояния дома', () => {
+    const lift = emergency({ id: 'a2', title: 'Не работает лифт', system: 'Лифты' });
+    const state = { updatedAt: october(12, 9), emergencies: [emergency(), lift] };
+
+    const confirmed = withEmergencyUpdate(state, accident());
+    expect(confirmed.updatedAt).toBe(october(12, 9));
+    expect(confirmed.emergencies[0]).toMatchObject({
+      id: 'a1', openedAt: october(12, 8, 40), confirmedApartments: 39, confirmedByMe: true, expectedResolutionAt: october(15, 12),
+    });
+    expect(confirmed.emergencies[1]).toBe(lift);
+
+    expect(withEmergencyUpdate(state, accident({ endsAt: undefined })).emergencies[0]).not.toHaveProperty('expectedResolutionAt');
+    expect(withEmergencyUpdate(state, accident({ resolvedAt: october(14, 12) })).emergencies).toEqual([lift]);
   });
 });

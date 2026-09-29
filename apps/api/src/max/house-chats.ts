@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { enqueueWaitingQuestionsForManagement } from '../management-questions/notifications.ts';
 import type { HouseRole, PendingHouseSetup } from '@maxtown/shared';
 import { AddressProviderError, resolveHouseAddressFromTitle, type DaDataHouse } from '../address/dadata.ts';
 import { chatRole, MaxApiError, type MaxApi, type MaxChatMember } from './api.ts';
@@ -95,7 +96,11 @@ export async function syncResidentHouses(
       deps.log?.('Не удалось проверить участие в Домовом чате', error);
       return;
     }
-    await setMembership(deps.pool, resident.id, chat.house_id, member ? houseRoleFor(chat, member) : null);
+    const role = member ? houseRoleFor(chat, member) : null;
+    await setMembership(deps.pool, resident.id, chat.house_id, role);
+    if (role === 'management-company') {
+      await enqueueWaitingQuestionsForManagement(deps.pool, chat.house_id, resident.maxUserId, resident.id);
+    }
   }));
 
   const onboardings = await deps.pool.query<OnboardingRow>(
@@ -301,6 +306,8 @@ export async function assignManagementCompany(
         AND (resident.max_user_id = $2 OR membership.role = 'management-company')`,
     [chat.house_id, String(target.userId)],
   );
+  const resident = await deps.pool.query<{ id: string }>('SELECT id FROM residents WHERE max_user_id = $1', [String(target.userId)]);
+  await enqueueWaitingQuestionsForManagement(deps.pool, chat.house_id, target.userId, resident.rows[0]?.id ?? null);
   return 'assigned';
 }
 

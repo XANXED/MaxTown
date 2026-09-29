@@ -1,4 +1,4 @@
-import type { RepairMode } from '@maxtown/shared';
+import type { HouseRepairMode } from '@maxtown/shared';
 import { apiFetch } from '../auth/session.ts';
 
 export type RepairModeInput = {
@@ -25,19 +25,19 @@ export function fromDateTimeLocal(value: string): string | null {
 }
 
 async function requireOk(response: Response): Promise<void> {
-  if (!response.ok) throw new Error('Не удалось сохранить режим ремонта');
+  if (!response.ok) throw new Error('Не удалось сохранить Работы в Доме');
 }
 
-export async function loadRepairMode(houseId: string): Promise<RepairMode> {
+export async function loadRepairMode(houseId: string): Promise<HouseRepairMode> {
   const response = await apiFetch(`/api/houses/${encodeURIComponent(houseId)}/repair-mode`);
   await requireOk(response);
-  return (await response.json() as { repairMode: RepairMode }).repairMode;
+  return (await response.json() as { repairMode: HouseRepairMode }).repairMode;
 }
 
-export async function saveRepairMode(houseId: string, input: RepairModeInput): Promise<RepairMode> {
+export async function saveRepairMode(houseId: string, input: RepairModeInput): Promise<HouseRepairMode> {
   const response = await apiFetch(`/api/houses/${encodeURIComponent(houseId)}/repair-mode`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
   });
   await requireOk(response);
-  return (await response.json() as { repairMode: RepairMode }).repairMode;
+  return (await response.json() as { repairMode: HouseRepairMode }).repairMode;
 }

@@ -7,6 +7,17 @@ import { requestsClient } from './requests.ts';
 
 /** Длинная сторона фото после сжатия: деталей хватает, а весит в разы меньше. */
 export const PHOTO_MAX_SIDE = 1600;
+
+let photoCounter = 0;
+
+/**
+ * Ключ выбранного фото на время формы. Не crypto.randomUUID: его нет в iOS до
+ * 15.4 и в старых WebView Android, а уникальность нужна только внутри экрана.
+ */
+export function pendingPhotoId(): string {
+  photoCounter += 1;
+  return `photo-${Date.now()}-${photoCounter}`;
+}
 const PHOTO_QUALITY = 0.82;
 
 /** Размер после сжатия: длинная сторона не больше maxSide, маленькие фото не растягиваем. */

@@ -9,10 +9,12 @@ import { registerHouseRoutes } from './routes/houses.ts';
 import { registerModeratorRoutes } from './routes/moderator.ts';
 import { registerCommunityRoutes } from './routes/community.ts';
 import { registerRepairModeRoutes } from './routes/repair-mode.ts';
+import { registerApartmentRepairRoutes } from './routes/apartment-repairs.ts';
 import { registerNotificationRoutes } from './routes/notifications.ts';
 import { registerMaxWebhookRoutes } from './routes/max-webhook.ts';
 import { registerHouseSetupRoutes } from './routes/house-setup.ts';
 import { createPgOutboxStore, startNotificationOutboxWorker } from './notifications/outbox.ts';
+import { createPgDirectMessageOutboxStore, startDirectMessageOutboxWorker } from './notifications/direct-outbox.ts';
 import { createMaxApi, type MaxApi } from './max/api.ts';
 import type { HouseChatDeps } from './max/house-chats.ts';
 import { registerServicesDirectoryRoutes } from './routes/services-directory.ts';
@@ -21,6 +23,7 @@ import { registerContactRoutes } from './routes/contacts.ts';
 import { registerPlaceRoutes } from './routes/places.ts';
 import { registerRequestRoutes } from './routes/requests.ts';
 import { registerHouseEventRoutes } from './routes/house-events.ts';
+import { registerManagementQuestionRoutes } from './routes/management-questions.ts';
 import { startRequestMaintenance } from './requests/maintenance.ts';
 import { createDgisClient, type DgisClient } from './places/dgis.ts';
 import { createDataMosContactSource, type HouseContactSource } from './contacts/data-mos.ts';
@@ -82,6 +85,13 @@ export async function buildApp({ pool, env, staticAssets, contactSource, dgis, m
       { intervalMs: 15_000, setInterval: (callback, delay) => setInterval(callback, delay), clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) },
     )
     : null;
+  const directMessageWorker = maxApi && env.MAX_CHAT_NOTIFICATIONS !== 'off'
+    ? startDirectMessageOutboxWorker(
+      createPgDirectMessageOutboxStore(pool),
+      maxApi,
+      { intervalMs: 15_000, setInterval: (callback, delay) => setInterval(callback, delay), clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) },
+    )
+    : null;
   // Напоминания и автозакрытие Выполненных Заявок (docs/adr/0012). В тестах
   // выключено: там время подставляют в runRequestMaintenance напрямую.
   const requestMaintenance = env.NODE_ENV === 'test'
@@ -93,6 +103,7 @@ export async function buildApp({ pool, env, staticAssets, contactSource, dgis, m
     );
   app.addHook('onClose', async () => {
     await worker?.stop();
+    await directMessageWorker?.stop();
     await requestMaintenance?.stop();
     await pool.end();
   });
@@ -149,6 +160,7 @@ export async function buildApp({ pool, env, staticAssets, contactSource, dgis, m
   registerModeratorRoutes(app, pool);
   registerCommunityRoutes(app, pool, env.POLL_VOTER_NULLIFIER_SECRET ?? 'development-only-poll-voter-nullifier-secret');
   registerRepairModeRoutes(app, pool);
+  registerApartmentRepairRoutes(app, pool);
   registerServicesDirectoryRoutes(app, pool);
   registerInternetProviderRoutes(app, pool);
   registerContactRoutes(app, pool, {
@@ -161,6 +173,7 @@ export async function buildApp({ pool, env, staticAssets, contactSource, dgis, m
   });
   registerNotificationRoutes(app, pool);
   registerRequestRoutes(app, pool);
+  registerManagementQuestionRoutes(app, pool);
   registerHouseEventRoutes(app, pool);
 
   const assets = staticAssets ?? (env.NODE_ENV === 'production' ? {

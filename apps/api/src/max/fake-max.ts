@@ -8,6 +8,7 @@ export type FakeChat = { title: string; botIsAdmin: boolean; members: MaxChatMem
 export type FakeMax = MaxApi & {
   chats: Map<number, FakeChat>;
   sent: Array<{ chatId: number; text: string; button?: MaxOpenAppButton }>;
+  sentDirect: Array<{ userId: number; text: string; button?: MaxOpenAppButton }>;
   subscriptions: Array<{ url: string; secret: string }>;
   /** Следующие вызовы падают, как недоступный MAX. */
   failing: boolean;
@@ -22,6 +23,7 @@ export function createFakeMax(): FakeMax {
   const fake: FakeMax = {
     chats,
     sent: [],
+    sentDirect: [],
     subscriptions: [],
     failing: false,
     async chatTitle(chatId) {
@@ -45,6 +47,10 @@ export function createFakeMax(): FakeMax {
     async sendChatMessage(chatId, text, button) {
       check();
       fake.sent.push({ chatId, text, ...(button ? { button } : {}) });
+    },
+    async sendUserMessage(userId, text, button) {
+      check();
+      fake.sentDirect.push({ userId, text, ...(button ? { button } : {}) });
     },
     async subscribe(url, secret) {
       check();

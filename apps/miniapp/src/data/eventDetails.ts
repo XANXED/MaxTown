@@ -1,4 +1,4 @@
-import type { AccidentInput, HouseEventDetails, HouseEventKind, HouseEventSummary } from '@maxtown/shared';
+import type { AccidentInput, AccidentUpdate, HouseEventDetails, HouseEventKind, HouseEventSummary } from '@maxtown/shared';
 import { apiFetch } from '../auth/session.ts';
 import { useMembership } from '../auth/membership.tsx';
 import { jsonRequest, readApiJson, type Fetcher } from './api.ts';
@@ -105,6 +105,18 @@ export function createEventsClient(fetcher: Fetcher = apiFetch) {
       (await read<{ event: HouseEventDetails }>(
         await fetcher(`${base(houseId)}/${encodeURIComponent(eventId)}/resolve`, jsonRequest('POST')),
         'Не удалось закрыть Аварию',
+      )).event,
+    /** УК и Администратор: заголовок, статус работ, срок. */
+    update: async (houseId: string, eventId: string, update: AccidentUpdate): Promise<HouseEventDetails> =>
+      (await read<{ event: HouseEventDetails }>(
+        await fetcher(`${base(houseId)}/${encodeURIComponent(eventId)}`, jsonRequest('PATCH', update)),
+        'Не удалось сохранить Аварию',
+      )).event,
+    /** «У меня тоже» на Аварии: поставить или снять. */
+    confirm: async (houseId: string, eventId: string, confirmed: boolean): Promise<HouseEventDetails> =>
+      (await read<{ event: HouseEventDetails }>(
+        await fetcher(`${base(houseId)}/${encodeURIComponent(eventId)}/confirm`, jsonRequest(confirmed ? 'POST' : 'DELETE')),
+        'Не удалось сохранить отметку',
       )).event,
   };
 }

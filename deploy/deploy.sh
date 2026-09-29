@@ -82,6 +82,14 @@ fi
 say 'собираю и запускаю'
 compose up --detach --build --wait --wait-timeout 300
 
+# Caddyfile смонтирован одним файлом: rsync и git заменяют файл новым, а
+# запущенный контейнер продолжает видеть старый. Пересоздаём Caddy, только
+# если конфиг в нём отличается от файла на диске (пара секунд без HTTPS).
+if ! compose exec --no-TTY caddy cat /etc/caddy/Caddyfile 2>/dev/null | cmp --silent - Caddyfile; then
+  say 'Caddyfile изменился — перезапускаю Caddy'
+  compose up --detach --no-deps --force-recreate --wait --wait-timeout 120 caddy
+fi
+
 say "проверяю https://$domain"
 ready=0
 for _ in $(seq 1 30); do
@@ -89,6 +97,13 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 [[ $ready == 1 ]] || fail "https://$domain/api/ready не отвечает. Проверьте DNS, порты 80/443 и: docker compose -p maxtown logs caddy web"
+
+# Карта 2ГИС идёт через Caddy (/dgis/…). Если прокси не отвечает, мини-апп
+# грузит карту напрямую — у Жильцов с VPN её не будет. Выкладку не
+# останавливаем: 2ГИС может быть недоступен сам по себе.
+if ! curl --fail --silent --max-time 20 --output /dev/null "https://$domain/dgis/mapgl/api/js"; then
+  say "внимание: https://$domain/dgis/mapgl/api/js не отвечает — карта у Жильцов с VPN не загрузится. Проверьте: docker compose -p maxtown logs caddy"
+fi
 
 say 'регистрирую production webhook в MAX'
 compose exec --no-TTY web node --input-type=module -e '

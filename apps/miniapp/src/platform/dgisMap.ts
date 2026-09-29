@@ -22,6 +22,8 @@ export const DGIS_MAP_HOSTS = {
 } as const;
 
 let loading: Promise<MapGLApi | null> | null = null;
+/** Скрипт MapGL загрузился через наш прокси: тогда и тайлы берём через него. */
+let loadedViaProxy = false;
 
 /** Ключ карты из сборки; незаданный или нераскрытый «$DGIS_API_KEY» — нет ключа. */
 export function mapKey(): string | null {
@@ -46,7 +48,7 @@ export function mapProxyPrefix(): string | null {
  */
 export function withMapServers(options: MapOptions, location: Pick<Location, 'host' | 'origin' | 'protocol'> = window.location): MapOptions {
   const prefix = mapProxyPrefix();
-  if (!prefix) return options;
+  if (!prefix || !loadedViaProxy) return options;
   const base = `${location.origin}${prefix}`;
   return Object.assign({}, options, {
     tileServer: `${location.host}${prefix}/tile{subdomain}`,
@@ -65,12 +67,26 @@ export function withMapServers(options: MapOptions, location: Pick<Location, 'ho
 /**
  * MapGL, если карту можно показать: есть ключ, скрипт загрузился, WebGL есть.
  * Скрипт грузится один раз и только когда карта впервые понадобилась.
+ * Сначала через наш прокси; если он не ответил — напрямую из 2ГИС, чтобы
+ * сломанный прокси не прятал карту у тех, кто без VPN.
  */
 export function loadMapGL(): Promise<MapGLApi | null> {
   if (!mapKey()) return Promise.resolve(null);
   const prefix = mapProxyPrefix();
   loading ??= import('@2gis/mapgl')
-    .then(({ load }) => load(prefix ? `${prefix}/mapgl/api/js` : undefined))
+    .then(async ({ load }) => {
+      if (prefix) {
+        try {
+          const api = await load(`${prefix}/mapgl/api/js`);
+          loadedViaProxy = true;
+          return api;
+        } catch {
+          // Прокси не ответил — ниже пробуем 2ГИС напрямую.
+        }
+      }
+      loadedViaProxy = false;
+      return load();
+    })
     .then((api) => (api.isSupported() ? api : null))
     .catch(() => {
       // Не загрузилось (нет сети, 2ГИС недоступен) — попробуем при следующем открытии.

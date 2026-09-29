@@ -34,7 +34,7 @@ export function canManageHouse(role: HouseRole | null): boolean {
   return role === 'admin';
 }
 
-/** Может ли Роль вести режим ремонта и услуги дома: Администратор и УК. */
+/** Может ли Роль вести Работы в Доме и услуги дома: Администратор и УК. */
 export function canManageServices(role: HouseRole | null): boolean {
   return role === 'admin' || role === 'management-company';
 }

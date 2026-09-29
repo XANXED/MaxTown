@@ -2,7 +2,7 @@ import type { AppRoute } from '../routes.ts';
 import { ROUTES } from '../routes.ts';
 
 /** Ключ иконки: сами иконки подставляет экран, чтобы данные не зависели от React. */
-export type ServiceIcon = 'new-request' | 'requests' | 'house-state' | 'events' | 'readings' | 'contacts' | 'places' | 'community' | 'repair-mode' | 'internet';
+export type ServiceIcon = 'new-request' | 'requests' | 'house-state' | 'events' | 'readings' | 'contacts' | 'places' | 'community' | 'repair-mode' | 'internet' | 'management-questions';
 
 export type Service = {
   id: string;
@@ -29,7 +29,10 @@ export const serviceGroups: ServiceGroup[] = [
   {
     id: 'community',
     title: 'Домовое сообщество',
-    services: [{ id: 'community', title: 'Чат Дома', description: 'Сообщения соседей и неформальные Опросы', icon: 'community', route: ROUTES.community }],
+    services: [
+      { id: 'community', title: 'Чат Дома', description: 'Сообщения соседей и неформальные Опросы', icon: 'community', route: ROUTES.community },
+      { id: 'management-questions', title: 'Связаться с УК', description: 'Публичные вопросы и официальные ответы', icon: 'management-questions', route: ROUTES.managementQuestions, keywords: 'управляющая компания отопление начисления спросить вопрос' },
+    ],
   },
   {
     id: 'requests',
@@ -74,11 +77,11 @@ export const serviceGroups: ServiceGroup[] = [
       },
       {
         id: 'repair-mode',
-        title: 'Режим ремонта',
-        description: 'Работы в Доме и ожидаемый срок',
+        title: 'Ремонт',
+        description: 'Ремонт Квартиры и Работы в Доме',
         icon: 'repair-mode',
         route: ROUTES.repairMode,
-        keywords: 'ремонт работы сроки',
+        keywords: 'ремонт работы сроки шум соседи',
       },
       {
         id: 'readings',

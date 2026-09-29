@@ -3,7 +3,9 @@ import { launchInviteCode } from './data/join.ts';
 import {
   currentMaxInitData,
   isMaxRuntime,
+  launchManagementQuestion,
   launchPoll,
+  launchRepair,
   launchStartParam,
   maxNavigationHash,
   waitForMaxInitData,
@@ -89,6 +91,20 @@ describe('запуск внутри MAX', () => {
     vi.stubGlobal('window', { WebApp: { initDataUnsafe: { start_param: `poll_${houseId}_${pollId}` } }, location: { hash: '', search: '' } });
     expect(launchStartParam()).toBe(`poll_${houseId}_${pollId}`);
     expect(launchPoll()).toEqual({ houseId, pollId });
+  });
+
+  it('открывает Ремонт Квартиры из личного сообщения', () => {
+    const houseId = '3ce05158-0792-429c-9129-99c12e1e5366';
+    const repairId = 'a1b2c3d4-0000-4000-8000-000000000001';
+    vi.stubGlobal('window', { WebApp: { initDataUnsafe: { start_param: `repair_${houseId}_${repairId}` } }, location: { hash: '', search: '' } });
+    expect(launchRepair()).toEqual({ houseId, repairId });
+  });
+
+  it('открывает Вопрос в УК из личного сообщения', () => {
+    const houseId = '3ce05158-0792-429c-9129-99c12e1e5366';
+    const questionId = 'a1b2c3d4-0000-4000-8000-000000000001';
+    vi.stubGlobal('window', { WebApp: { initDataUnsafe: { start_param: `question_${houseId}_${questionId}` } }, location: { hash: '', search: '' } });
+    expect(launchManagementQuestion()).toEqual({ houseId, questionId });
   });
 
   it('выбирает текущие Опрос и Приглашение вместо start_param предыдущего запуска', () => {

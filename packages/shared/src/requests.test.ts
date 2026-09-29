@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { RequestStatus } from './index.ts';
 import {
+  ACCIDENT_DEFAULT_TITLES,
+  meTooLabel,
   allowedRequestActions,
   canComment,
   canSupport,
   categoriesFor,
   findSubcategory,
+  HOUSE_SYSTEMS,
   isHouseSystem,
   nextStatus,
   REQUEST_CATEGORIES,
@@ -126,5 +129,21 @@ describe('Категории по месту и подкатегории', () =>
     expect(validateRequestKind('Другое', 'apartment', null)).toBeNull();
     expect(validateRequestKind('Вода', 'apartment', 'riser')).toBeNull();
     expect(validateRequestKind('Лифты', 'common-property', 'other')).toBeNull();
+  });
+});
+
+describe('режим ЧС', () => {
+  it('кнопка «У меня тоже» говорит о Системе коротко', () => {
+    expect(meTooLabel('Вода')).toBe('У меня тоже нет воды');
+    expect(meTooLabel('Лифты')).toBe('У меня тоже не работает лифт');
+    expect(meTooLabel('Домофон')).toBe('У меня тоже');
+  });
+
+  it('подпись кнопки влезает в узкий экран', () => {
+    for (const system of HOUSE_SYSTEMS) expect(meTooLabel(system).length).toBeLessThanOrEqual(28);
+  });
+
+  it('у каждой Системы есть заголовок Аварии по умолчанию', () => {
+    expect(Object.keys(ACCIDENT_DEFAULT_TITLES)).toEqual(['Электричество', 'Вода', 'Отопление', 'Лифты', 'Интернет']);
   });
 });

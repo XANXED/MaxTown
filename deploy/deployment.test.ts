@@ -111,6 +111,10 @@ describe('production deployment contract', () => {
     expect(deploy).toContain('pg_dump');
     expect(deploy).toContain('/api/max/register');
     expect(deploy).toContain('MAX не принял webhook');
+    // Caddyfile смонтирован одним файлом: без пересоздания Caddy живёт со старым конфигом.
+    expect(deploy).toContain('cat /etc/caddy/Caddyfile');
+    expect(deploy).toContain('--force-recreate');
+    expect(deploy).toContain('/dgis/mapgl/api/js');
     expect(await readProjectFile('deploy/prepare-env.sh')).toContain('openssl rand -hex 32');
     expect(await readProjectFile('deploy/publish-timeweb.sh')).toContain("--exclude='.env'");
     expect(await readProjectFile('.github/workflows/ci.yml')).toContain('docker compose --file compose.yml --file compose.prod.yml config --quiet');

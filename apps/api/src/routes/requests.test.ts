@@ -200,7 +200,7 @@ describe.skipIf(!databaseUrl)('Заявки', () => {
     const lifts = (await state('author')).systems.find((system) => system.name === 'Лифты');
     expect(lifts).toMatchObject({ status: 'accident', eventId: linked.accidentId });
     const event = (await app.inject({ method: 'GET', url: `/api/houses/${houseId}/events/${linked.accidentId}`, headers: as('neighbour') })).json<{ event: HouseEventDetails }>().event;
-    expect(event).toMatchObject({ kind: 'accident', openedAutomatically: true, linkedRequests: 1, systems: ['Лифты'], title: 'Неполадка: Лифты' });
+    expect(event).toMatchObject({ kind: 'accident', openedAutomatically: true, linkedRequests: 1, systems: ['Лифты'], title: 'Лифт не работает' });
     expect((await notifications('uk')).map((item) => item.kind)).toContain('accident');
 
     // Новая Заявка о Системе с открытой Аварией привязывается сразу.
@@ -298,5 +298,78 @@ describe.skipIf(!databaseUrl)('Заявки', () => {
     expect(responses.map((response) => response.statusCode)).toEqual(Array(6).fill(201));
     const numbers = responses.map((response) => response.json<{ request: RequestDetails }>().request.number).sort((a, b) => a - b);
     expect(numbers).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it('режим ЧС: отменённая привязанная Заявка больше не подтверждает Аварию', async () => {
+    const opened = await app.inject({
+      method: 'POST', url: `/api/houses/${houseId}/events`, headers: as('uk'),
+      payload: { system: 'Лифты', title: 'Не работает лифт', description: 'Лифт стоит на 5-м этаже' },
+    });
+    expect(opened.statusCode, opened.body).toBe(201);
+    const request = await file('author', lift);
+    expect(request.accidentId).toBe(opened.json<{ event: HouseEventDetails }>().event.id);
+    expect((await state('author')).emergencies[0]).toMatchObject({ confirmedApartments: 1, confirmedByMe: true, canConfirm: false });
+    // Привязанная Заявка — часть Аварии, а не отдельная Проблема Дома.
+    expect((await state('neighbour')).problems).toEqual([]);
+
+    expect((await act('author', request.id, { action: 'cancel' })).statusCode).toBe(200);
+    expect((await state('author')).emergencies[0]).toMatchObject({ confirmedApartments: 0, confirmedByMe: false, canConfirm: true });
+  });
+
+  it('режим ЧС: квартиры вместо людей, статус работ, срок и «У меня тоже» на Аварии', async () => {
+    const request = await file('author', lift);
+    await app.inject({ method: 'POST', url: url(`/${request.id}/support`), headers: as('neighbour') });
+    await app.inject({ method: 'POST', url: url(`/${request.id}/support`), headers: as('neighbour2') });
+    const [emergency] = (await state('uk')).emergencies;
+    expect(emergency).toMatchObject({
+      title: 'Лифт не работает', system: 'Лифты', workStatus: 'checking', confirmedApartments: 3,
+      deadlineRevised: false, confirmedByMe: false, canConfirm: true, canWithdraw: false,
+    });
+    expect(emergency?.expectedResolutionAt).toBeUndefined();
+    // Автор уже сообщил Заявкой: отмечать и снимать ему нечего.
+    expect((await state('author')).emergencies[0]).toMatchObject({ confirmedByMe: true, canConfirm: false, canWithdraw: false });
+
+    const events = `/api/houses/${houseId}/events/${emergency!.id}`;
+    await person('same-flat', 'resident', '14');
+    await person('other-flat', 'resident', '20');
+    // Второй Жилец той же квартиры не добавляет квартиру.
+    const sameFlat = (await app.inject({ method: 'POST', url: `${events}/confirm`, headers: as('same-flat') })).json<{ event: HouseEventDetails }>().event;
+    expect(sameFlat.emergency).toMatchObject({ confirmedApartments: 3, confirmedByMe: true, canConfirm: false, canWithdraw: true });
+    await app.inject({ method: 'POST', url: `${events}/confirm`, headers: as('other-flat') });
+    expect((await state('uk')).emergencies[0]?.confirmedApartments).toBe(4);
+    const withdrawn = (await app.inject({ method: 'DELETE', url: `${events}/confirm`, headers: as('other-flat') })).json<{ event: HouseEventDetails }>().event;
+    expect(withdrawn.emergency).toMatchObject({ confirmedApartments: 3, confirmedByMe: false, canConfirm: true });
+
+    expect((await app.inject({ method: 'PATCH', url: events, headers: as('author'), payload: { workStatus: 'repairing' } })).statusCode).toBe(403);
+    const working = await app.inject({
+      method: 'PATCH', url: events, headers: as('uk'), payload: { title: 'Нет холодной воды', workStatus: 'repairing' },
+    });
+    expect(working.statusCode, working.body).toBe(200);
+    expect(working.json<{ event: HouseEventDetails }>().event).toMatchObject({
+      title: 'Нет холодной воды', emergency: { workStatus: 'repairing', deadlineRevised: false },
+    });
+    expect((await notifications('author'))[0]).toMatchObject({ kind: 'accident', title: 'Начались аварийные работы: Нет холодной воды' });
+
+    // Первый срок — «Назначен срок», перенос — «Новый срок», снятый срок — «Срок уточняется».
+    const firstDeadline = '2030-01-02T18:00:00.000Z';
+    const scheduled = await app.inject({ method: 'PATCH', url: events, headers: as('uk'), payload: { expectedResolutionAt: firstDeadline } });
+    expect(scheduled.json<{ event: HouseEventDetails }>().event).toMatchObject({ endsAt: firstDeadline, emergency: { deadlineRevised: false } });
+    expect((await notifications('same-flat'))[0]).toMatchObject({ title: 'Назначен срок: Нет холодной воды' });
+
+    const moved = await app.inject({ method: 'PATCH', url: events, headers: as('admin'), payload: { expectedResolutionAt: '2030-01-03T12:00:00.000Z' } });
+    expect(moved.json<{ event: HouseEventDetails }>().event.emergency).toMatchObject({ deadlineRevised: true });
+    expect((await state('same-flat')).emergencies[0]).toMatchObject({ title: 'Нет холодной воды', deadlineRevised: true, expectedResolutionAt: '2030-01-03T12:00:00.000Z' });
+    expect((await notifications('same-flat'))[0]).toMatchObject({ title: 'Новый срок: Нет холодной воды' });
+
+    const unknown = await app.inject({ method: 'PATCH', url: events, headers: as('uk'), payload: { expectedResolutionAt: null } });
+    expect(unknown.json<{ event: HouseEventDetails }>().event.endsAt).toBeUndefined();
+    expect((await state('same-flat')).emergencies[0]?.expectedResolutionAt).toBeUndefined();
+    expect((await notifications('same-flat'))[0]).toMatchObject({ title: 'Срок уточняется: Нет холодной воды' });
+
+    await app.inject({ method: 'POST', url: `${events}/resolve`, headers: as('uk') });
+    expect((await state('same-flat')).emergencies).toEqual([]);
+    expect((await notifications('same-flat'))[0]).toMatchObject({ title: 'Авария устранена: Нет холодной воды' });
+    expect((await app.inject({ method: 'POST', url: `${events}/confirm`, headers: as('other-flat') })).statusCode).toBe(409);
+    expect((await app.inject({ method: 'PATCH', url: events, headers: as('uk'), payload: { workStatus: 'checking' } })).statusCode).toBe(409);
   });
 });

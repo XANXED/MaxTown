@@ -9,7 +9,7 @@ import { useMembership } from '../auth/membership.tsx';
 import { useHomeData } from '../data/home.ts';
 import { knownProblem, reportedProblem, useHouseState } from '../data/houseState.ts';
 import { visitDayToDate } from '../data/requestDetails.ts';
-import { compressPhoto } from '../data/requestPhotos.ts';
+import { compressPhoto, pendingPhotoId } from '../data/requestPhotos.ts';
 import { requestsClient } from '../data/requests.ts';
 import { ApiError } from '../data/api.ts';
 import { eventRoute, requestRoute, ROUTES } from '../routes.ts';
@@ -74,7 +74,7 @@ export function NewRequestScreen({ navigate, notify }: { navigate: Navigate; not
     event.target.value = '';
     setPhotos((current) => [
       ...current,
-      ...files.map((file) => ({ id: crypto.randomUUID(), url: URL.createObjectURL(file), name: file.name, file })),
+      ...files.map((file) => ({ id: pendingPhotoId(), url: URL.createObjectURL(file), name: file.name, file })),
     ]);
   };
 

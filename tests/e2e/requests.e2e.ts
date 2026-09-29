@@ -74,6 +74,12 @@ test.describe('Заявки', () => {
     return page;
   }
 
+  /** Значение поля datetime-local: браузер теста в том же часовом поясе, что и Node. */
+  function localInput(date: Date): string {
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
   async function requestId(title: string): Promise<string> {
     const result = await pool.query<{ id: string }>('SELECT id FROM requests WHERE title = $1', [title]);
     return result.rows[0]!.id;
@@ -169,5 +175,91 @@ test.describe('Заявки', () => {
     await resident.getByRole('radio', { name: 'В Общем имуществе' }).click();
     await expect(resident.getByRole('radio', { name: /Течёт подводка/ })).toHaveCount(0);
     await expect(resident.getByRole('radio', { name: /Затопило подвал/ })).toBeVisible();
+  });
+
+  test('повторное нажатие, пока форма отправляется, не создаёт дубль', async ({ browser, baseURL }) => {
+    const resident = await open(browser, baseURL, 'resident');
+    // Сервер думает долго — человек успевает нажать ещё раз и нажать Enter.
+    await resident.route('**/api/houses/*/management-questions', async (route) => {
+      if (route.request().method() === 'POST') await new Promise((resolve) => setTimeout(resolve, 800));
+      await route.fallback();
+    });
+    await resident.goto('/#/management-questions/new');
+    await resident.getByRole('textbox', { name: 'Тема' }).fill('Когда включат отопление?');
+    await resident.getByRole('textbox', { name: 'Вопрос' }).fill('В квартирах уже холодно, батареи чуть тёплые');
+    // Пока идёт отправка, VKUI называет кнопку «Загрузка...»: ищем её по месту.
+    const submit = resident.locator('.bottom-panel button[type="submit"]');
+    await submit.click();
+    await submit.click({ force: true });
+    await resident.getByRole('textbox', { name: 'Тема' }).press('Enter');
+    await expect(resident.getByRole('heading', { name: 'Когда включат отопление?' })).toBeVisible();
+    expect((await pool.query('SELECT count(*)::int AS count FROM management_questions')).rows).toEqual([{ count: 1 }]);
+  });
+
+  test('режим ЧС: Авария в Состоянии дома — квартиры, статус, срок и «У меня тоже нет воды»', async ({ browser, baseURL }) => {
+    const admin = await open(browser, baseURL, 'admin');
+    await admin.goto('/#/events/new');
+    await admin.getByRole('button', { name: 'Вода' }).click();
+    await admin.getByRole('textbox', { name: 'Коротко' }).fill('Нет холодной воды');
+    await admin.getByRole('textbox', { name: 'Что случилось' }).fill('Прорыв на вводе, аварийная служба на месте');
+    await admin.getByRole('button', { name: 'Открыть Аварию' }).click();
+
+    // Карточка Аварии у Администратора: панель ЧС и Ход работ. Причину ещё выясняют, первый срок — «Срок».
+    const panel = admin.getByRole('region', { name: 'Что с Аварией сейчас' });
+    const works = admin.getByRole('form', { name: 'Ход работ' });
+    await expect(panel.getByText('Срок', { exact: true })).toBeVisible();
+    await expect(panel.getByText('уточняется', { exact: true })).toBeVisible();
+    await works.getByRole('radio', { name: 'Выясняют причину' }).click();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(18, 0, 0, 0);
+    await works.getByLabel('Устранят к').fill(localInput(tomorrow));
+    await works.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(panel.getByText('выясняют причину', { exact: true })).toBeVisible();
+    await expect(panel.getByText('Срок', { exact: true })).toBeVisible();
+
+    // Жилец видит, что случилось, и подтверждает одной кнопкой — без Заявки и звонка в УК.
+    const resident = await open(browser, baseURL, 'resident');
+    await resident.goto('/#/house');
+    const residentPanel = resident.getByRole('region', { name: 'Нет холодной воды' });
+    await expect(residentPanel.getByText('Авария · Вода')).toBeVisible();
+    await expect(residentPanel.getByText('0 квартир', { exact: true })).toBeVisible();
+    await residentPanel.getByRole('button', { name: 'У меня тоже нет воды' }).click();
+    await expect(residentPanel.getByText('1 квартира', { exact: true })).toBeVisible();
+    await expect(residentPanel.getByText('Вы отметили, что у вас тоже. Уведомим, когда устранят')).toBeVisible();
+
+    // На главной соседа — что случилось и что с работами, а не «N человек пожаловались».
+    const neighbour = await open(browser, baseURL, 'neighbour');
+    await neighbour.goto('/#/');
+    await expect(neighbour.getByRole('heading', { name: 'Нет холодной воды' })).toBeVisible();
+    await expect(neighbour.getByText(/^Выясняют причину, до/)).toBeVisible();
+    await neighbour.goto('/#/house');
+    await neighbour.getByRole('button', { name: 'У меня тоже нет воды' }).click();
+    await expect(neighbour.getByText('2 квартиры', { exact: true })).toBeVisible();
+
+    // УК начинает работы и переносит срок: у Жильцов «Новый срок», отметившим — уведомление.
+    await works.getByRole('radio', { name: 'Аварийные работы' }).click();
+    const later = new Date(tomorrow);
+    later.setDate(later.getDate() + 1);
+    await works.getByLabel('Срок устранения').fill(localInput(later));
+    await works.getByRole('button', { name: 'Сохранить' }).click();
+    await expect(panel.getByText('Новый срок', { exact: true })).toBeVisible();
+
+    await resident.reload();
+    await expect(residentPanel.getByText('аварийные работы', { exact: true })).toBeVisible();
+    await expect(residentPanel.getByText('Новый срок', { exact: true })).toBeVisible();
+    await residentPanel.getByRole('button', { name: 'Убрать отметку' }).click();
+    await expect(residentPanel.getByText('1 квартира', { exact: true })).toBeVisible();
+    await expect(residentPanel.getByRole('button', { name: 'У меня тоже нет воды' })).toBeVisible();
+
+    // Устранили: режим ЧС уходит, отметившие узнают об этом.
+    await admin.getByRole('button', { name: 'Закрыть Аварию' }).click();
+    await admin.getByRole('button', { name: 'Закрыть Аварию' }).click();
+    await expect(panel).toHaveCount(0);
+    await neighbour.reload();
+    await expect(neighbour.getByText('Всё работает', { exact: true })).toBeVisible();
+    await neighbour.goto('/#/notifications');
+    await expect(neighbour.getByText('Начались аварийные работы: Нет холодной воды')).toBeVisible();
+    await expect(neighbour.getByText('Авария устранена: Нет холодной воды')).toBeVisible();
   });
 });

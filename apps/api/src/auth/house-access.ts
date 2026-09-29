@@ -34,7 +34,7 @@ export function canManageHouse(access: Pick<HouseAccess, 'role'> | null): boolea
   return access?.role === 'admin';
 }
 
-/** Режим ремонта и услуги дома ведут Администратор Дома и УК. */
+/** Работы в Доме и услуги дома ведут Администратор Дома и УК. */
 export function canManageServices(access: Pick<HouseAccess, 'role'> | null): boolean {
   return access?.role === 'admin' || access?.role === 'management-company';
 }

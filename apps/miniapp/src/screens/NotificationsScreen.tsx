@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BellSimple, CalendarCheck, CaretRight, ChatCircleText, FilePlus, FileText, House, HouseLine, Warning } from '@phosphor-icons/react';
+import { BellSimple, CalendarCheck, CaretRight, ChatCircleText, FilePlus, FileText, Hammer, House, HouseLine, Warning } from '@phosphor-icons/react';
 import { Typography } from '../components/platform-ui.tsx';
 import type { UserNotification } from '@maxtown/shared';
 import {
@@ -16,7 +16,7 @@ import {
 import { formatUpdatedAt } from '../data/labels.ts';
 import { groupByDay, markAllNotificationsRead, markAllRead, markNotificationRead, markRead, unreadCount, useNotifications } from '../data/notifications.ts';
 import { glueNumberSign, plural } from '../data/text.ts';
-import { eventRoute, requestRoute, ROUTES } from '../routes.ts';
+import { eventRoute, repairRoute, requestRoute, ROUTES, type AppRoute } from '../routes.ts';
 import type { Navigate } from './types.ts';
 
 const kindVisuals: Record<UserNotification['kind'], { icon: IconComponent; tone: TileTone }> = {
@@ -28,16 +28,26 @@ const kindVisuals: Record<UserNotification['kind'], { icon: IconComponent; tone:
   'join-approved': { icon: House, tone: 'green' },
   'join-declined': { icon: HouseLine, tone: 'neutral' },
   'community-poll': { icon: ChatCircleText, tone: 'blue' },
+  'apartment-repair': { icon: Hammer, tone: 'coral' },
+  'management-question': { icon: ChatCircleText, tone: 'blue' },
+  'management-answer': { icon: ChatCircleText, tone: 'blue' },
 };
 
-/** Уведомления: что изменилось в Заявках и в Запросе на вступление. Новые — жирнее и с отметкой. */
-export function NotificationsScreen({ navigate, openCommunityPoll }: { navigate: Navigate; openCommunityPoll?: (houseId: string, pollId: string) => void }) {
+/** Непрочитанные изменения в Заявках и Запросах на вступление. */
+export function NotificationsScreen({ navigate, openCommunityPoll, openApartmentRepair, openManagementQuestion, openHouseRoute }: {
+  navigate: Navigate;
+  openCommunityPoll?: (houseId: string, pollId: string) => void;
+  openApartmentRepair?: (houseId: string, repairId: string) => void;
+  openManagementQuestion?: (houseId: string, questionId: string) => void;
+  /** Экран Дома из Уведомления: переключает Дом, если Уведомление из другого. */
+  openHouseRoute?: (houseId: string, route: AppRoute) => void;
+}) {
   const { status, data, retry } = useNotifications();
-  // Прочитанность живёт на экране; с API отметка уйдёт на сервер.
+  // Успешные отметки сохраняем локально, чтобы сразу убрать уведомление из ленты.
   const [changed, setChanged] = useState<UserNotification[] | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
-  const items = changed ?? data;
+  const items = (changed ?? data).filter((item) => !item.read);
   const unread = unreadCount(items);
 
   const open = (item: UserNotification) => {
@@ -49,7 +59,18 @@ export function NotificationsScreen({ navigate, openCommunityPoll }: { navigate:
       openCommunityPoll?.(item.houseId, item.pollId);
       return;
     }
-    navigate(item.requestId ? requestRoute(item.requestId) : item.eventId ? eventRoute(item.eventId) : ROUTES.house);
+    if (item.kind === 'apartment-repair' && item.houseId && item.repairId) {
+      if (openApartmentRepair) openApartmentRepair(item.houseId, item.repairId);
+      else navigate(repairRoute(item.repairId));
+      return;
+    }
+    if ((item.kind === 'management-question' || item.kind === 'management-answer') && item.houseId && item.managementQuestionId) {
+      openManagementQuestion?.(item.houseId, item.managementQuestionId);
+      return;
+    }
+    const target = item.requestId ? requestRoute(item.requestId) : item.eventId ? eventRoute(item.eventId) : ROUTES.house;
+    if (item.houseId && openHouseRoute) openHouseRoute(item.houseId, target);
+    else navigate(target);
   };
 
   return (

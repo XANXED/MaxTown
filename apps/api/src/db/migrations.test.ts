@@ -153,6 +153,27 @@ it('adds request subcategories checked by code, not by a fixed list', () => {
   expect(migration).toContain("subcategory ~ '^[a-z0-9-]{1,40}$'");
 });
 
+it('adds the apartment layout, apartment repairs, and targeted MAX delivery', () => {
+  const migration = readFileSync(new URL('./migrations/0015_apartment_repairs.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('ADD COLUMN entrance integer');
+  expect(migration).toContain('CREATE UNIQUE INDEX apartments_layout_cell');
+  expect(migration).toContain('CREATE TABLE apartment_repairs');
+  expect(migration).toContain('CREATE TABLE max_direct_message_outbox');
+  expect(migration).toContain('apartment_repair_id uuid');
+  expect(migration).toContain("kind = 'apartment-repair'");
+});
+
+it('adds public management questions, messages, photos and generic direct delivery', () => {
+  const migration = readFileSync(new URL('./migrations/0016_management_questions.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('CREATE TABLE management_questions');
+  expect(migration).toContain('CREATE TABLE management_question_messages');
+  expect(migration).toContain('CREATE TABLE management_question_photos');
+  expect(migration).toContain('CREATE TABLE management_question_state_changes');
+  expect(migration).toContain("'management-question', 'management-answer'");
+  expect(migration).toContain('ADD COLUMN button_payload text');
+  expect(migration).toContain('CREATE UNIQUE INDEX max_direct_message_outbox_dedupe');
+});
+
 it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent', async () => {
   expect(pool).not.toBeNull();
   if (!pool) return;
@@ -161,7 +182,7 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('14');
+  expect(result.rows[0]?.count).toBe('17');
 });
 
 it.skipIf(!databaseUrl)('preserves old public totals while deleting every historical voter link', async () => {

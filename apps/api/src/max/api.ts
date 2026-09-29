@@ -7,7 +7,14 @@ import { withTimeout } from '@maxtown/shared/http';
 const MAX_API_ORIGIN = 'https://platform-api2.max.ru';
 const TIMEOUT_MS = 4_000;
 
-export class MaxApiError extends Error {}
+export class MaxApiError extends Error {
+  readonly status: number | undefined;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.status = status;
+  }
+}
 
 /** Участник чата — только то, что нужно для Ролей. */
 export type MaxChatMember = {
@@ -28,6 +35,7 @@ export type MaxApi = {
   members(chatId: number): Promise<MaxChatMember[]>;
   botIsAdmin(chatId: number): Promise<boolean>;
   sendChatMessage(chatId: number, text: string, button?: MaxOpenAppButton): Promise<void>;
+  sendUserMessage(userId: number, text: string, button?: MaxOpenAppButton): Promise<void>;
   subscribe(url: string, secret: string): Promise<void>;
 };
 
@@ -80,7 +88,7 @@ export function createMaxApi(config: { token: string; botUsername: string; fetch
         const response = await send(path, init, signal);
         const data: unknown = await response.json().catch(() => null);
         if (!response.ok && response.status !== 403 && response.status !== 404) {
-          throw new MaxApiError(`MAX API ответил с HTTP ${response.status}`);
+          throw new MaxApiError(`MAX API ответил с HTTP ${response.status}`, response.status);
         }
         return { status: response.status, data };
       }, TIMEOUT_MS);
@@ -92,8 +100,23 @@ export function createMaxApi(config: { token: string; botUsername: string; fetch
 
   async function ok(path: string, init?: RequestInit): Promise<unknown> {
     const { status, data } = await call(path, init);
-    if (status === 403 || status === 404) throw new MaxApiError(`MAX API ответил с HTTP ${status}`);
+    if (status === 403 || status === 404) throw new MaxApiError(`MAX API ответил с HTTP ${status}`, status);
     return data;
+  }
+
+  function messageBody(text: string, button?: MaxOpenAppButton): string {
+    const attachments = button ? [{
+      type: 'inline_keyboard',
+      payload: {
+        buttons: [[{
+          type: 'open_app',
+          text: button.text,
+          web_app: config.botUsername,
+          ...(button.payload ? { payload: button.payload } : {}),
+        }]],
+      },
+    }] : [];
+    return JSON.stringify({ text, ...(attachments.length > 0 ? { attachments } : {}) });
   }
 
   const chatPath = (chatId: number) => `/chats/${encodeURIComponent(String(chatId))}`;
@@ -135,20 +158,16 @@ export function createMaxApi(config: { token: string; botUsername: string; fetch
     },
 
     async sendChatMessage(chatId, text, button) {
-      const attachments = button ? [{
-        type: 'inline_keyboard',
-        payload: {
-          buttons: [[{
-            type: 'open_app',
-            text: button.text,
-            web_app: config.botUsername,
-            ...(button.payload ? { payload: button.payload } : {}),
-          }]],
-        },
-      }] : [];
       await ok(`/messages?chat_id=${encodeURIComponent(String(chatId))}`, {
         method: 'POST',
-        body: JSON.stringify({ text, ...(attachments.length > 0 ? { attachments } : {}) }),
+        body: messageBody(text, button),
+      });
+    },
+
+    async sendUserMessage(userId, text, button) {
+      await ok(`/messages?user_id=${encodeURIComponent(String(userId))}`, {
+        method: 'POST',
+        body: messageBody(text, button),
       });
     },
 

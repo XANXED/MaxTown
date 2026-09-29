@@ -187,6 +187,41 @@ export type HouseEventDetails = HouseEventSummary & {
   openedAutomatically?: boolean;
   /** Для Аварии: сколько Заявок к ней привязано. */
   linkedRequests?: number;
+  /** Для Аварии: режим ЧС — статус работ и подтверждения Жильцов. */
+  emergency?: AccidentEmergency;
+};
+
+/** Что сейчас с Аварией: выясняют причину или идут аварийные работы. */
+export type AccidentWorkStatus = 'checking' | 'repairing';
+
+/**
+ * Режим ЧС (docs/adr/0012): что видят Жильцы при открытой Аварии вместо
+ * «N человек пожаловались» — сколько квартир подтвердили проблему, статус
+ * работ, срок и кнопка «У меня тоже».
+ */
+export type AccidentEmergency = {
+  workStatus: AccidentWorkStatus;
+  /** Сколько квартир подтвердили проблему: Заявкой или «У меня тоже». */
+  confirmedApartments: number;
+  /** Срок переносили: подпись «Новый срок». */
+  deadlineRevised: boolean;
+  /** Тот, кто смотрит, уже сообщил о проблеме. */
+  confirmedByMe: boolean;
+  /** Можно отметить «У меня тоже» на самой Аварии. */
+  canConfirm: boolean;
+  /** Можно снять свою отметку (если сообщал не Заявкой). */
+  canWithdraw: boolean;
+};
+
+/** Открытая Авария в Состоянии дома: панель ЧС. */
+export type HouseEmergency = AccidentEmergency & {
+  id: string;
+  title: string;
+  system: string;
+  /** ISO 8601. */
+  openedAt: string;
+  /** ISO 8601: срок устранения, если известен. */
+  expectedResolutionAt?: string;
 };
 
 /** Новая Авария от УК или Администратора Дома. */
@@ -198,6 +233,14 @@ export type AccidentInput = {
   /** ISO 8601: когда обещают устранить. */
   expectedResolutionAt?: string;
   advice?: string[];
+};
+
+/** Изменение открытой Аварии от УК или Администратора Дома. */
+export type AccidentUpdate = {
+  title?: string;
+  workStatus?: AccidentWorkStatus;
+  /** ISO 8601; null — срок снова неизвестен. */
+  expectedResolutionAt?: string | null;
 };
 
 /**
@@ -226,6 +269,8 @@ export type HouseSystemState = {
 /** Состояние дома от API: Системы и открытые Заявки об Общем имуществе. */
 export type HouseStateResponse = {
   systems: HouseSystemState[];
+  /** Открытые Аварии: режим ЧС, новые сверху. */
+  emergencies: HouseEmergency[];
   /** Проблемы Дома: открытые Заявки об Общем имуществе, новые сверху. */
   problems: RequestSummary[];
   /** ISO 8601. */
@@ -262,7 +307,10 @@ export type UserNotification = {
     | 'accident'
     | 'join-approved'
     | 'join-declined'
-    | 'community-poll';
+    | 'community-poll'
+    | 'apartment-repair'
+    | 'management-question'
+    | 'management-answer';
   /** Готовая строка: «Заявка № 2431 выполнена». */
   title: string;
   /** Подробность: текст Комментария, время Визита. */
@@ -277,6 +325,10 @@ export type UserNotification = {
   /** Дом и Опрос для перехода из уведомления. */
   houseId?: string;
   pollId?: string;
+  /** Ремонт Квартиры, который открывает Уведомление. */
+  repairId?: string;
+  /** Вопрос в УК, который открывает Уведомление. */
+  managementQuestionId?: string;
 };
 
 export type HouseContactKind =
@@ -661,8 +713,8 @@ export type CommunityPollResults = {
   myVoteOptionId: string | null;
 };
 
-/** Текущий объявленный режим ремонта в Доме и автор последнего изменения. */
-export type RepairMode = {
+/** Текущие общедомовые Работы в Доме и автор последнего изменения. */
+export type HouseRepairMode = {
   isActive: boolean;
   title: string | null;
   description: string | null;
@@ -671,6 +723,113 @@ export type RepairMode = {
   instructions: string | null;
   updatedAt: string | null;
   updatedBy: { displayName: string; role: HouseRole } | null;
+};
+
+/** @deprecated Используйте HouseRepairMode: квартирные ремонты — отдельная сущность. */
+export type RepairMode = HouseRepairMode;
+
+export const APARTMENT_REPAIR_WORK_TYPES = [
+  'demolition',
+  'drilling',
+  'flooring',
+  'plumbing',
+  'electrical',
+  'finishing',
+  'furniture',
+  'other',
+] as const;
+
+export type ApartmentRepairWorkType = (typeof APARTMENT_REPAIR_WORK_TYPES)[number];
+export type ApartmentRepairState = 'scheduled' | 'active' | 'completed' | 'cancelled';
+
+/** Положение Квартиры во внутренней Схеме Квартир; null означает, что она ещё не размещена. */
+export type ApartmentLayoutPosition = {
+  apartmentId: string;
+  apartmentNumber: string;
+  entrance: number | null;
+  floor: number | null;
+  column: number | null;
+  canEdit: boolean;
+};
+
+/** Ремонт одной Квартиры без имени автора. */
+export type ApartmentRepair = {
+  id: string;
+  houseId: string;
+  apartmentId: string;
+  apartmentNumber: string;
+  workTypes: ApartmentRepairWorkType[];
+  details: string | null;
+  startsAt: string;
+  endsAt: string;
+  state: ApartmentRepairState;
+  version: number;
+  canEdit: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApartmentRepairInput = {
+  workTypes: ApartmentRepairWorkType[];
+  details?: string;
+  startsAt: string;
+  endsAt: string;
+};
+
+/** Текущее состояние публичного Вопроса в УК. */
+export type ManagementQuestionState = 'waiting-for-answer' | 'answered' | 'closed';
+
+export type ManagementQuestionPhoto = {
+  id: string;
+  url: string;
+};
+
+export type ManagementQuestionMessage = {
+  id: string;
+  authorName: string;
+  authorRole: 'resident' | 'admin' | 'management-company';
+  mine: boolean;
+  text: string;
+  photos: ManagementQuestionPhoto[];
+  /** ISO 8601. */
+  at: string;
+};
+
+export type ManagementQuestionStateChange = {
+  state: ManagementQuestionState;
+  /** ISO 8601. */
+  at: string;
+};
+
+export type ManagementQuestionSummary = {
+  id: string;
+  title: string;
+  state: ManagementQuestionState;
+  authorName: string;
+  /** ISO 8601. */
+  updatedAt: string;
+};
+
+export type ManagementQuestion = ManagementQuestionSummary & {
+  messages: ManagementQuestionMessage[];
+  history: ManagementQuestionStateChange[];
+  canWrite: boolean;
+  canClose: boolean;
+  canReopen: boolean;
+};
+
+export type ManagementQuestionsResponse = {
+  questions: ManagementQuestionSummary[];
+  managementAssigned: boolean;
+};
+
+export type ManagementQuestionInput = {
+  title: string;
+  text: string;
+};
+
+export type ManagementQuestionMessageInput = {
+  text: string;
 };
 
 export type MeResponse = {
