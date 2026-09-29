@@ -1817,6 +1817,78 @@ time,
   line-height: var(--line-height-description);
 }
 
+/* Обязательный профиль первого входа в Дом. */
+.resident-profile-form {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+}
+
+.resident-profile-form > .inner-content {
+  flex: 1;
+}
+
+.resident-profile-house {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-16);
+  border-radius: var(--radius-16);
+  background: var(--background-card);
+}
+
+.resident-profile-house > p,
+.resident-neighbors > p,
+.resident-phone-consent h2,
+.resident-phone-consent p {
+  margin: var(--space-0);
+}
+
+.resident-neighbors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-0);
+  border: 0;
+}
+
+.resident-neighbors > legend {
+  padding: var(--space-0);
+  color: var(--text-primary);
+  font-size: var(--font-size-body-strong);
+  font-weight: var(--font-weight-body-strong);
+  line-height: var(--line-height-body-strong);
+}
+
+.resident-neighbors__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-12);
+}
+
+.resident-phone-consent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-16);
+  padding: var(--space-16);
+  border-radius: var(--radius-16);
+  background: var(--background-card);
+}
+
+.resident-phone-consent__copy {
+  display: flex;
+  min-width: var(--space-0);
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+@media (max-width: 359px) {
+  .resident-neighbors__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .contact-warning {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

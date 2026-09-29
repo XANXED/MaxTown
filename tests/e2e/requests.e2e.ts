@@ -33,6 +33,17 @@ test.describe('Заявки', () => {
     await pool.query('TRUNCATE TABLE residents CASCADE');
     const house = await pool.query<{ id: string }>("INSERT INTO houses (address, locality) VALUES ('ул Лесная, д 12', 'г Казань') RETURNING id");
     await pool.query('INSERT INTO house_chats (chat_id, house_id, created_by_max_user_id) VALUES ($1, $2, $3)', [chatId, house.rows[0]!.id, people.admin]);
+    for (const who of Object.keys(people) as Array<keyof typeof people>) {
+      const resident = await pool.query<{ id: string }>(
+        'INSERT INTO residents (max_user_id, display_name) VALUES ($1, $2) RETURNING id',
+        [String(people[who]), names[who]],
+      );
+      await pool.query(
+        `INSERT INTO memberships (house_id, resident_id, role, profile_completed_at)
+         VALUES ($1, $2, $3, now())`,
+        [house.rows[0]!.id, resident.rows[0]!.id, who === 'admin' ? 'admin' : 'resident'],
+      );
+    }
     const max = createFakeMax();
     max.chats.set(chatId, {
       title: 'Лесная 12', botIsAdmin: true,

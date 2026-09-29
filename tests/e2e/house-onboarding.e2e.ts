@@ -229,9 +229,31 @@ test.describe('подключение Дома', () => {
       expect(house.rows).toEqual([{ address: street }]);
 
       await page.getByRole('button', { name: 'Открыть Дом' }).click();
+      await expect(page.getByRole('heading', { name: 'Расскажите о себе' })).toBeVisible();
+      await page.getByRole('textbox', { name: /Номер вашей квартиры/ }).fill('42а');
+      await page.getByRole('textbox', { name: 'Слева' }).fill('41');
+      await page.getByRole('textbox', { name: 'Справа' }).fill('43');
+      await page.getByRole('textbox', { name: 'Этажом ниже' }).fill('32');
+      await page.getByRole('textbox', { name: 'Этажом выше' }).fill('52');
+      await page.getByRole('button', { name: 'Сохранить и продолжить' }).click();
       await expect(page.getByText(street, { exact: true })).toBeVisible();
       await expect(page.getByText(/Администратор Дома/)).toBeVisible();
       await expect(page.getByRole('button', { name: 'Стать Жильцом', exact: true })).toHaveCount(0);
+      const profile = await pool.query(
+        `SELECT apartment.number, membership.profile_completed_at,
+                membership.neighbor_apartment_left, membership.neighbor_apartment_right,
+                membership.neighbor_apartment_below, membership.neighbor_apartment_above,
+                membership.phone_visible_to_neighbors
+           FROM memberships membership
+           JOIN apartments apartment ON apartment.id = membership.apartment_id
+          WHERE membership.house_id = $1`,
+        [(await pool.query<{ id: string }>('SELECT house_id AS id FROM house_chats WHERE chat_id = $1', [chatId])).rows[0]!.id],
+      );
+      expect(profile.rows[0]).toMatchObject({
+        number: '42А', profile_completed_at: expect.any(Date), neighbor_apartment_left: '41',
+        neighbor_apartment_right: '43', neighbor_apartment_below: '32', neighbor_apartment_above: '52',
+        phone_visible_to_neighbors: false,
+      });
       await page.reload();
       await expect(page.getByText(street, { exact: true })).toBeVisible();
       await page.getByRole('button', { name: /Всё работает/ }).click();
