@@ -90,6 +90,16 @@ describe('production deployment contract', () => {
     expect(caddyfile).toContain('reverse_proxy web:3000');
     expect(caddyfile).toMatch(/www\.\{\$DOMAIN\} \{\s*redir https:\/\/\{\$DOMAIN\}\{uri\} 308/);
 
+    // Карта 2ГИС идёт через Caddy: каждый хост, который мини-апп ждёт под /dgis, проксируется.
+    expect(web?.build?.args?.VITE_DGIS_MAP_PROXY).toBe('/dgis');
+    expect(await readProjectFile('apps/api/Dockerfile')).toContain('ARG VITE_DGIS_MAP_PROXY');
+    expect(caddyfile).toContain('handle_path /dgis/{args[0]}/*');
+    expect(caddyfile).toContain('header_up -X-Forwarded-For');
+    const { DGIS_MAP_HOSTS } = await import('../apps/miniapp/src/platform/dgisMap.ts');
+    for (const [name, host] of Object.entries(DGIS_MAP_HOSTS)) {
+      expect(caddyfile).toContain(`import dgis ${name} ${host}`);
+    }
+
     const productionEnv = await readProjectFile('.env.production.example');
     expect(productionEnv).toMatch(/^DOMAIN=maxtown\.ru$/m);
     for (const key of ['BOT_TOKEN', 'MAX_WEBHOOK_SECRET', 'MAXTOWN_INTERNAL_SECRET', 'DADATA_API_KEY', 'COMPOSE_DATABASE_URL', 'POLL_VOTER_NULLIFIER_SECRET']) {

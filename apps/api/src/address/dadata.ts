@@ -2,7 +2,7 @@ import type { GeoPoint, HouseAddressSuggestion } from '@maxtown/shared';
 import { withTimeout } from '@maxtown/shared/http';
 
 // Адрес Дома из подсказок DaData (ГАР). Ключ только серверный; тексту адреса
-// из браузера не верим — выбранный GUID перечитываем через findById.
+// из браузера не верим — выбранный addressId перечитываем в DaData.
 
 const DADATA_API_ORIGIN = 'https://suggestions.dadata.ru';
 
@@ -55,7 +55,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Дом из DaData с точкой на карте, если DaData её знает. */
-export type DaDataHouse = HouseAddressSuggestion & { point: GeoPoint | null };
+export type DaDataHouse = HouseAddressSuggestion & { garHouseGuid: string | null; point: GeoPoint | null };
+
+/** Префикс addressId дома, которого нет в ГАР: street:<GUID улицы>:<номер дома>. */
+const STREET_HOUSE_PREFIX = 'street:';
+
+function text(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+/** «д 14 к 1» — номер дома так, как его пишет DaData. */
+function houseNumber(data: Record<string, unknown>): string | null {
+  const parts = [data.house_type, data.house, data.block_type, data.block].map(text).filter((part) => part !== null);
+  return text(data.house) ? parts.join(' ') : null;
+}
 
 function coordinate(value: unknown, limit: number): number | null {
   const number = typeof value === 'string' && value.trim() ? Number(value) : typeof value === 'number' ? value : NaN;
@@ -68,16 +81,8 @@ function parseSuggestion(value: unknown): DaDataHouse | null {
   if (!isRecord(suggestion.data)) return null;
 
   const data = suggestion.data;
-  const label =
-    typeof suggestion.value === 'string' && suggestion.value.trim()
-      ? suggestion.value.trim()
-      : typeof suggestion.unrestricted_value === 'string' && suggestion.unrestricted_value.trim()
-        ? suggestion.unrestricted_value.trim()
-        : null;
-  const garHouseGuid =
-    typeof data.house_fias_id === 'string' && data.house_fias_id.trim()
-      ? data.house_fias_id.trim()
-      : null;
+  const label = text(suggestion.value) ?? text(suggestion.unrestricted_value);
+  if (!label) return null;
 
   // Уровень 8 — конкретный дом, уровень 9 — квартира/комната в доме.
   // Для поиска Дома подходят оба варианта: при вводе номера квартиры DaData
@@ -85,13 +90,23 @@ function parseSuggestion(value: unknown): DaDataHouse | null {
   // Улицу или населённый пункт нельзя принять за Дом даже при единственной
   // подсказке.
   const fiasLevel = String(data.fias_level);
-  if (!label || !garHouseGuid || (fiasLevel !== '8' && fiasLevel !== '9')) return null;
+  const garHouseGuid = fiasLevel === '8' || fiasLevel === '9' ? text(data.house_fias_id) : null;
+  // Часть домов (в Петербурге — без литеры) нет в ГАР: DaData отдаёт улицу
+  // с номером дома. Принимаем такой дом, только если DaData знает его точные
+  // координаты (qc_geo 0); выдуманный номер получает координаты улицы.
+  const streetGuid = text(data.street_fias_id);
+  const number = houseNumber(data);
+  const streetHouse = fiasLevel === '7' && !garHouseGuid && streetGuid && number && String(data.qc_geo) === '0'
+    ? `${STREET_HOUSE_PREFIX}${streetGuid}:${number}`
+    : null;
+  const addressId = garHouseGuid ?? streetHouse;
+  if (!addressId) return null;
 
   const localityParts = [
     ...new Set(
       [data.region_with_type, data.area_with_type, data.city_with_type, data.settlement_with_type]
-        .filter((part): part is string => typeof part === 'string' && Boolean(part.trim()))
-        .map((part) => part.trim()),
+        .map(text)
+        .filter((part) => part !== null),
     ),
   ];
 
@@ -100,6 +115,7 @@ function parseSuggestion(value: unknown): DaDataHouse | null {
   return {
     value: label,
     locality: localityParts.join(', ') || label,
+    addressId,
     garHouseGuid,
     point: lat !== null && lon !== null ? { lat, lon } : null,
   };
@@ -177,7 +193,7 @@ async function callDaData(
   const unique = new Map<string, DaDataHouse>();
   for (const item of data.suggestions) {
     const suggestion = parseSuggestion(item);
-    if (suggestion) unique.set(suggestion.garHouseGuid, suggestion);
+    if (suggestion) unique.set(suggestion.addressId, suggestion);
   }
   return [...unique.values()];
 }
@@ -191,8 +207,8 @@ export function suggestHouseAddresses(
 }
 
 /** Подсказка для браузера: без точки, она нужна только серверу. */
-export function publicSuggestion({ value, locality, garHouseGuid }: DaDataHouse): HouseAddressSuggestion {
-  return { value, locality, garHouseGuid };
+export function publicSuggestion({ value, locality, addressId }: DaDataHouse): HouseAddressSuggestion {
+  return { value, locality, addressId };
 }
 
 export async function resolveHouseAddressFromTitle(
@@ -205,16 +221,25 @@ export async function resolveHouseAddressFromTitle(
   return exactMatches.length === 1 ? exactMatches[0] ?? null : null;
 }
 
-export async function findHouseAddressByGuid(
+/**
+ * Перечитать выбранный дом в DaData. Дом из ГАР ищется по GUID, дом без ГАР —
+ * по номеру в пределах своей улицы, и снова проходит проверку координат.
+ */
+export async function findHouseAddress(
   apiKey: string,
-  garHouseGuid: string,
+  addressId: string,
   fetcher: typeof fetch = globalThis.fetch,
 ): Promise<DaDataHouse | null> {
-  const suggestions = await callDaData(
-    apiKey,
-    '/suggestions/api/4_1/rs/findById/address',
-    { query: garHouseGuid, count: 1 },
-    fetcher,
-  );
-  return suggestions.find((suggestion) => suggestion.garHouseGuid === garHouseGuid) ?? null;
+  const streetHouse = addressId.startsWith(STREET_HOUSE_PREFIX)
+    ? /^([^:]+):(.+)$/u.exec(addressId.slice(STREET_HOUSE_PREFIX.length))
+    : null;
+  const suggestions = streetHouse
+    ? await callDaData(
+      apiKey,
+      '/suggestions/api/4_1/rs/suggest/address',
+      { query: streetHouse[2], count: 10, locations: [{ street_fias_id: streetHouse[1] }] },
+      fetcher,
+    )
+    : await callDaData(apiKey, '/suggestions/api/4_1/rs/findById/address', { query: addressId, count: 1 }, fetcher);
+  return suggestions.find((suggestion) => suggestion.addressId === addressId) ?? null;
 }

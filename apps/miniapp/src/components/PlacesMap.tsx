@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { House } from '@phosphor-icons/react';
 import type { GeoPoint } from '@maxtown/shared';
-import { loadMapGL, mapKey, type MapGLApi } from '../platform/dgisMap.ts';
+import { loadMapGL, mapKey, withMapServers, type MapGLApi } from '../platform/dgisMap.ts';
 import { boundsOf, fromLngLat, toLngLat } from './placesMap.ts';
 import type { IconComponent, TileColor } from './ui.tsx';
 
@@ -67,13 +67,13 @@ export function PlacesMap({ label, house, markers, selectedId, onSelect, onCente
   const hasStart = start !== null;
   useEffect(() => {
     if (!api || !containerRef.current || !start) return;
-    const instance = new api.Map(containerRef.current, {
+    const instance = new api.Map(containerRef.current, withMapServers({
       key: mapKey() ?? undefined,
       center: toLngLat(start),
       zoom: DEFAULT_ZOOM,
       zoomControl: false,
       lang: 'ru',
-    });
+    }));
     const reportCenter = () => centerChange.current?.(fromLngLat(instance.getCenter()));
     instance.on('moveend', reportCenter);
     reportCenter();

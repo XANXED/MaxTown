@@ -153,10 +153,10 @@ export function HouseSetupScreen({ setup, onOpenHouse }: HouseSetupScreenProps) 
           ) : suggestions.length > 0 ? (
             <div className="list-card" role="list" aria-label="Подсказки адреса">
               {suggestions.map((address) => {
-                const isSelected = selected?.garHouseGuid === address.garHouseGuid;
+                const isSelected = selected?.addressId === address.addressId;
                 return (
                   <RowShell
-                    key={address.garHouseGuid}
+                    key={address.addressId}
                     className={isSelected ? 'house-setup__selected' : ''}
                     onOpen={() => setSelected(address)}
                     trailing={

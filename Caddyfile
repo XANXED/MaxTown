@@ -3,6 +3,25 @@
 # Сертификат Let's Encrypt Caddy получает и продлевает сам: нужны A-записи
 # DOMAIN и www.DOMAIN на этот сервер и открытые порты 80 и 443.
 
+# Карта 2ГИС (MapGL) ходит через этот сервер: 2ГИС не отвечает иностранным
+# IP, а Жилец может сидеть через VPN. /dgis/<имя>/… уходит на хост 2ГИС как
+# есть, без адреса и cookie человека; Referer остаётся — по нему 2ГИС
+# сверяет домен ключа. Имена и хосты — DGIS_MAP_HOSTS в
+# apps/miniapp/src/platform/dgisMap.ts.
+(dgis) {
+	handle_path /dgis/{args[0]}/* {
+		reverse_proxy https://{args[1]} {
+			header_up Host {upstream_hostport}
+			header_up -X-Forwarded-For
+			header_up -X-Forwarded-Host
+			header_up -X-Forwarded-Proto
+			header_up -X-Real-Ip
+			header_up -Cookie
+			header_down -Set-Cookie
+		}
+	}
+}
+
 {$DOMAIN} {
 	encode zstd gzip
 	header {
@@ -10,6 +29,14 @@
 		X-Content-Type-Options "nosniff"
 		Referrer-Policy "strict-origin-when-cross-origin"
 	}
+	import dgis mapgl mapgl.2gis.com
+	import dgis keys keys.api.2gis.com
+	import dgis styles styles.api.2gis.com
+	import dgis disk disk.2gis.com
+	import dgis tile0 tile0.maps.2gis.com
+	import dgis tile1 tile1.maps.2gis.com
+	import dgis tile2 tile2.maps.2gis.com
+	import dgis tile3 tile3.maps.2gis.com
 	# X-Forwarded-For Caddy ставит сам и не доверяет присланному клиентом,
 	# поэтому API (TRUST_PROXY=uniquelocal) видит настоящий адрес человека.
 	reverse_proxy web:3000

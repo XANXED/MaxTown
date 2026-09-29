@@ -1,14 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import type { HouseAddressSuggestionsResponse } from '@maxtown/shared';
 import { requireAuthentication } from '../auth/sessions.ts';
-import { AddressProviderError, findHouseAddressByGuid, publicSuggestion, suggestHouseAddresses } from '../address/dadata.ts';
+import { AddressProviderError, findHouseAddress, publicSuggestion, suggestHouseAddresses } from '../address/dadata.ts';
 import { activateHouseChat, checkSetupAdmin, MaxApiError, syncResidentHouses, type HouseChatDeps } from '../max/house-chats.ts';
 
 // Подключение Дома (CONTEXT.md): бот не узнал адрес по названию чата, и
 // администратор чата выбирает его из подсказок DaData. Кто выбирает — из
 // серверной сессии; права в чате и выбранный GUID сервер проверяет сам.
 
-type SetupBody = { chatId: number; query?: string; garHouseGuid?: string };
+type SetupBody = { chatId: number; query?: string; addressId?: string };
 
 const chatIdSchema = { type: 'integer', not: { const: 0 } } as const;
 
@@ -46,8 +46,8 @@ export function registerHouseSetupRoutes(app: FastifyInstance, deps: HouseChatDe
     preHandler: authenticated,
     schema: {
       body: {
-        type: 'object', required: ['chatId', 'garHouseGuid'], additionalProperties: false,
-        properties: { chatId: chatIdSchema, garHouseGuid: { type: 'string', minLength: 1, maxLength: 128 } },
+        type: 'object', required: ['chatId', 'addressId'], additionalProperties: false,
+        properties: { chatId: chatIdSchema, addressId: { type: 'string', minLength: 1, maxLength: 200 } },
       },
     },
   }, async (request, reply) => {
@@ -61,7 +61,7 @@ export function registerHouseSetupRoutes(app: FastifyInstance, deps: HouseChatDe
       // Повтор после потерянного ответа не меняет уже выбранный адрес.
       let houseId = setup.houseId;
       if (!houseId) {
-        const address = await findHouseAddressByGuid(deps.dadataKey, request.body.garHouseGuid!.trim(), deps.dadataFetch);
+        const address = await findHouseAddress(deps.dadataKey, request.body.addressId!.trim(), deps.dadataFetch);
         if (!address) return reply.code(400).send({ error: 'house_address_not_found' });
         houseId = (await activateHouseChat(deps, request.body.chatId, address)).houseId;
       }

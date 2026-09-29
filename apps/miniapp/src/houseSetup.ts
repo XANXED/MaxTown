@@ -68,7 +68,7 @@ function isSuggestion(value: unknown): value is HouseAddressSuggestion {
     isRecord(value) &&
     typeof value.value === 'string' &&
     typeof value.locality === 'string' &&
-    typeof value.garHouseGuid === 'string'
+    typeof value.addressId === 'string'
   );
 }
 
@@ -84,7 +84,7 @@ const errorMessages: Record<string, string> = {
   house_setup_forbidden: 'Выбрать адрес может только администратор этого чата',
   house_setup_not_found: 'Адрес этого чата уже выбран или настройка не найдена',
   bot_is_not_admin: 'Сначала верните боту MaxTown права администратора чата',
-  house_address_not_found: 'Этого дома нет в ГАР. Выберите адрес из списка',
+  house_address_not_found: 'Не удалось подтвердить этот дом. Выберите адрес из списка ещё раз',
   address_provider_not_configured: 'На сервере не настроен поиск адресов',
   address_provider_unavailable: 'Сервис адресов не ответил. Попробуйте ещё раз',
   max_unavailable: 'MAX не ответил. Попробуйте ещё раз',
@@ -99,12 +99,12 @@ const demoSuggestions: HouseAddressSuggestion[] = [
   {
     value: 'Самарская обл, г Тольятти, ул Победы, д 31',
     locality: 'Самарская обл, г Тольятти',
-    garHouseGuid: '1da21a60-f4a8-4fa7-a7d7-bb77398ba437',
+    addressId: '1da21a60-f4a8-4fa7-a7d7-bb77398ba437',
   },
   {
     value: 'Самарская обл, г Тольятти, ул Победы, д 31А',
     locality: 'Самарская обл, г Тольятти',
-    garHouseGuid: '7d4d9479-6cd2-4c9a-aa83-b9c0c8f5a312',
+    addressId: '7d4d9479-6cd2-4c9a-aa83-b9c0c8f5a312',
   },
 ];
 
@@ -131,7 +131,7 @@ export async function confirmSetupAddress(
 ): Promise<string> {
   if (demo()) return `demo-${setup.chatId}`;
 
-  const { response, data } = await setupRequest('/api/house-setup/confirm', { chatId: setup.chatId, garHouseGuid: address.garHouseGuid }, fetcher);
+  const { response, data } = await setupRequest('/api/house-setup/confirm', { chatId: setup.chatId, addressId: address.addressId }, fetcher);
   if (!response.ok) throw responseError(data, response, 'Не удалось сохранить адрес');
   if (!isRecord(data) || typeof data.houseId !== 'string') {
     throw new HouseSetupRequestError('Сервер не подтвердил создание Дома', response.status);

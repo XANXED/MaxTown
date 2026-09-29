@@ -10,6 +10,8 @@ RUN npm ci --workspace=@maxtown/miniapp --workspace=@maxtown/admin --workspace=@
 # Ключ карты 2ГИС встраивается в сборку мини-аппа (он и так виден клиенту).
 # Render передаёт переменные окружения сервиса в сборку как build-аргументы.
 ARG VITE_DGIS_API_KEY
+# Префикс прокси карты на своём домене (/dgis в Caddyfile); пусто — карта ходит в 2ГИС напрямую.
+ARG VITE_DGIS_MAP_PROXY
 RUN npm run build --workspace=@maxtown/miniapp && npm run build --workspace=@maxtown/admin
 
 FROM node:24-alpine AS dependencies

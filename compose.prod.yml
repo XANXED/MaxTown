@@ -8,6 +8,8 @@ services:
       args:
         # Ключ карты 2ГИС встраивается в сборку мини-аппа (он и так виден клиенту).
         VITE_DGIS_API_KEY: ${DGIS_API_KEY:-}
+        # Карта 2ГИС через Caddy (/dgis/…): 2ГИС не отвечает иностранным IP, а Жилец может быть с VPN.
+        VITE_DGIS_MAP_PROXY: /dgis
     environment:
       # Сюда MAX шлёт события бота: /api/max/register подписывает этот адрес.
       MAXTOWN_PUBLIC_URL: https://${DOMAIN:?set DOMAIN}

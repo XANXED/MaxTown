@@ -29,11 +29,12 @@ export type PendingHouseSetup = {
   chatTitle: string;
 };
 
-/** Один адрес дома из ГАР, предложенный DaData. */
+/** Один адрес дома, предложенный DaData. */
 export type HouseAddressSuggestion = {
   value: string;
   locality: string;
-  garHouseGuid: string;
+  /** GUID дома в ГАР или, если дома нет в ГАР, street:<GUID улицы>:<номер>. Сервер перепроверяет его в DaData. */
+  addressId: string;
 };
 
 export type HouseAddressSuggestionsResponse = {

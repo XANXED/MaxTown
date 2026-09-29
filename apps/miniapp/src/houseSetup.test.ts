@@ -6,7 +6,7 @@ const setup = { chatId: -42, chatTitle: 'Лесная, 12' };
 const suggestion = {
   value: 'г Москва, ул Лесная, д 12',
   locality: 'г Москва',
-  garHouseGuid: 'guid-12',
+  addressId: 'guid-12',
 };
 
 describe('настройка адреса Домового чата', () => {
@@ -61,7 +61,7 @@ describe('настройка адреса Домового чата', () => {
     expect(fetcher).toHaveBeenCalledWith('/api/house-setup/confirm', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chatId: -42, garHouseGuid: 'guid-12' }),
+      body: JSON.stringify({ chatId: -42, addressId: 'guid-12' }),
       signal: expect.any(AbortSignal),
     });
   });

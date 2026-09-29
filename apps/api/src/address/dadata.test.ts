@@ -1,10 +1,29 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  findHouseAddressByGuid,
+  findHouseAddress,
   resolveHouseAddressFromTitle,
   suggestHouseAddresses,
   titleMatchesAddress,
 } from './dadata.ts';
+
+/** Дом, которого нет в ГАР: DaData отдаёт улицу с номером дома. */
+function streetHouse(value: string, qcGeo: string) {
+  return {
+    value,
+    data: {
+      fias_level: '7',
+      street_fias_id: 'street-guid',
+      house_fias_id: null,
+      house_type: 'д',
+      house: '14',
+      qc_geo: qcGeo,
+      geo_lat: '59.9564542',
+      geo_lon: '30.3086435',
+      region_with_type: 'г Санкт-Петербург',
+      city_with_type: 'г Санкт-Петербург',
+    },
+  };
+}
 
 function house(value: string, guid: string) {
   return {
@@ -28,6 +47,7 @@ describe('адрес Дома через DaData', () => {
     await expect(resolveHouseAddressFromTitle('key', 'Москва, Лесная 12', fetcher)).resolves.toEqual({
       value: 'г Москва, ул Лесная, д 12',
       locality: 'г Москва',
+      addressId: 'guid-12',
       garHouseGuid: 'guid-12',
       point: null,
     });
@@ -70,13 +90,13 @@ describe('адрес Дома через DaData', () => {
       titleMatchesAddress('Самарская обл, г Тольятти, ул Победы, д 31', {
         value: 'Алтайский край, г Яровое, Б кв-л, д 31',
         locality: 'Алтайский край, г Яровое',
-        garHouseGuid: 'wrong-guid',
+        addressId: 'wrong-guid',
       }),
     ).toBe(false);
   });
 
   it('узнаёт корпус, написанный слитно: «14к1» и «14 к1»', () => {
-    const address = { value: 'г Санкт-Петербург, Комендантский пр-кт, д 14 к 1', locality: 'г Санкт-Петербург', garHouseGuid: 'gar-14-1' };
+    const address = { value: 'г Санкт-Петербург, Комендантский пр-кт, д 14 к 1', locality: 'г Санкт-Петербург', addressId: 'gar-14-1' };
     expect(titleMatchesAddress('Санкт-Петербург, Комендантский проспект, 14к1', address)).toBe(true);
     expect(titleMatchesAddress('Санкт-Петербург, Комендантский 14 к1', address)).toBe(true);
     expect(titleMatchesAddress('Санкт-Петербург, Комендантский 14', address)).toBe(false);
@@ -126,7 +146,7 @@ describe('адрес Дома через DaData', () => {
       Response.json({ suggestions: [{ ...withPoint, data: { ...withPoint.data, geo_lat: '55.7887', geo_lon: '37.5836' } }] }),
     );
 
-    await expect(findHouseAddressByGuid('key', 'guid-12', fetcher)).resolves.toEqual(
+    await expect(findHouseAddress('key', 'guid-12', fetcher)).resolves.toEqual(
       expect.objectContaining({ point: { lat: 55.7887, lon: 37.5836 } }),
     );
   });
@@ -136,9 +156,47 @@ describe('адрес Дома через DaData', () => {
       Response.json({ suggestions: [house('г Москва, ул Лесная, д 12', 'guid-12')] }),
     );
 
-    await expect(findHouseAddressByGuid('key', 'guid-12', fetcher)).resolves.toEqual(
+    await expect(findHouseAddress('key', 'guid-12', fetcher)).resolves.toEqual(
       expect.objectContaining({ garHouseGuid: 'guid-12' }),
     );
     expect(String(fetcher.mock.calls[0]?.[0])).toContain('/findById/address');
+  });
+
+  it('принимает дом без ГАР, если DaData знает его точные координаты', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({ suggestions: [streetHouse('г Санкт-Петербург, ул Саблинская, д 14', '0')] }),
+    );
+
+    await expect(suggestHouseAddresses('key', 'Саблинская ул, 14', fetcher)).resolves.toEqual([{
+      value: 'г Санкт-Петербург, ул Саблинская, д 14',
+      locality: 'г Санкт-Петербург',
+      addressId: 'street:street-guid:д 14',
+      garHouseGuid: null,
+      point: { lat: 59.9564542, lon: 30.3086435 },
+    }]);
+  });
+
+  it('не принимает номер дома, для которого DaData знает только улицу', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({ suggestions: [streetHouse('г Санкт-Петербург, ул Саблинская, д 999', '2')] }),
+    );
+
+    await expect(suggestHouseAddresses('key', 'Саблинская ул, 999', fetcher)).resolves.toEqual([]);
+  });
+
+  it('перепроверяет дом без ГАР по номеру в пределах улицы', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({ suggestions: [streetHouse('г Санкт-Петербург, ул Саблинская, д 14', '0')] }),
+    );
+
+    await expect(findHouseAddress('key', 'street:street-guid:д 14', fetcher)).resolves.toEqual(
+      expect.objectContaining({ addressId: 'street:street-guid:д 14', garHouseGuid: null }),
+    );
+    expect(String(fetcher.mock.calls[0]?.[0])).toContain('/suggest/address');
+    expect(JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body))).toEqual({
+      query: 'д 14',
+      count: 10,
+      locations: [{ street_fias_id: 'street-guid' }],
+    });
   });
 });

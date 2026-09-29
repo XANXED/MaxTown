@@ -90,13 +90,13 @@ describe.skipIf(!databaseUrl)('Домовой чат MAX', () => {
     const forbidden = await app.inject({ method: 'POST', url: '/api/house-setup/suggestions', headers: headers(resident.token), payload: { chatId: -601, query: 'Лесная 12' } });
     expect(forbidden.statusCode).toBe(403);
     const suggestions = await app.inject({ method: 'POST', url: '/api/house-setup/suggestions', headers: headers(admin.token), payload: { chatId: -601, query: 'Лесная 12' } });
-    expect(suggestions.json()).toEqual({ suggestions: [{ value: 'г Санкт-Петербург, ул Лесная, д 12', locality: 'г Санкт-Петербург', garHouseGuid: 'gar-12' }] });
+    expect(suggestions.json()).toEqual({ suggestions: [{ value: 'г Санкт-Петербург, ул Лесная, д 12', locality: 'г Санкт-Петербург', addressId: 'gar-12' }] });
 
-    const confirmed = await app.inject({ method: 'POST', url: '/api/house-setup/confirm', headers: headers(admin.token), payload: { chatId: -601, garHouseGuid: 'gar-12' } });
+    const confirmed = await app.inject({ method: 'POST', url: '/api/house-setup/confirm', headers: headers(admin.token), payload: { chatId: -601, addressId: 'gar-12' } });
     expect(confirmed.statusCode, confirmed.body).toBe(200);
     expect(await housesOf(admin.token)).toMatchObject([{ role: 'admin', address: 'ул Лесная, д 12' }]);
     // Повтор после потерянного ответа — тот же Дом.
-    const again = await app.inject({ method: 'POST', url: '/api/house-setup/confirm', headers: headers(admin.token), payload: { chatId: -601, garHouseGuid: 'gar-other' } });
+    const again = await app.inject({ method: 'POST', url: '/api/house-setup/confirm', headers: headers(admin.token), payload: { chatId: -601, addressId: 'gar-other' } });
     expect(again.json()).toEqual(confirmed.json());
   });
 
