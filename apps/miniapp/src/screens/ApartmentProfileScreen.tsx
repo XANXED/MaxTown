@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { House, LinkSimple, ShieldCheck, UserPlus, WarningCircle } from '@phosphor-icons/react';
-import type { ApartmentAccessState, HouseMembershipSummary, MeResponse } from '@maxtown/shared';
+import type { ApartmentAccessState, ApartmentInfoAccessGrant, HouseMembershipSummary, MeResponse } from '@maxtown/shared';
 import { Button, Input, Spinner, Typography } from '../components/platform-ui.tsx';
 import { ErrorState, IconTile, ScreenHeading } from '../components/ui.tsx';
 import {
@@ -10,6 +10,12 @@ import {
   loadApartmentAccess,
   saveApartmentAccess,
 } from '../data/apartmentAccess.ts';
+import {
+  createApartmentInfoInvite,
+  loadApartmentInfoGrants,
+  revokeApartmentInfoGrant,
+  revokeApartmentInfoInvite,
+} from '../data/apartmentInfoAccess.ts';
 import { ResidentProfileSetupScreen } from './ResidentProfileSetupScreen.tsx';
 import type { Notify } from './types.ts';
 
@@ -40,11 +46,15 @@ export function ApartmentProfileScreen({ membership, phoneVerified, notify, onMe
   const [busy, setBusy] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [infoInvite, setInfoInvite] = useState<{ code: string; link: string; expiresAt: string } | null>(null);
+  const [infoGrants, setInfoGrants] = useState<ApartmentInfoAccessGrant[]>([]);
 
   const load = useCallback(async () => {
     setLoadingError(false);
     try {
-      setState(await loadApartmentAccess(membership.houseId));
+      const next = await loadApartmentAccess(membership.houseId);
+      setState(next);
+      if (next.status === 'joined') setInfoGrants(await loadApartmentInfoGrants(membership.houseId));
     } catch {
       setLoadingError(true);
     }
@@ -166,6 +176,53 @@ export function ApartmentProfileScreen({ membership, phoneVerified, notify, onMe
             })}>Создать Приглашение</Button>
             {inviteLink ? <Input value={inviteLink} readOnly aria-label="Ссылка-приглашение" /> : null}
           </div>
+        </section>
+
+        <section className="decision-card">
+          <Typography.Text asChild variant="title"><h2>Ограниченный доступ</h2></Typography.Text>
+          <Typography.Text asChild variant="description" color="secondary">
+            <p>Можно передать только адрес Дома и номер Квартиры. Получатель не вступит в Домохозяйство и не увидит платежи, Чеки, Приборы и Показания.</p>
+          </Typography.Text>
+          <div className="decision-card__actions">
+            <Button iconBefore={<LinkSimple aria-hidden />} stretched loading={busy} onClick={() => run(async () => {
+              const created = await createApartmentInfoInvite(membership.houseId, apartment.id);
+              const bot = import.meta.env.VITE_MAX_BOT_USERNAME || 't25_hakaton_max_bot';
+              const link = `https://max.ru/${bot}?startapp=info_${created.code}`;
+              setInfoInvite({ ...created, link });
+              try {
+                await navigator.clipboard.writeText(link);
+                notify('Ограниченная ссылка скопирована');
+              } catch {
+                notify('Ограниченная ссылка создана');
+              }
+            })}>Создать ограниченную ссылку</Button>
+            {infoInvite ? <>
+              <Input value={infoInvite.link} readOnly aria-label="Ограниченная ссылка на Квартиру" />
+              <Typography.Text asChild variant="description" color="secondary">
+                <p>Действует до {new Date(infoInvite.expiresAt).toLocaleString('ru-RU')}</p>
+              </Typography.Text>
+              <Button variant="secondary" stretched disabled={busy} onClick={() => run(async () => {
+                await revokeApartmentInfoInvite(membership.houseId, infoInvite.code);
+                setInfoInvite(null);
+                notify('Ссылка отозвана');
+              })}>Отозвать ссылку</Button>
+            </> : null}
+          </div>
+          {infoGrants.length ? (
+            <div className="apartment-access-list" aria-label="Выданный ограниченный доступ">
+              {infoGrants.map((grant) => (
+                <article className="support-card" key={grant.id}>
+                  <Typography.Text asChild variant="body-strong"><h3>{grant.residentName}</h3></Typography.Text>
+                  <Typography.Text asChild variant="description" color="secondary"><p>Адрес и номер Квартиры · выдано {new Date(grant.createdAt).toLocaleDateString('ru-RU')}</p></Typography.Text>
+                  <Button variant="secondary" stretched disabled={busy} onClick={() => run(async () => {
+                    await revokeApartmentInfoGrant(membership.houseId, grant.id);
+                    setInfoGrants((current) => current.filter((item) => item.id !== grant.id));
+                    notify('Ограниченный доступ отозван');
+                  })}>Отозвать доступ</Button>
+                </article>
+              ))}
+            </div>
+          ) : null}
         </section>
 
         {state.incomingRequests.length > 0 ? (

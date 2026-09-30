@@ -224,6 +224,15 @@ it('adds Household-scoped apartment access and payment privacy', () => {
   expect(migration).toContain("'apartment-access-request'");
 });
 
+it('stores limited Apartment info invitations separately from Household membership', () => {
+  const migration = readFileSync(new URL('./migrations/0023_apartment_info_access.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('CREATE TABLE apartment_info_invitations');
+  expect(migration).toContain('CREATE TABLE apartment_info_access_grants');
+  expect(migration).toContain('code_hash bytea NOT NULL UNIQUE');
+  expect(migration).toContain("interval '7 days'");
+  expect(migration).not.toContain('apartment_household_id');
+});
+
 it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent', async () => {
   expect(pool).not.toBeNull();
   if (!pool) return;
@@ -232,7 +241,7 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('22');
+  expect(result.rows[0]?.count).toBe('23');
 });
 
 it.skipIf(!databaseUrl)('backfills active and closed Households without exposing old payment data', async () => {

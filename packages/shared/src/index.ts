@@ -307,6 +307,23 @@ export type InviteCheck =
   | { status: 'revoked' }
   | { status: 'not-found' };
 
+/** Проверка ограниченного Приглашения, которое открывает только адрес и номер Квартиры. */
+export type ApartmentInfoInviteCheck =
+  | { status: 'valid'; houseAddress: string; apartment: string }
+  | { status: 'not-house-member' }
+  | { status: 'used' }
+  | { status: 'expired' }
+  | { status: 'revoked' }
+  | { status: 'not-found' };
+
+/** Ограниченный доступ без вступления в Домохозяйство Квартиры. */
+export type ApartmentInfoAccessGrant = {
+  id: string;
+  apartment: string;
+  residentName: string;
+  createdAt: string;
+};
+
 /** Расположение Квартиры, которое Жилец подтверждает при первой привязке. */
 export type ApartmentLocationInput = {
   apartmentNumber: string;

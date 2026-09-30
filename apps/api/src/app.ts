@@ -28,6 +28,7 @@ import { startRequestMaintenance } from './requests/maintenance.ts';
 import { registerUtilityPaymentRoutes } from './routes/utility-payments.ts';
 import { registerMeterReadingRoutes } from './routes/meter-readings.ts';
 import { registerApartmentAccessRoutes } from './routes/apartment-access.ts';
+import { registerApartmentInfoAccessRoutes } from './routes/apartment-info-access.ts';
 import { startUtilityPaymentMaintenance } from './utility-payments/maintenance.ts';
 import { createDgisClient, type DgisClient } from './places/dgis.ts';
 import { createDataMosContactSource, type HouseContactSource } from './contacts/data-mos.ts';
@@ -170,6 +171,7 @@ export async function buildApp({ pool, env, staticAssets, contactSource, dgis, m
   }
   registerHouseRoutes(app, pool);
   registerApartmentAccessRoutes(app, pool);
+  registerApartmentInfoAccessRoutes(app, pool);
   registerModeratorRoutes(app, pool);
   registerCommunityRoutes(app, pool, env.POLL_VOTER_NULLIFIER_SECRET ?? 'development-only-poll-voter-nullifier-secret');
   registerRepairModeRoutes(app, pool);

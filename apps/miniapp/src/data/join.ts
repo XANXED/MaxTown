@@ -1,4 +1,4 @@
-import type { InviteCheck } from '@maxtown/shared';
+import type { ApartmentInfoInviteCheck, InviteCheck } from '@maxtown/shared';
 import { apiFetch } from '../auth/session.ts';
 import { launchStartParam } from '../maxLaunch.ts';
 import { demoMode, loadFixtures } from './loadable.ts';
@@ -29,12 +29,18 @@ export function parseInviteCode(text: string): string | null {
     return inviteFromStartParam(url.searchParams.get('startapp') ?? undefined);
   }
 
+  const infoCode = trimmed.startsWith('info_') ? trimmed.slice(5) : null;
+  if (infoCode !== null) return codePattern.test(infoCode) ? `info_${infoCode}` : null;
   const code = trimmed.startsWith(INVITE_PREFIX) ? trimmed.slice(INVITE_PREFIX.length) : trimmed;
   return codePattern.test(code) ? code : null;
 }
 
 /** Приглашение из параметра запуска MAX (`start_param`). */
 export function inviteFromStartParam(startParam: string | undefined): string | null {
+  if (startParam?.startsWith('info_')) {
+    const code = startParam.slice(5);
+    return codePattern.test(code) ? `info_${code}` : null;
+  }
   if (!startParam?.startsWith(INVITE_PREFIX)) return null;
   const code = startParam.slice(INVITE_PREFIX.length);
   return codePattern.test(code) ? code : null;
@@ -46,14 +52,17 @@ export function launchInviteCode(): string | null {
 }
 
 /** Результат проверки на экране: к ответам сервера добавляется ошибка доступности API. */
-export type InviteResult = InviteCheck | { status: 'unavailable' };
+export type InviteResult = InviteCheck | ApartmentInfoInviteCheck | { status: 'unavailable' };
 
 /** Проверить Приглашение; в dev-демо ответ даёт fixtures.ts. */
 export async function checkInvite(code: string): Promise<InviteResult> {
   const fixtures = demoMode() ? loadFixtures() : null;
   if (fixtures) return (await fixtures).sampleInviteCheck(code);
   try {
-    const response = await apiFetch(`/api/invitations/${encodeURIComponent(code)}`);
+    const path = code.startsWith('info_')
+      ? `/api/apartment-info-invitations/${encodeURIComponent(code.slice(5))}`
+      : `/api/invitations/${encodeURIComponent(code)}`;
+    const response = await apiFetch(path);
     if (!response.ok) return { status: 'unavailable' };
     return (await response.json() as { invitation: InviteResult }).invitation;
   } catch {
@@ -63,6 +72,9 @@ export async function checkInvite(code: string): Promise<InviteResult> {
 
 export async function redeemInvite(code: string): Promise<void> {
   if (demoMode()) return;
-  const response = await apiFetch(`/api/invitations/${encodeURIComponent(code)}/redeem`, { method: 'POST' });
+  const path = code.startsWith('info_')
+    ? `/api/apartment-info-invitations/${encodeURIComponent(code.slice(5))}/redeem`
+    : `/api/invitations/${encodeURIComponent(code)}/redeem`;
+  const response = await apiFetch(path, { method: 'POST' });
   if (!response.ok) throw new Error('Не удалось вступить по Приглашению');
 }

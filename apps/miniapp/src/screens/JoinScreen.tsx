@@ -24,7 +24,7 @@ function codeReader(): ((fileSelect?: boolean) => Promise<string>) | null {
  */
 export function JoinScreen({ navigate }: JoinScreenProps) {
   const [launchCode] = useState(launchInviteCode);
-  const [joined, setJoined] = useState<{ apartment: string; address: string } | null>(null);
+  const [joined, setJoined] = useState<{ apartment: string; address: string; basic: boolean } | null>(null);
   const refreshMembership = useRefreshMembership();
 
   if (joined) {
@@ -33,10 +33,12 @@ export function JoinScreen({ navigate }: JoinScreenProps) {
         <section className="join-result stagger" aria-live="polite">
           <IconTile icon={House} tone="green" size="large" />
           <Typography.Text asChild variant="header">
-            <h1>Вы Жилец Квартиры {joined.apartment}</h1>
+            <h1>{joined.basic ? 'Адрес Квартиры доступен' : `Вы Жилец Квартиры ${joined.apartment}`}</h1>
           </Typography.Text>
           <Typography.Text asChild variant="body" color="secondary">
-            <p>{joined.address}. На главной теперь видно Состояние дома, а Заявки уходят Ответственным.</p>
+            <p>{joined.basic
+              ? `${joined.address}, Квартира ${joined.apartment}. Доступ к Домохозяйству и роль Жильца не изменились.`
+              : `${joined.address}. На главной теперь видно Состояние дома, а Заявки уходят Ответственным.`}</p>
           </Typography.Text>
           <Button size="medium" variant="primary" stretched onClick={() => navigate(ROUTES.home)}>
             На главную
@@ -54,11 +56,11 @@ export function JoinScreen({ navigate }: JoinScreenProps) {
         </ScreenHeading>
         <InviteFlow
           initialCode={launchCode}
-          onJoined={(apartment, address) => {
+          onJoined={(apartment, address, basic) => {
             hapticSuccess();
-            setJoined({ apartment, address });
+            setJoined({ apartment, address, basic });
             // Главная, Профиль и Роль берут членство из сессии — перечитываем её.
-            void refreshMembership();
+            if (!basic) void refreshMembership();
           }}
         />
       </div>
@@ -68,7 +70,7 @@ export function JoinScreen({ navigate }: JoinScreenProps) {
 
 type CheckState = { state: 'idle' } | { state: 'checking' } | { state: 'done'; code: string; result: InviteResult };
 
-function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJoined: (apartment: string, address: string) => void }) {
+function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJoined: (apartment: string, address: string, basic: boolean) => void }) {
   const [link, setLink] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [check, setCheck] = useState<CheckState>({ state: 'idle' });
@@ -116,6 +118,7 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
 
   if (check.state === 'done' && check.result.status === 'valid') {
     const { apartment, houseAddress } = check.result;
+    const basic = check.code.startsWith('info_');
     return (
       <section className="decision-card reveal" aria-labelledby="invite-valid-title" aria-live="polite">
         <IconTile icon={House} tone="green" size="medium" />
@@ -125,17 +128,19 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
           </h2>
         </Typography.Text>
         <Typography.Text asChild variant="description" color="secondary">
-          <p>Приглашение действует для участника этого Домового чата. После вступления вы увидите платежи и Чеки текущего Домохозяйства, а также всю техническую историю Приборов и Показаний Квартиры.</p>
+          <p>{basic
+            ? 'Вы получите только адрес Дома и номер Квартиры. Вы не вступите в Домохозяйство, не получите роль Жильца и не увидите платежи или показания.'
+            : 'Приглашение действует для участника этого Домового чата. После вступления вы увидите платежи и Чеки текущего Домохозяйства, а также всю техническую историю Приборов и Показаний Квартиры.'}</p>
         </Typography.Text>
         <div className="decision-card__actions">
           <Button size="medium" variant="primary" stretched loading={joining} onClick={() => {
             setJoining(true);
             setJoinError(null);
-            void redeemInvite(check.code).then(() => onJoined(apartment, houseAddress)).catch(() => {
+            void redeemInvite(check.code).then(() => onJoined(apartment, houseAddress, basic)).catch(() => {
               setJoinError('Не удалось вступить. Проверьте подключение и попробуйте ещё раз.');
             }).finally(() => setJoining(false));
           }}>
-            Вступить
+            {basic ? 'Получить адрес' : 'Вступить'}
           </Button>
           {joinError ? <p className="field-error" role="alert">{joinError}</p> : null}
           <Button size="medium" variant="ghost" stretched onClick={() => setCheck({ state: 'idle' })}>
@@ -225,6 +230,18 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
 }
 
 const inviteProblems: Record<Exclude<InviteResult['status'], 'valid'>, { title: string; text: string }> = {
+  expired: {
+    title: 'Срок действия ссылки истёк',
+    text: 'Попросите участника Квартиры создать новую ограниченную ссылку.',
+  },
+  used: {
+    title: 'Ссылка уже использована',
+    text: 'Ограниченную ссылку можно использовать один раз. Попросите создать новую.',
+  },
+  'not-house-member': {
+    title: 'Сначала вступите в Домовой чат',
+    text: 'Ограниченный доступ доступен участникам Домового чата этого Дома.',
+  },
   revoked: {
     title: 'Это Приглашение уже не действует',
     text: 'Его перевыпустили: у Квартиры действует только последнее. Попросите новое у того, кто его отправил.',
