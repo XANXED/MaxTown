@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { afterAll, expect, it } from 'vitest';
@@ -203,7 +203,8 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('19');
+  const migrationFiles = readdirSync(new URL('./migrations/', import.meta.url)).filter((file) => /^\d{4}_.+\.sql$/.test(file));
+  expect(result.rows[0]?.count).toBe(String(migrationFiles.length));
 });
 
 it.skipIf(!databaseUrl)('preserves old public totals while deleting every historical voter link', async () => {
