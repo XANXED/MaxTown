@@ -32,6 +32,8 @@ const kindVisuals: Record<UserNotification['kind'], { icon: IconComponent; tone:
   'management-question': { icon: ChatCircleText, tone: 'blue' },
   'management-answer': { icon: ChatCircleText, tone: 'blue' },
   'utility-payment': { icon: Receipt, tone: 'blue' },
+  'apartment-access-request': { icon: House, tone: 'blue' },
+  'apartment-access-decision': { icon: House, tone: 'green' },
 };
 
 /** Непрочитанные изменения в Заявках и Запросах на вступление. */
@@ -73,6 +75,11 @@ export function NotificationsScreen({ navigate, openCommunityPoll, openApartment
       const target = utilityPaymentRoute(item.utilityPaymentPeriodId);
       if (openHouseRoute) openHouseRoute(item.houseId, target);
       else navigate(target);
+      return;
+    }
+    if ((item.kind === 'apartment-access-request' || item.kind === 'apartment-access-decision') && item.houseId) {
+      if (openHouseRoute) openHouseRoute(item.houseId, ROUTES.profileHouse);
+      else navigate(ROUTES.profileHouse);
       return;
     }
     const target = item.requestId ? requestRoute(item.requestId) : item.eventId ? eventRoute(item.eventId) : ROUTES.house;

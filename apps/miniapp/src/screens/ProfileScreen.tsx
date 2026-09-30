@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Avatar } from '@vkontakte/vkui';
-import { BellRinging, BookOpen, ChatCircleText, CloudSlash, House, ShieldCheck, User } from '@phosphor-icons/react';
+import { BellRinging, BookOpen, ChatCircleText, CloudSlash, House, PencilSimple, ShieldCheck, User } from '@phosphor-icons/react';
 import { Typography } from '../components/platform-ui.tsx';
 import {
   BottomNavigation,
@@ -14,7 +14,7 @@ import {
 import { useHouseState } from '../data/houseState.ts';
 import { currentProfileUser } from '../maxUser.ts';
 import { ROUTES } from '../routes.ts';
-import { membershipLine, useMembership } from '../auth/membership.tsx';
+import { membershipLine, useHouseMemberships, useMembership } from '../auth/membership.tsx';
 import type { Navigate, Notify } from './types.ts';
 
 type ProfileScreenProps = {
@@ -28,6 +28,8 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
   const soon = (title: string) => () => notify(`«${title}» появится позже`);
   const { status: houseStatus, data: house, retry: retryHouse } = useHouseState();
   const membership = useMembership();
+  const { memberships, selectHouse } = useHouseMemberships();
+  const houseGroupTitle = memberships.length > 1 ? 'Мои дома' : 'Мой дом';
 
   return (
     <div className="screen screen--home">
@@ -56,8 +58,28 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
           </Typography.Text>
         </section>
 
-        <ProfileGroup id="house" title="Мой дом">
-          {houseStatus === 'loading' ? (
+        <ProfileGroup id="house" title={houseGroupTitle}>
+          {memberships.length > 0 ? memberships.map((item) => {
+            const active = item.houseId === membership?.houseId;
+            return (
+              <ProfileRow
+                key={item.id}
+                icon={House}
+                color="green"
+                title={item.address}
+                description={membershipLine(item)}
+                trailing={active ? <span className="status-badge status-badge--positive">Текущий</span> : undefined}
+                onOpen={() => {
+                  if (active) {
+                    navigate(ROUTES.house);
+                    return;
+                  }
+                  selectHouse(item.houseId);
+                  notify(`Открыт Дом: ${item.address}`);
+                }}
+              />
+            );
+          }) : houseStatus === 'loading' ? (
             <div className="list-row list-row--skeleton" aria-busy="true" aria-label="Загрузка">
               <span className="skeleton skeleton--tile" />
               <span className="list-row__copy">
@@ -102,6 +124,17 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
         </ProfileGroup>
 
         <ProfileGroup id="settings" title="Настройки">
+          {membership && membership.role !== 'management-company' ? (
+            <ProfileRow
+              icon={PencilSimple}
+              color="blue"
+              title="Профиль Квартиры"
+              description={membership.apartmentNumber
+                ? `Квартира ${membership.apartmentNumber} · ${membership.apartmentEntrance ? `${membership.apartmentEntrance}-й подъезд · ` : ''}${membership.apartmentFloor ? `${membership.apartmentFloor}-й этаж` : 'укажите этаж'}`
+                : 'Привязать Квартиру или проверить запрос'}
+              onOpen={() => navigate(ROUTES.profileHouse)}
+            />
+          ) : null}
           <ProfileRow
             icon={BellRinging}
             color="pink"
@@ -130,10 +163,9 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
           <ProfileRow
             icon={ShieldCheck}
             color="green"
-            title="Политика конфиденциальности"
-            description="Какие данные мы храним и зачем"
-            trailing={<span className="status-badge">Скоро</span>}
-            onOpen={soon('Политика конфиденциальности')}
+            title="Данные и приватность"
+            description="Кто видит сведения Дома и Квартиры"
+            onOpen={() => navigate(ROUTES.privacy)}
           />
         </ProfileGroup>
 

@@ -96,6 +96,13 @@ describe.skipIf(!databaseUrl)('вход через MAX', () => {
         neighborApartments: { left: null, right: null, below: null, above: null } }],
     });
 
+    const apartmentAccess = await app.inject({
+      method: 'POST', url: `/api/houses/${house.rows[0]!.id}/apartment-access`,
+      headers: { authorization: `Bearer ${token}` },
+      payload: { apartmentNumber: '42а', floor: 6, entrance: 2 },
+    });
+    expect(apartmentAccess.statusCode, apartmentAccess.body).toBe(201);
+
     const baseProfile = {
       apartmentNumber: '42а',
       phoneVisibleToNeighbors: true,
@@ -118,7 +125,8 @@ describe.skipIf(!databaseUrl)('вход через MAX', () => {
     expect(saved.json()).toMatchObject({
       resident: { phone: '+79991234567', phoneVerified: true },
       memberships: [{
-        apartmentNumber: '42А', profileCompleted: true, phoneVisibleToNeighbors: true,
+        apartmentNumber: '42А', apartmentFloor: 6, apartmentEntrance: 2,
+        profileCompleted: true, phoneVisibleToNeighbors: true,
         neighborApartments: { left: '41', right: '43', below: '32', above: null },
       }],
     });

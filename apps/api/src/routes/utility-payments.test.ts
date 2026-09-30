@@ -24,7 +24,8 @@ describe.skipIf(!databaseUrl)('Платежи ЖКУ', () => {
       [String(80_000 + Object.keys(tokens).length), `Имя ${key}`],
     );
     await pool.query(
-      'INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, $4)',
+      `INSERT INTO memberships (house_id, apartment_id, apartment_household_id, resident_id, role)
+       VALUES ($1, $2, (SELECT id FROM apartment_households WHERE apartment_id = $2 AND ended_at IS NULL), $3, $4)`,
       [houseId, apartment, resident.rows[0]!.id, role],
     );
     tokens[key] = (await createSession(pool, resident.rows[0]!.id)).token;
@@ -42,6 +43,10 @@ describe.skipIf(!databaseUrl)('Платежи ЖКУ', () => {
     houseId = (await pool.query<{ id: string }>("INSERT INTO houses (address, locality) VALUES ('ул. Сроков, 1', 'Казань') RETURNING id")).rows[0]!.id;
     apartmentId = (await pool.query<{ id: string }>('INSERT INTO apartments (house_id, number) VALUES ($1, $2) RETURNING id', [houseId, '42'])).rows[0]!.id;
     const otherApartment = (await pool.query<{ id: string }>('INSERT INTO apartments (house_id, number) VALUES ($1, $2) RETURNING id', [houseId, '43'])).rows[0]!.id;
+    await pool.query(
+      `INSERT INTO apartment_households (house_id, apartment_id) VALUES ($1, $2), ($1, $3)`,
+      [houseId, apartmentId, otherApartment],
+    );
     await person('resident', 'resident', apartmentId);
     await person('same', 'resident', apartmentId);
     await person('admin', 'admin', apartmentId);

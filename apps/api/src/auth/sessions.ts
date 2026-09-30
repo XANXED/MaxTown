@@ -51,6 +51,8 @@ type SessionRow = {
   membership_house_id: string | null;
   apartment_id: string | null;
   apartment_number: string | null;
+  apartment_floor: number | null;
+  apartment_entrance: number | null;
   house_address: string | null;
   house_locality: string | null;
   role: HouseMembershipSummary['role'] | null;
@@ -69,7 +71,8 @@ export async function getSession(pool: Pool, token: string, now = new Date()): P
        s.id AS session_id, s.expires_at,
        r.id AS resident_id, r.max_user_id, r.display_name, r.username, r.phone, r.phone_verified,
        m.id AS membership_id, m.house_id AS membership_house_id, m.apartment_id,
-       a.number AS apartment_number, h.address AS house_address, h.locality AS house_locality, m.role,
+       a.number AS apartment_number, a.floor AS apartment_floor, a.entrance AS apartment_entrance,
+       h.address AS house_address, h.locality AS house_locality, m.role,
        m.phone_visible_to_neighbors, m.neighbor_apartment_left, m.neighbor_apartment_right,
        m.neighbor_apartment_below, m.neighbor_apartment_above, m.profile_completed_at
      FROM sessions s
@@ -104,6 +107,8 @@ export async function getSession(pool: Pool, token: string, now = new Date()): P
         houseId: membership.membership_house_id,
         apartmentId: membership.apartment_id,
         apartmentNumber: membership.apartment_number,
+        apartmentFloor: membership.apartment_floor,
+        apartmentEntrance: membership.apartment_entrance,
         address: membership.house_address,
         locality: membership.house_locality,
         role: membership.role,

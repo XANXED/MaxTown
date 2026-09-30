@@ -7,15 +7,30 @@ import type { HouseMembershipSummary, HouseRole } from '@maxtown/shared';
 
 type MembershipState = {
   membership: HouseMembershipSummary | null;
+  /** Все активные Дома из проверенной серверной сессии. */
+  memberships: HouseMembershipSummary[];
+  /** Переключить Дом только на тот, к которому сервер уже подтвердил доступ. */
+  selectHouse: (houseId: string) => void;
   /** Перечитать /api/me: после вступления по Приглашению или подключения Дома. */
   refresh: () => Promise<void>;
 };
 
-export const MembershipContext = createContext<MembershipState>({ membership: null, refresh: async () => {} });
+export const MembershipContext = createContext<MembershipState>({
+  membership: null,
+  memberships: [],
+  selectHouse: () => {},
+  refresh: async () => {},
+});
 
 /** Активное членство или null, если человек ещё не в Доме (или вход не выполнен). */
 export function useMembership(): HouseMembershipSummary | null {
   return useContext(MembershipContext).membership;
+}
+
+/** Все Дома текущего человека и безопасное локальное переключение между ними. */
+export function useHouseMemberships(): Pick<MembershipState, 'memberships' | 'selectHouse'> {
+  const { memberships, selectHouse } = useContext(MembershipContext);
+  return { memberships, selectHouse };
 }
 
 export function useRefreshMembership(): () => Promise<void> {

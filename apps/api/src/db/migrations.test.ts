@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { afterAll, expect, it } from 'vitest';
@@ -195,6 +195,35 @@ it('adds apartment-private utility payment schedules, receipts and reminders', (
   expect(migration).toContain('octet_length(data) BETWEEN 1 AND 5242880');
 });
 
+it('adds apartment-private meters and one current reading per month', () => {
+  const migration = readFileSync(new URL('./migrations/0020_apartment_meter_readings.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('CREATE TABLE utility_meters');
+  expect(migration).toContain('CREATE TABLE utility_meter_readings');
+  expect(migration).toContain('UNIQUE (meter_id, reading_month)');
+  expect(migration).toContain('submitted_by_membership_id');
+  expect(migration).toContain('archived_at');
+  expect(migration).toContain('CHECK (decimals BETWEEN 0 AND 3)');
+});
+
+it('adds planned outages and House announcements', () => {
+  const migration = readFileSync(new URL('./migrations/0021_house_publications.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('CREATE TABLE house_publications');
+  expect(migration).toContain("kind IN ('planned-outage', 'announcement')");
+  expect(migration).toContain('published_by_membership_id');
+  expect(migration).toContain("kind = 'planned-outage'");
+  expect(migration).toContain('ends_at > starts_at');
+});
+
+it('adds Household-scoped apartment access and payment privacy', () => {
+  const migration = readFileSync(new URL('./migrations/0022_apartment_households.sql', import.meta.url), 'utf8');
+  expect(migration).toContain('CREATE TABLE apartment_households');
+  expect(migration).toContain('apartment_household_id');
+  expect(migration).toContain('UPDATE invitations SET revoked_at = now()');
+  expect(migration).toContain("SET status = 'rejected'");
+  expect(migration).toContain('floor BETWEEN 1 AND 200');
+  expect(migration).toContain("'apartment-access-request'");
+});
+
 it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent', async () => {
   expect(pool).not.toBeNull();
   if (!pool) return;
@@ -203,7 +232,88 @@ it.skipIf(!databaseUrl)('applies each SQL migration once and remains idempotent'
   await runMigrations(pool);
 
   const result = await pool.query<{ count: string }>('SELECT count(*) FROM schema_migrations');
-  expect(result.rows[0]?.count).toBe('19');
+  expect(result.rows[0]?.count).toBe('22');
+});
+
+it.skipIf(!databaseUrl)('backfills active and closed Households without exposing old payment data', async () => {
+  const admin = createPool(databaseUrl!);
+  const schema = `household_migration_${randomUUID().replaceAll('-', '')}`;
+  const scopedUrl = new URL(databaseUrl!);
+  scopedUrl.searchParams.delete('options');
+  const scoped = new Pool({ connectionString: scopedUrl.toString(), options: `-c search_path=${schema}` });
+  try {
+    await admin.query(`CREATE SCHEMA ${schema}`);
+    const client = await scoped.connect();
+    try {
+      const files = readdirSync(new URL('./migrations/', import.meta.url))
+        .filter((file) => /^\d{4}_.+\.sql$/.test(file) && file < '0022_')
+        .sort();
+      for (const file of files) await client.query(readFileSync(new URL(`./migrations/${file}`, import.meta.url), 'utf8'));
+      const seeded = await client.query<{
+        house_id: string; occupied_apartment_id: string; empty_apartment_id: string;
+        membership_id: string; requester_id: string;
+      }>(`
+        WITH house AS (
+          INSERT INTO houses (address, locality) VALUES ('ул. Миграционная, 1', 'Казань') RETURNING id
+        ), occupied_apartment AS (
+          INSERT INTO apartments (house_id, number) SELECT id, '1' FROM house RETURNING id, house_id
+        ), empty_apartment AS (
+          INSERT INTO apartments (house_id, number) SELECT id, '2' FROM house RETURNING id, house_id
+        ), occupant AS (
+          INSERT INTO residents (max_user_id, display_name) VALUES ('migration-occupant', 'Старый Жилец') RETURNING id
+        ), requester AS (
+          INSERT INTO residents (max_user_id, display_name) VALUES ('migration-requester', 'Заявитель') RETURNING id
+        ), membership AS (
+          INSERT INTO memberships (house_id, apartment_id, resident_id, role)
+          SELECT occupied_apartment.house_id, occupied_apartment.id, occupant.id, 'resident'
+            FROM occupied_apartment, occupant RETURNING id, house_id, apartment_id
+        ), occupied_template AS (
+          INSERT INTO utility_payment_templates
+            (house_id, apartment_id, category, title, due_day, starts_on, created_by_membership_id, updated_by_membership_id)
+          SELECT membership.house_id, occupied_apartment.id, 'water', 'Вода', 20, '2026-09-01', membership.id, membership.id
+            FROM membership, occupied_apartment RETURNING id
+        ), empty_template AS (
+          INSERT INTO utility_payment_templates
+            (house_id, apartment_id, category, title, due_day, starts_on, created_by_membership_id, updated_by_membership_id)
+          SELECT membership.house_id, empty_apartment.id, 'rent', 'Старый платёж', 10, '2026-09-01', membership.id, membership.id
+            FROM membership, empty_apartment RETURNING id
+        ), invitation AS (
+          INSERT INTO invitations (house_id, apartment_id, created_by_membership_id, code_hash)
+          SELECT membership.house_id, occupied_apartment.id, membership.id, decode(md5('old-code'), 'hex')
+            FROM membership, occupied_apartment RETURNING id
+        ), request AS (
+          INSERT INTO join_requests (house_id, apartment_id, resident_id)
+          SELECT membership.house_id, occupied_apartment.id, requester.id
+            FROM membership, occupied_apartment, requester RETURNING id
+        )
+        SELECT membership.house_id, occupied_apartment.id AS occupied_apartment_id,
+               empty_apartment.id AS empty_apartment_id, membership.id AS membership_id,
+               requester.id AS requester_id
+          FROM membership, occupied_apartment, empty_apartment, requester,
+               occupied_template, empty_template, invitation, request`);
+      expect(seeded.rows).toHaveLength(1);
+      await client.query(readFileSync(new URL('./migrations/0022_apartment_households.sql', import.meta.url), 'utf8'));
+
+      const households = await client.query<{ apartment_id: string; ended_at: Date | null }>(
+        'SELECT apartment_id, ended_at FROM apartment_households ORDER BY apartment_id',
+      );
+      expect(households.rows).toHaveLength(2);
+      expect(households.rows.find((row) => row.apartment_id === seeded.rows[0]!.occupied_apartment_id)?.ended_at).toBeNull();
+      expect(households.rows.find((row) => row.apartment_id === seeded.rows[0]!.empty_apartment_id)?.ended_at).toBeInstanceOf(Date);
+      expect((await client.query('SELECT 1 FROM utility_payment_templates WHERE apartment_household_id IS NULL')).rowCount).toBe(0);
+      expect((await client.query('SELECT 1 FROM memberships WHERE id = $1 AND apartment_household_id IS NOT NULL', [seeded.rows[0]!.membership_id])).rowCount).toBe(1);
+      expect((await client.query('SELECT 1 FROM invitations WHERE revoked_at IS NOT NULL')).rowCount).toBe(1);
+      expect((await client.query("SELECT 1 FROM join_requests WHERE status = 'rejected' AND decided_at IS NOT NULL")).rowCount).toBe(1);
+      await client.query('UPDATE apartments SET floor = 7 WHERE id = $1', [seeded.rows[0]!.occupied_apartment_id]);
+      await expect(client.query('UPDATE apartments SET layout_column = 1 WHERE id = $1', [seeded.rows[0]!.occupied_apartment_id])).rejects.toMatchObject({ code: '23514' });
+    } finally {
+      client.release();
+    }
+  } finally {
+    await scoped.end();
+    await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+    await admin.end();
+  }
 });
 
 it.skipIf(!databaseUrl)('preserves old public totals while deleting every historical voter link', async () => {

@@ -70,13 +70,14 @@ async function contextFor(
     await reply.code(403).send({ error: 'utility_payments_private' });
     return null;
   }
-  if (!access.apartmentId || !access.apartmentNumber) {
+  if (!access.apartmentId || !access.apartmentNumber || !access.apartmentHouseholdId) {
     await reply.code(409).send({ error: 'utility_payments_apartment_required' });
     return null;
   }
   return {
     houseId: access.houseId,
     apartmentId: access.apartmentId,
+    householdId: access.apartmentHouseholdId,
     apartmentNumber: access.apartmentNumber,
     membershipId: access.id,
     residentName: resident.displayName,

@@ -8,6 +8,7 @@ type DuePeriod = {
   id: string;
   house_id: string;
   apartment_id: string;
+  apartment_household_id: string;
   title: string;
   due_on: string;
   created_at: Date;
@@ -31,19 +32,25 @@ function reminderCopy(type: UtilityPaymentReminderType, period: DuePeriod): { ti
 export async function runUtilityPaymentMaintenance(pool: Pool, now = new Date()): Promise<{ periodsCreated: number; remindersCreated: number }> {
   return inTransaction(pool, async (client) => {
     const today = houseDate(now);
-    const apartments = await client.query<{ apartment_id: string }>(
-      'SELECT DISTINCT apartment_id FROM utility_payment_templates WHERE archived_at IS NULL AND starts_on <= $1::date',
+    const households = await client.query<{ apartment_household_id: string }>(
+      `SELECT DISTINCT template.apartment_household_id
+         FROM utility_payment_templates template
+         JOIN apartment_households household ON household.id = template.apartment_household_id
+        WHERE template.archived_at IS NULL AND template.starts_on <= $1::date AND household.ended_at IS NULL`,
       [today],
     );
     let periodsCreated = 0;
-    for (const apartment of apartments.rows) {
-      periodsCreated += await ensureUtilityPaymentPeriods(client, apartment.apartment_id, today);
+    for (const household of households.rows) {
+      periodsCreated += await ensureUtilityPaymentPeriods(client, household.apartment_household_id, today);
     }
 
     const due = await client.query<DuePeriod>(
-      `SELECT id, house_id, apartment_id, title, due_on::text, created_at
-         FROM utility_payment_periods
+      `SELECT period.id, period.house_id, period.apartment_id, period.apartment_household_id,
+              period.title, period.due_on::text, period.created_at
+         FROM utility_payment_periods period
+         JOIN apartment_households household ON household.id = period.apartment_household_id
         WHERE paid_at IS NULL AND skipped_at IS NULL
+          AND household.ended_at IS NULL
           AND due_on BETWEEN ($1::date - interval '1 day') AND ($1::date + interval '3 days')
         ORDER BY due_on, id
         FOR UPDATE`,
@@ -57,9 +64,9 @@ export async function runUtilityPaymentMaintenance(pool: Pool, now = new Date())
         `SELECT DISTINCT membership.resident_id, resident.max_user_id
            FROM memberships membership
            JOIN residents resident ON resident.id = membership.resident_id
-          WHERE membership.house_id = $1 AND membership.apartment_id = $2
+          WHERE membership.house_id = $1 AND membership.apartment_household_id = $2
             AND membership.ended_at IS NULL AND membership.role IN ('resident', 'admin')`,
-        [period.house_id, period.apartment_id],
+        [period.house_id, period.apartment_household_id],
       );
       const copy = reminderCopy(type, period);
       for (const recipient of recipients.rows) {

@@ -61,7 +61,7 @@ export function HomeScreen({ navigate, houseId }: HomeScreenProps) {
       : { label: 'Задать вопрос УК', service: 'management-questions', onClick: () => navigate(ROUTES.newManagementQuestion) },
     { label: processor ? 'Заявки Дома' : 'Мои заявки', service: 'requests', onClick: () => navigate(ROUTES.requests) },
     { label: 'События дома', service: 'events', onClick: () => navigate(ROUTES.events) },
-    { label: 'Передать показания', service: 'readings', onClick: () => navigate(ROUTES.utilitiesReadings) },
+    { label: 'Записать показания', service: 'readings', onClick: () => navigate(ROUTES.utilitiesReadings) },
     { label: 'Чат Дома', service: 'community', onClick: () => navigate(ROUTES.community) },
   ];
 

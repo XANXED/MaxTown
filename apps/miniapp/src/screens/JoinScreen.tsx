@@ -125,7 +125,7 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
           </h2>
         </Typography.Text>
         <Typography.Text asChild variant="description" color="secondary">
-          <p>Приглашение действует. Вступите, и Дом появится на главной.</p>
+          <p>Приглашение действует для участника этого Домового чата. После вступления вы увидите платежи и Чеки текущего Домохозяйства, а также всю техническую историю Приборов и Показаний Квартиры.</p>
         </Typography.Text>
         <div className="decision-card__actions">
           <Button size="medium" variant="primary" stretched loading={joining} onClick={() => {

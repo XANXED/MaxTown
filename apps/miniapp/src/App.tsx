@@ -15,6 +15,7 @@ import { NewRequestScreen } from './screens/NewRequestScreen.tsx';
 import { NewAccidentScreen } from './screens/NewAccidentScreen.tsx';
 import { PlacesScreen } from './screens/PlacesScreen.tsx';
 import { ProfileScreen } from './screens/ProfileScreen.tsx';
+import { PrivacyScreen } from './screens/PrivacyScreen.tsx';
 import { ReadingsScreen } from './screens/ReadingsScreen.tsx';
 import { RequestScreen } from './screens/RequestScreen.tsx';
 import { RequestsScreen } from './screens/RequestsScreen.tsx';
@@ -29,6 +30,7 @@ import { ManagementQuestionsScreen } from './screens/ManagementQuestionsScreen.t
 import { NewManagementQuestionScreen } from './screens/NewManagementQuestionScreen.tsx';
 import { ManagementQuestionScreen } from './screens/ManagementQuestionScreen.tsx';
 import { ResidentProfileSetupScreen } from './screens/ResidentProfileSetupScreen.tsx';
+import { ApartmentProfileScreen } from './screens/ApartmentProfileScreen.tsx';
 import { UtilityPaymentsScreen } from './screens/UtilityPaymentsScreen.tsx';
 import { UtilityPaymentScreen } from './screens/UtilityPaymentScreen.tsx';
 import {
@@ -59,6 +61,7 @@ import { MembershipContext } from './auth/membership.tsx';
 import './app.css';
 
 const NOTICE_DURATION_MS = 3200;
+const ACTIVE_HOUSE_STORAGE_KEY = 'maxtown-active-house';
 /** Столько длится анимация исчезновения уведомления в app.css (--motion-base). */
 const NOTICE_EXIT_MS = 240;
 /** Внутри MAX (или по ссылке npm run dev:link) — вход через сервер; в dev без MAX — примеры. */
@@ -91,6 +94,19 @@ type HistoryEntry = { step: number; scrollY?: number };
 
 type AuthState = { status: 'loading' } | { status: 'ready' } | { status: 'error'; message: string };
 
+function storedActiveHouseId(): string | null {
+  try { return window.localStorage.getItem(ACTIVE_HOUSE_STORAGE_KEY); } catch { return null; }
+}
+
+function rememberActiveHouse(houseId: string | null): void {
+  try {
+    if (houseId) window.localStorage.setItem(ACTIVE_HOUSE_STORAGE_KEY, houseId);
+    else window.localStorage.removeItem(ACTIVE_HOUSE_STORAGE_KEY);
+  } catch {
+    // Приватный режим WebView может запрещать storage: переключение всё равно работает до закрытия.
+  }
+}
+
 /** Вход ещё идёт или не удался: объясняем, что происходит, и даём повторить. */
 function AuthScreen({ state, onRetry }: { state: Exclude<AuthState, { status: 'ready' }>; onRetry: () => void }) {
   const loading = state.status === 'loading';
@@ -115,6 +131,23 @@ function AuthScreen({ state, onRetry }: { state: Exclude<AuthState, { status: 'r
   );
 }
 
+function ApartmentFeatureLocked({ title, navigate }: { title: string; navigate: (route: AppRoute) => void }) {
+  return (
+    <main className="screen screen--inner" id="main-content">
+      <div className="inner-content stagger">
+        <ScreenHeading description="Общедомовые разделы доступны, но сведения Квартиры защищены">{title}</ScreenHeading>
+        <EmptyState
+          icon={LockKey}
+          tone="blue"
+          title="Сначала привяжите Квартиру"
+          description="Пустая Квартира привяжется сразу. Для занятой потребуется подтверждение её участника или Приглашение."
+          action={<Button variant="primary" onClick={() => navigate(ROUTES.profileHouse)}>Перейти к привязке</Button>}
+        />
+      </div>
+    </main>
+  );
+}
+
 function currentEntry(): HistoryEntry {
   const state = window.history.state as Partial<HistoryEntry> | null;
   return { step: typeof state?.step === 'number' ? state.step : 0, scrollY: state?.scrollY };
@@ -133,15 +166,28 @@ export function App() {
   const [activeHouseId, setActiveHouseId] = useState<string | null>(null);
   const [activeHouseRole, setActiveHouseRole] = useState<HouseRole | null>(null);
   const [activeMembership, setActiveMembership] = useState<HouseMembershipSummary | null>(null);
+  const [memberships, setMemberships] = useState<HouseMembershipSummary[]>([]);
   const [resident, setResident] = useState<AuthResident | null>(null);
 
-  /** Выбрать активный Дом: из ?house_id=, иначе первый. */
+  /** Выбрать активный Дом: из запуска, прошлого выбора или первый доступный. */
   const applyMemberships = useCallback((memberships: HouseMembershipSummary[], preferredHouseId?: string | null) => {
-    const membership = memberships.find((item) => item.houseId === preferredHouseId) ?? memberships[0] ?? null;
+    const requestedHouseId = preferredHouseId ?? storedActiveHouseId();
+    const membership = memberships.find((item) => item.houseId === requestedHouseId) ?? memberships[0] ?? null;
+    setMemberships(memberships);
     setActiveMembership(membership);
     setActiveHouseId(membership?.houseId ?? null);
     setActiveHouseRole(membership?.role ?? null);
+    rememberActiveHouse(membership?.houseId ?? null);
   }, []);
+
+  const selectHouse = useCallback((houseId: string) => {
+    const membership = memberships.find((item) => item.houseId === houseId);
+    if (!membership) return;
+    setActiveMembership(membership);
+    setActiveHouseId(membership.houseId);
+    setActiveHouseRole(membership.role);
+    rememberActiveHouse(membership.houseId);
+  }, [memberships]);
 
   const applyCurrentResident = useCallback((profile: MeResponse, preferredHouseId?: string | null) => {
     setResident(profile.resident);
@@ -353,7 +399,7 @@ export function App() {
     );
   }
 
-  if (activeMembership && resident && !activeMembership.profileCompleted) {
+  if (activeMembership && resident && activeMembership.apartmentId && !activeMembership.profileCompleted) {
     return (
       <div className="app-shell">
         <ResidentProfileSetupScreen
@@ -404,12 +450,30 @@ export function App() {
     case ROUTES.profile:
       screen = <ProfileScreen navigate={navigate} notify={notify} />;
       break;
+    case ROUTES.profileHouse:
+      screen = activeMembership && resident && activeMembership.role !== 'management-company' ? (
+        <ApartmentProfileScreen
+          membership={activeMembership}
+          phoneVerified={resident.phoneVerified}
+          notify={notify}
+          onMembershipRefresh={refreshMembership}
+          onProfileComplete={(profile) => applyCurrentResident(profile, activeMembership.houseId)}
+        />
+      ) : <ProfileScreen navigate={navigate} notify={notify} />;
+      break;
+    case ROUTES.privacy:
+      screen = <PrivacyScreen />;
+      break;
     case ROUTES.readings:
     case ROUTES.utilitiesReadings:
-      screen = <ReadingsScreen navigate={navigate} />;
+      screen = activeMembership?.apartmentId
+        ? <ReadingsScreen houseId={activeHouseId} navigate={navigate} notify={notify} />
+        : <ApartmentFeatureLocked title="Показания" navigate={navigate} />;
       break;
     case ROUTES.utilities:
-      screen = <UtilityPaymentsScreen houseId={activeHouseId} navigate={navigate} notify={notify} />;
+      screen = activeMembership?.apartmentId
+        ? <UtilityPaymentsScreen houseId={activeHouseId} navigate={navigate} notify={notify} />
+        : <ApartmentFeatureLocked title="ЖКУ" navigate={navigate} />;
       break;
     case ROUTES.community:
       screen = <CommunityScreen houseId={activeHouseId} role={activeHouseRole} selectedPollId={communityPollId} />;
@@ -474,7 +538,9 @@ export function App() {
         ) : managementQuestion ? (
           <ManagementQuestionScreen id={managementQuestion.id} notify={notify} />
         ) : utilityPayment ? (
-          <UtilityPaymentScreen houseId={activeHouseId} periodId={utilityPayment.id} notify={notify} />
+          activeMembership?.apartmentId
+            ? <UtilityPaymentScreen houseId={activeHouseId} periodId={utilityPayment.id} notify={notify} />
+            : <ApartmentFeatureLocked title="Платёж" navigate={navigate} />
         ) : (
           <HomeScreen navigate={navigate} houseId={activeHouseId} />
         );
@@ -482,7 +548,7 @@ export function App() {
   }
 
   return (
-    <MembershipContext.Provider value={{ membership: activeMembership, refresh: refreshMembership }}>
+    <MembershipContext.Provider value={{ membership: activeMembership, memberships, selectHouse, refresh: refreshMembership }}>
     <div className="app-shell">
       <a
         className="skip-link"

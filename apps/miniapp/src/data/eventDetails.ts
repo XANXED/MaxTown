@@ -1,4 +1,4 @@
-import type { AccidentInput, AccidentUpdate, HouseEventDetails, HouseEventKind, HouseEventSummary } from '@maxtown/shared';
+import type { AccidentInput, AccidentUpdate, HouseEventDetails, HouseEventKind, HouseEventSummary, HousePublicationInput } from '@maxtown/shared';
 import { apiFetch } from '../auth/session.ts';
 import { useMembership } from '../auth/membership.tsx';
 import { jsonRequest, readApiJson, type Fetcher } from './api.ts';
@@ -84,6 +84,8 @@ const errorMessages: Record<string, string> = {
   accident_already_open: 'По этой Системе уже открыта Авария',
   accident_already_resolved: 'Эту Аварию уже закрыли',
   accident_edit_forbidden: 'Аварии открывают и закрывают УК и Администратор Дома',
+  event_edit_forbidden: 'События публикуют УК и Администратор Дома',
+  event_invalid: 'Проверьте время, Систему и описание События',
   event_not_found: 'Событие не найдено',
   forbidden: 'Вы больше не участник этого Дома',
 };
@@ -101,6 +103,17 @@ export function createEventsClient(fetcher: Fetcher = apiFetch) {
     },
     open: async (houseId: string, input: AccidentInput): Promise<HouseEventDetails> =>
       (await read<{ event: HouseEventDetails }>(await fetcher(base(houseId), jsonRequest('POST', input)), 'Не удалось открыть Аварию')).event,
+    publish: async (houseId: string, input: HousePublicationInput): Promise<HouseEventDetails> =>
+      (await read<{ event: HouseEventDetails }>(
+        await fetcher(`${base(houseId)}/publications`, jsonRequest('POST', input)),
+        'Не удалось опубликовать Событие',
+      )).event,
+    removePublication: async (houseId: string, eventId: string): Promise<void> => {
+      await read<unknown>(
+        await fetcher(`${base(houseId)}/${encodeURIComponent(eventId)}/publication`, jsonRequest('DELETE')),
+        'Не удалось убрать Событие',
+      );
+    },
     resolve: async (houseId: string, eventId: string): Promise<HouseEventDetails> =>
       (await read<{ event: HouseEventDetails }>(
         await fetcher(`${base(houseId)}/${encodeURIComponent(eventId)}/resolve`, jsonRequest('POST')),

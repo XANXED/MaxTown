@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { Pool, PoolClient } from 'pg';
 import type { HouseRegistration } from '@maxtown/shared';
+import { createInitialHousehold } from '../apartment-access/store.ts';
 
 type DecisionBody = { decision: 'approve' | 'reject'; reason?: string };
 type RegistrationRow = {
@@ -102,10 +103,11 @@ export function registerModeratorRoutes(app: FastifyInstance, pool: Pool): void 
           const apartment = await client.query<{ id: string }>(
             'INSERT INTO apartments (house_id, number) VALUES ($1, $2) RETURNING id', [houseId, row.apartment_number],
           );
-          await client.query(
-            "INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'admin')",
+          const membership = await client.query<{ id: string }>(
+            "INSERT INTO memberships (house_id, apartment_id, resident_id, role) VALUES ($1, $2, $3, 'admin') RETURNING id",
             [houseId, apartment.rows[0]!.id, row.submitted_by_resident_id],
           );
+          await createInitialHousehold(client, houseId, apartment.rows[0]!.id, membership.rows[0]!.id);
         }
         const status = request.body.decision === 'approve' ? 'approved' : 'rejected';
         const reason = status === 'rejected' ? request.body.reason!.trim() : null;

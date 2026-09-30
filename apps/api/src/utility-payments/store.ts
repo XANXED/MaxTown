@@ -22,6 +22,7 @@ export const PERIOD_PAGE_SIZE = 24;
 export type UtilityPaymentContext = {
   houseId: string;
   apartmentId: string;
+  householdId: string;
   apartmentNumber: string;
   membershipId: string;
   residentName: string;
@@ -39,18 +40,18 @@ export class UtilityPaymentProblem extends Error {
 }
 
 type TemplateRow = {
-  id: string; house_id: string; apartment_id: string; category: UtilityPaymentCategory; title: string;
+  id: string; house_id: string; apartment_id: string; apartment_household_id: string; category: UtilityPaymentCategory; title: string;
   due_day: number; starts_on: string; archived_at: Date | null; version: number; created_at: Date; updated_at: Date;
 };
 
 type PeriodRow = {
-  id: string; template_id: string; house_id: string; apartment_id: string; billing_month: string;
+  id: string; template_id: string; house_id: string; apartment_id: string; apartment_household_id: string; billing_month: string;
   category: UtilityPaymentCategory; title: string; due_on: string; paid_at: Date | null; skipped_at: Date | null;
   version: number; created_at: Date; receipt_file_name: string | null; receipt_content_type: string | null;
   receipt_size: number | null; receipt_uploaded_at: Date | null; receipt_uploaded_by: string | null;
 };
 
-const periodSelect = `SELECT period.id, period.template_id, period.house_id, period.apartment_id,
+const periodSelect = `SELECT period.id, period.template_id, period.house_id, period.apartment_id, period.apartment_household_id,
   period.billing_month::text, period.category, period.title, period.due_on::text,
   period.paid_at, period.skipped_at, period.version, period.created_at,
   receipt.file_name AS receipt_file_name, receipt.content_type AS receipt_content_type,
@@ -134,29 +135,29 @@ async function recordEvent(
 ): Promise<void> {
   await db.query(
     `INSERT INTO utility_payment_events
-       (house_id, apartment_id, template_id, period_id, action, actor_membership_id, actor_name, details)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
-    [context.houseId, context.apartmentId, ids.templateId ?? null, ids.periodId ?? null,
+       (house_id, apartment_id, apartment_household_id, template_id, period_id, action, actor_membership_id, actor_name, details)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+    [context.houseId, context.apartmentId, context.householdId, ids.templateId ?? null, ids.periodId ?? null,
       action, context.membershipId, context.residentName, JSON.stringify(details)],
   );
 }
 
-export async function ensureUtilityPaymentPeriods(db: Db, apartmentId: string, today: string): Promise<number> {
+export async function ensureUtilityPaymentPeriods(db: Db, householdId: string, today: string): Promise<number> {
   const billingMonth = monthStart(today);
-  const templates = await db.query<Pick<TemplateRow, 'id' | 'house_id' | 'apartment_id' | 'category' | 'title' | 'due_day'>>(
-    `SELECT id, house_id, apartment_id, category, title, due_day
+  const templates = await db.query<Pick<TemplateRow, 'id' | 'house_id' | 'apartment_id' | 'apartment_household_id' | 'category' | 'title' | 'due_day'>>(
+    `SELECT id, house_id, apartment_id, apartment_household_id, category, title, due_day
        FROM utility_payment_templates
-      WHERE apartment_id = $1 AND archived_at IS NULL AND starts_on <= $2::date`,
-    [apartmentId, billingMonth],
+      WHERE apartment_household_id = $1 AND archived_at IS NULL AND starts_on <= $2::date`,
+    [householdId, billingMonth],
   );
   let created = 0;
   for (const template of templates.rows) {
     const result = await db.query(
       `INSERT INTO utility_payment_periods
-         (template_id, house_id, apartment_id, billing_month, category, title, due_on)
-       VALUES ($1, $2, $3, $4::date, $5, $6, $7::date)
+         (template_id, house_id, apartment_id, apartment_household_id, billing_month, category, title, due_on)
+       VALUES ($1, $2, $3, $4, $5::date, $6, $7, $8::date)
        ON CONFLICT (template_id, billing_month) DO NOTHING`,
-      [template.id, template.house_id, template.apartment_id, billingMonth, template.category,
+      [template.id, template.house_id, template.apartment_id, template.apartment_household_id, billingMonth, template.category,
         template.title, dueDateForMonth(billingMonth, template.due_day)],
     );
     created += result.rowCount ?? 0;
@@ -166,12 +167,12 @@ export async function ensureUtilityPaymentPeriods(db: Db, apartmentId: string, t
 
 async function templatesFor(db: Db, context: UtilityPaymentContext): Promise<UtilityPaymentTemplate[]> {
   const result = await db.query<TemplateRow>(
-    `SELECT id, house_id, apartment_id, category, title, due_day, starts_on::text,
+    `SELECT id, house_id, apartment_id, apartment_household_id, category, title, due_day, starts_on::text,
             archived_at, version, created_at, updated_at
        FROM utility_payment_templates
-      WHERE house_id = $1 AND apartment_id = $2
+      WHERE house_id = $1 AND apartment_household_id = $2
       ORDER BY archived_at NULLS FIRST, title, id`,
-    [context.houseId, context.apartmentId],
+    [context.houseId, context.householdId],
   );
   return result.rows.map(toTemplate);
 }
@@ -179,9 +180,9 @@ async function templatesFor(db: Db, context: UtilityPaymentContext): Promise<Uti
 async function periodsForMonth(db: Db, context: UtilityPaymentContext, billingMonth: string, today: string): Promise<UtilityPaymentPeriod[]> {
   const result = await db.query<PeriodRow>(
     `${periodSelect}
-      WHERE period.house_id = $1 AND period.apartment_id = $2 AND period.billing_month = $3::date
+      WHERE period.house_id = $1 AND period.apartment_household_id = $2 AND period.billing_month = $3::date
       ORDER BY (period.paid_at IS NOT NULL OR period.skipped_at IS NOT NULL), period.due_on, period.title, period.id`,
-    [context.houseId, context.apartmentId, billingMonth],
+    [context.houseId, context.householdId, billingMonth],
   );
   return result.rows.map((row) => toPeriod(row, today));
 }
@@ -192,7 +193,7 @@ export async function listUtilityPaymentsOverview(
   now = new Date(),
 ): Promise<UtilityPaymentsOverview> {
   const today = houseDate(now);
-  await ensureUtilityPaymentPeriods(db, context.apartmentId, today);
+  await ensureUtilityPaymentPeriods(db, context.householdId, today);
   return {
     apartmentId: context.apartmentId,
     apartmentNumber: context.apartmentNumber,
@@ -230,11 +231,11 @@ export async function listUtilityPaymentPeriods(
   if (cursorValue && !cursor) throw new UtilityPaymentProblem(400, 'utility_payment_cursor_invalid');
   const result = await db.query<PeriodRow>(
     `${periodSelect}
-      WHERE period.house_id = $1 AND period.apartment_id = $2
+      WHERE period.house_id = $1 AND period.apartment_household_id = $2
         AND period.billing_month >= $3::date AND period.billing_month < ($3::date + interval '1 year')
         AND ($4::date IS NULL OR (period.billing_month, period.id) < ($4::date, $5::uuid))
       ORDER BY period.billing_month DESC, period.id DESC LIMIT $6`,
-    [context.houseId, context.apartmentId, `${year}-01-01`, cursor?.month ?? null, cursor?.id ?? null, PERIOD_PAGE_SIZE + 1],
+    [context.houseId, context.householdId, `${year}-01-01`, cursor?.month ?? null, cursor?.id ?? null, PERIOD_PAGE_SIZE + 1],
   );
   const page = result.rows.slice(0, PERIOD_PAGE_SIZE);
   return {
@@ -246,8 +247,8 @@ export async function listUtilityPaymentPeriods(
 async function findPeriod(db: Db, context: UtilityPaymentContext, periodId: string, lock = false): Promise<PeriodRow | null> {
   const result = await db.query<PeriodRow>(
     `${periodSelect}
-      WHERE period.id = $1 AND period.house_id = $2 AND period.apartment_id = $3${lock ? ' FOR UPDATE OF period' : ''}`,
-    [periodId, context.houseId, context.apartmentId],
+      WHERE period.id = $1 AND period.house_id = $2 AND period.apartment_household_id = $3${lock ? ' FOR UPDATE OF period' : ''}`,
+    [periodId, context.houseId, context.householdId],
   );
   return result.rows[0] ?? null;
 }
@@ -258,11 +259,11 @@ async function requirePeriod(db: Db, context: UtilityPaymentContext, periodId: s
   return row;
 }
 
-async function eventsFor(db: Db, periodId: string): Promise<UtilityPaymentEvent[]> {
+async function eventsFor(db: Db, householdId: string, periodId: string): Promise<UtilityPaymentEvent[]> {
   const result = await db.query<{ id: string; action: UtilityPaymentEventAction; actor_name: string; created_at: Date }>(
     `SELECT id::text, action, actor_name, created_at FROM utility_payment_events
-      WHERE period_id = $1 ORDER BY id`,
-    [periodId],
+      WHERE period_id = $1 AND apartment_household_id = $2 ORDER BY id`,
+    [periodId, householdId],
   );
   return result.rows.map((row) => ({ id: row.id, action: row.action, actorName: row.actor_name, at: row.created_at.toISOString() }));
 }
@@ -275,7 +276,7 @@ export async function readUtilityPaymentPeriod(
 ): Promise<UtilityPaymentPeriod | null> {
   const row = await findPeriod(db, context, periodId);
   if (!row) return null;
-  return { ...toPeriod(row, houseDate(now)), events: await eventsFor(db, row.id) };
+  return { ...toPeriod(row, houseDate(now)), events: await eventsFor(db, context.householdId, row.id) };
 }
 
 export async function createUtilityPaymentTemplate(
@@ -287,25 +288,25 @@ export async function createUtilityPaymentTemplate(
   const value = normalizedTemplate(input);
   const result = await db.query<TemplateRow>(
     `INSERT INTO utility_payment_templates
-       (house_id, apartment_id, category, title, due_day, starts_on, created_by_membership_id, updated_by_membership_id)
-     VALUES ($1, $2, $3, $4, $5, $6::date, $7, $7)
-     RETURNING id, house_id, apartment_id, category, title, due_day, starts_on::text,
+       (house_id, apartment_id, apartment_household_id, category, title, due_day, starts_on, created_by_membership_id, updated_by_membership_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $8)
+     RETURNING id, house_id, apartment_id, apartment_household_id, category, title, due_day, starts_on::text,
                archived_at, version, created_at, updated_at`,
-    [context.houseId, context.apartmentId, value.category, value.title, value.dueDay, value.startsOn, context.membershipId],
+    [context.houseId, context.apartmentId, context.householdId, value.category, value.title, value.dueDay, value.startsOn, context.membershipId],
   );
   const row = result.rows[0]!;
   await recordEvent(db, context, 'template-created', { templateId: row.id });
-  if (value.startsOn <= monthStart(houseDate(now))) await ensureUtilityPaymentPeriods(db, context.apartmentId, houseDate(now));
+  if (value.startsOn <= monthStart(houseDate(now))) await ensureUtilityPaymentPeriods(db, context.householdId, houseDate(now));
   return toTemplate(row);
 }
 
 async function requireTemplate(db: Db, context: UtilityPaymentContext, templateId: string, lock = false): Promise<TemplateRow> {
   const result = await db.query<TemplateRow>(
-    `SELECT id, house_id, apartment_id, category, title, due_day, starts_on::text,
+    `SELECT id, house_id, apartment_id, apartment_household_id, category, title, due_day, starts_on::text,
             archived_at, version, created_at, updated_at
        FROM utility_payment_templates
-      WHERE id = $1 AND house_id = $2 AND apartment_id = $3${lock ? ' FOR UPDATE' : ''}`,
-    [templateId, context.houseId, context.apartmentId],
+      WHERE id = $1 AND house_id = $2 AND apartment_household_id = $3${lock ? ' FOR UPDATE' : ''}`,
+    [templateId, context.houseId, context.householdId],
   );
   if (!result.rows[0]) throw new UtilityPaymentProblem(404, 'utility_payment_template_not_found');
   return result.rows[0];
@@ -326,10 +327,10 @@ export async function updateUtilityPaymentTemplate(
     `UPDATE utility_payment_templates
         SET category = $4, title = $5, due_day = $6, starts_on = $7::date,
             updated_by_membership_id = $8, updated_at = $9, version = version + 1
-      WHERE id = $1 AND house_id = $2 AND apartment_id = $3
-      RETURNING id, house_id, apartment_id, category, title, due_day, starts_on::text,
+      WHERE id = $1 AND house_id = $2 AND apartment_household_id = $3
+      RETURNING id, house_id, apartment_id, apartment_household_id, category, title, due_day, starts_on::text,
                 archived_at, version, created_at, updated_at`,
-    [templateId, context.houseId, context.apartmentId, value.category, value.title, value.dueDay,
+    [templateId, context.houseId, context.householdId, value.category, value.title, value.dueDay,
       value.startsOn, context.membershipId, now],
   );
   const billingMonth = monthStart(houseDate(now));
@@ -340,7 +341,7 @@ export async function updateUtilityPaymentTemplate(
     [templateId, value.category, value.title, dueDateForMonth(billingMonth, value.dueDay), now, billingMonth],
   );
   await recordEvent(db, context, 'template-updated', { templateId });
-  if (value.startsOn <= billingMonth) await ensureUtilityPaymentPeriods(db, context.apartmentId, houseDate(now));
+  if (value.startsOn <= billingMonth) await ensureUtilityPaymentPeriods(db, context.householdId, houseDate(now));
   return toTemplate(result.rows[0]!);
 }
 
@@ -357,10 +358,10 @@ export async function archiveUtilityPaymentTemplate(
   const result = await db.query<TemplateRow>(
     `UPDATE utility_payment_templates
         SET archived_at = $4, updated_at = $4, updated_by_membership_id = $5, version = version + 1
-      WHERE id = $1 AND house_id = $2 AND apartment_id = $3
-      RETURNING id, house_id, apartment_id, category, title, due_day, starts_on::text,
+      WHERE id = $1 AND house_id = $2 AND apartment_household_id = $3
+      RETURNING id, house_id, apartment_id, apartment_household_id, category, title, due_day, starts_on::text,
                 archived_at, version, created_at, updated_at`,
-    [templateId, context.houseId, context.apartmentId, now, context.membershipId],
+    [templateId, context.houseId, context.householdId, now, context.membershipId],
   );
   await recordEvent(db, context, 'template-archived', { templateId });
   return toTemplate(result.rows[0]!);

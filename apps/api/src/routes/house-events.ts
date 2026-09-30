@@ -7,6 +7,7 @@ import type {
   AccidentWorkStatus,
   HouseEmergency,
   HouseEventDetails,
+  HousePublicationInput,
   HouseEventSummary,
   HouseRole,
   HouseStateResponse,
@@ -20,9 +21,8 @@ import { notifyResidents, processorIds, supporterIds } from '../notifications/in
 import { listHouseProblems } from '../requests/store.ts';
 import { linkRecentRequests } from '../requests/threshold.ts';
 
-// События дома и Состояние дома (docs/adr/0012). Пока События — только
-// Аварии: Плановые отключения и Объявления в API ещё не заведены. Открытая
-// Авария — режим ЧС: статус работ, срок и «У меня тоже».
+// События дома и Состояние дома (docs/adr/0012): Аварии со своим режимом ЧС,
+// а также Плановые отключения и Объявления, опубликованные УК или Администратором.
 
 type HouseParams = { houseId: string };
 type EventParams = HouseParams & { eventId: string };
@@ -45,6 +45,20 @@ type AccidentRow = {
   work_status: AccidentWorkStatus; deadline_revised: boolean;
   author_name: string | null; author_role: HouseRole | null; opened_automatically: boolean; linked_requests: number;
 };
+
+type PublicationRow = {
+  id: string; house_id: string; kind: 'planned-outage' | 'announcement'; title: string; description: string;
+  scope: string | null; systems: string[]; advice: string[]; starts_at: Date; ends_at: Date | null;
+  author_name: string; author_role: HouseRole;
+};
+
+const SELECT_PUBLICATION = `
+  SELECT publication.id, publication.house_id, publication.kind, publication.title, publication.description,
+         publication.scope, publication.systems, publication.advice, publication.starts_at, publication.ends_at,
+         author.display_name AS author_name, membership.role AS author_role
+    FROM house_publications publication
+    JOIN memberships membership ON membership.id = publication.published_by_membership_id
+    JOIN residents author ON author.id = membership.resident_id`;
 
 const SELECT_ACCIDENT = `
   SELECT a.id, a.house_id, a.system, a.title, a.description, a.scope, a.advice, a.opened_at, a.expected_resolution_at,
@@ -125,6 +139,27 @@ function toSummary(row: AccidentRow): HouseEventSummary {
   };
 }
 
+function publicationSummary(row: PublicationRow): HouseEventSummary {
+  return {
+    id: row.id,
+    kind: row.kind,
+    title: row.title,
+    startsAt: row.starts_at.toISOString(),
+    ...(row.ends_at ? { endsAt: row.ends_at.toISOString() } : {}),
+  };
+}
+
+function publicationDetails(row: PublicationRow): HouseEventDetails {
+  return {
+    ...publicationSummary(row),
+    description: row.description,
+    ...(row.scope ? { scope: row.scope } : {}),
+    systems: row.systems,
+    advice: row.advice,
+    author: { name: row.author_name, role: roleLabels[row.author_role] },
+  };
+}
+
 function toDetails(row: AccidentRow, emergency: AccidentEmergency): HouseEventDetails {
   return {
     ...toSummary(row),
@@ -145,6 +180,34 @@ async function readAccident(db: Pool | PoolClient, houseId: string, eventId: str
     [houseId, eventId],
   );
   return result.rows[0] ?? null;
+}
+
+async function readPublication(db: Pool | PoolClient, houseId: string, eventId: string): Promise<PublicationRow | null> {
+  const result = await db.query<PublicationRow>(
+    `${SELECT_PUBLICATION} WHERE publication.house_id = $1 AND publication.id = $2 AND publication.cancelled_at IS NULL`,
+    [houseId, eventId],
+  );
+  return result.rows[0] ?? null;
+}
+
+/** Открытая Авария, текущее Событие, ближайшее будущее, затем недавняя история. */
+function orderEvents(events: HouseEventSummary[]): HouseEventSummary[] {
+  const now = Date.now();
+  const group = (event: HouseEventSummary): number => {
+    if (event.kind === 'accident' && !event.resolvedAt) return 0;
+    const start = new Date(event.startsAt).getTime();
+    const end = event.endsAt ? new Date(event.endsAt).getTime() : start;
+    if (start <= now && end >= now) return 1;
+    if (start > now) return 2;
+    return 3;
+  };
+  return events.toSorted((left, right) => {
+    const difference = group(left) - group(right);
+    if (difference) return difference;
+    return group(left) === 2
+      ? left.startsAt.localeCompare(right.startsAt)
+      : right.startsAt.localeCompare(left.startsAt);
+  });
 }
 
 async function detailsFor(db: Pool | PoolClient, row: AccidentRow, residentId: string): Promise<HouseEventDetails> {
@@ -174,6 +237,13 @@ async function houseState(pool: Pool, access: HouseAccess): Promise<HouseStateRe
       ORDER BY category, created_at`,
     [access.houseId],
   );
+  const outages = await pool.query<{ id: string; systems: string[]; starts_at: Date; ends_at: Date }>(
+    `SELECT id, systems, starts_at, ends_at FROM house_publications
+      WHERE house_id = $1 AND kind = 'planned-outage' AND cancelled_at IS NULL AND ends_at > now()
+      ORDER BY starts_at`,
+    [access.houseId],
+  );
+  const now = Date.now();
   const systems = HOUSE_SYSTEMS.map((name): HouseSystemState => {
     const accident = accidents.rows.find((row) => row.system === name);
     if (accident) {
@@ -182,9 +252,20 @@ async function houseState(pool: Pool, access: HouseAccess): Promise<HouseStateRe
         ...(accident.expected_resolution_at ? { until: accident.expected_resolution_at.toISOString() } : {}),
       };
     }
+    const currentOutage = outages.rows.find((row) => row.systems.includes(name) && row.starts_at.getTime() <= now);
+    if (currentOutage) {
+      return {
+        name, status: 'planned-outage', eventId: currentOutage.id,
+        since: currentOutage.starts_at.toISOString(), until: currentOutage.ends_at.toISOString(),
+      };
+    }
     const reported = problemSince.rows.find((row) => row.category === name);
     if (reported) return { name, status: 'reported', requestId: reported.id, since: reported.created_at.toISOString() };
-    return { name, status: 'working' };
+    const nextOutage = outages.rows.find((row) => row.systems.includes(name) && row.starts_at.getTime() > now);
+    return {
+      name, status: 'working',
+      ...(nextOutage ? { nextOutage: { eventId: nextOutage.id, startsAt: nextOutage.starts_at.toISOString(), endsAt: nextOutage.ends_at.toISOString() } } : {}),
+    };
   });
   return { systems, emergencies, problems, updatedAt: new Date().toISOString() };
 }
@@ -212,7 +293,13 @@ export function registerHouseEventRoutes(app: FastifyInstance, pool: Pool): void
         ORDER BY a.resolved_at IS NOT NULL, a.opened_at DESC`,
       [member.houseId],
     );
-    return { events: result.rows.map(toSummary) };
+    const publications = await pool.query<PublicationRow>(
+      `${SELECT_PUBLICATION}
+        WHERE publication.house_id = $1 AND publication.cancelled_at IS NULL
+          AND coalesce(publication.ends_at, publication.starts_at) > now() - interval '${RESOLVED_VISIBLE_DAYS} days'`,
+      [member.houseId],
+    );
+    return { events: orderEvents([...result.rows.map(toSummary), ...publications.rows.map(publicationSummary)]) };
   });
 
   app.get<{ Params: EventParams }>('/api/houses/:houseId/events/:eventId', {
@@ -221,8 +308,85 @@ export function registerHouseEventRoutes(app: FastifyInstance, pool: Pool): void
     const member = await access(request.authSession!.resident.id, request.params.houseId);
     if (!member) return reply.code(403).send({ error: 'forbidden' });
     const accident = await readAccident(pool, member.houseId, request.params.eventId);
-    if (!accident) return reply.code(404).send({ error: 'event_not_found' });
-    return { event: await detailsFor(pool, accident, member.residentId) };
+    if (accident) return { event: await detailsFor(pool, accident, member.residentId) };
+    const publication = await readPublication(pool, member.houseId, request.params.eventId);
+    if (!publication) return reply.code(404).send({ error: 'event_not_found' });
+    return { event: publicationDetails(publication) };
+  });
+
+  app.post<{ Params: HouseParams; Body: HousePublicationInput }>('/api/houses/:houseId/events/publications', {
+    preHandler: authenticated,
+    schema: {
+      params: houseParams,
+      body: {
+        type: 'object', required: ['kind', 'title', 'description', 'systems', 'startsAt'], additionalProperties: false,
+        properties: {
+          kind: { type: 'string', enum: ['planned-outage', 'announcement'] },
+          title: { type: 'string', minLength: 1, maxLength: 120 },
+          description: { type: 'string', minLength: 1, maxLength: 2000 },
+          scope: { type: 'string', minLength: 1, maxLength: 120 },
+          systems: { type: 'array', maxItems: 5, uniqueItems: true, items: { type: 'string', enum: [...HOUSE_SYSTEMS] } },
+          startsAt: { type: 'string', format: 'date-time' },
+          endsAt: { type: 'string', format: 'date-time' },
+          advice: { type: 'array', maxItems: 10, items: { type: 'string', minLength: 1, maxLength: 300 } },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const member = await access(request.authSession!.resident.id, request.params.houseId);
+    if (!member) return reply.code(403).send({ error: 'forbidden' });
+    if (!canManageServices(member)) return reply.code(403).send({ error: 'event_edit_forbidden' });
+    const input = request.body;
+    const title = input.title.trim();
+    const description = input.description.trim();
+    const scope = input.scope?.trim() || null;
+    const systems = [...new Set(input.systems)];
+    const startsAt = new Date(input.startsAt);
+    const endsAt = input.endsAt ? new Date(input.endsAt) : null;
+    const planned = input.kind === 'planned-outage';
+    if (!title || !description || !Number.isFinite(startsAt.getTime())
+      || (endsAt && (!Number.isFinite(endsAt.getTime()) || endsAt <= startsAt))
+      || (planned && (systems.length === 0 || !endsAt)) || (!planned && systems.length > 0)) {
+      return reply.code(400).send({ error: 'event_invalid' });
+    }
+    const event = await inTransaction(pool, async (client) => {
+      const inserted = await client.query<{ id: string }>(
+        `INSERT INTO house_publications
+           (house_id, kind, title, description, scope, systems, advice, starts_at, ends_at, published_by_membership_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        [member.houseId, input.kind, title, description, scope, systems,
+          (input.advice ?? []).map((line) => line.trim()).filter(Boolean), startsAt, endsAt, member.id],
+      );
+      await client.query(
+        'INSERT INTO audit_events (house_id, actor_membership_id, event_type, details) VALUES ($1, $2, $3, $4::jsonb)',
+        [member.houseId, member.id, `house_event.${input.kind}.published`, JSON.stringify({ eventId: inserted.rows[0]!.id, title })],
+      );
+      return (await readPublication(client, member.houseId, inserted.rows[0]!.id))!;
+    });
+    return reply.code(201).send({ event: publicationDetails(event) });
+  });
+
+  app.delete<{ Params: EventParams }>('/api/houses/:houseId/events/:eventId/publication', {
+    preHandler: authenticated, schema: { params: eventParams },
+  }, async (request, reply) => {
+    const member = await access(request.authSession!.resident.id, request.params.houseId);
+    if (!member) return reply.code(403).send({ error: 'forbidden' });
+    if (!canManageServices(member)) return reply.code(403).send({ error: 'event_edit_forbidden' });
+    const removed = await inTransaction(pool, async (client) => {
+      const result = await client.query<{ title: string; kind: string }>(
+        `UPDATE house_publications SET cancelled_at = now(), updated_at = now(), version = version + 1
+          WHERE house_id = $1 AND id = $2 AND cancelled_at IS NULL RETURNING title, kind`,
+        [member.houseId, request.params.eventId],
+      );
+      const event = result.rows[0];
+      if (!event) return false;
+      await client.query(
+        'INSERT INTO audit_events (house_id, actor_membership_id, event_type, details) VALUES ($1, $2, $3, $4::jsonb)',
+        [member.houseId, member.id, `house_event.${event.kind}.cancelled`, JSON.stringify({ eventId: request.params.eventId, title: event.title })],
+      );
+      return true;
+    });
+    return removed ? reply.code(204).send() : reply.code(404).send({ error: 'event_not_found' });
   });
 
   app.post<{ Params: HouseParams; Body: AccidentInput }>('/api/houses/:houseId/events', {

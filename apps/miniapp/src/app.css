@@ -1838,6 +1838,7 @@ time,
 }
 
 .resident-profile-house > p,
+.resident-profile-house h2,
 .resident-neighbors > p,
 .resident-phone-consent h2,
 .resident-phone-consent p {
@@ -1881,6 +1882,20 @@ time,
   min-width: var(--space-0);
   flex-direction: column;
   gap: var(--space-4);
+}
+
+.apartment-access-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.apartment-access-list h2,
+.apartment-access-list h3,
+.apartment-access-list p,
+.decision-card h2,
+.decision-card p {
+  margin: var(--space-0);
 }
 
 @media (max-width: 359px) {
@@ -2125,6 +2140,13 @@ time,
   background: var(--warning);
   vertical-align: middle;
   content: '';
+}
+
+.readings-form,
+.readings-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
 }
 
 /* Деструктивное действие отдельной ячейкой, как «Выйти» в настройках VK. */

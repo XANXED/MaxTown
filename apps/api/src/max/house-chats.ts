@@ -3,6 +3,8 @@ import { enqueueWaitingQuestionsForManagement } from '../management-questions/no
 import type { HouseRole, PendingHouseSetup } from '@maxtown/shared';
 import { AddressProviderError, resolveHouseAddressFromTitle, type DaDataHouse } from '../address/dadata.ts';
 import { chatRole, MaxApiError, type MaxApi, type MaxChatMember } from './api.ts';
+import { closeHouseholdIfVacant } from '../apartment-access/store.ts';
+import { inTransaction } from '../db/transaction.ts';
 
 // Домовые чаты MAX (docs/adr/0006, 0007): каждый чат, где бот MaxTown стал
 // администратором и Адрес Дома определён, — отдельный Дом. Роль человека в
@@ -59,17 +61,28 @@ export function houseRoleFor(chat: Pick<HouseChatRow, 'created_by_max_user_id' |
   return 'resident';
 }
 
-async function setMembership(db: Pool | PoolClient, residentId: string, houseId: string, role: HouseRole | null): Promise<void> {
+async function setMembership(db: PoolClient, residentId: string, houseId: string, role: HouseRole | null): Promise<void> {
+  const current = await db.query<{ apartment_household_id: string | null }>(
+    `SELECT apartment_household_id FROM memberships
+      WHERE resident_id = $1 AND house_id = $2 AND ended_at IS NULL FOR UPDATE`,
+    [residentId, houseId],
+  );
+  const previousHouseholdId = current.rows[0]?.apartment_household_id ?? null;
   if (role === null) {
     await db.query('UPDATE memberships SET ended_at = now() WHERE resident_id = $1 AND house_id = $2 AND ended_at IS NULL', [residentId, houseId]);
+    await closeHouseholdIfVacant(db, previousHouseholdId);
     return;
   }
   // Роль меняем на месте: Опросы, Сообщения и аудит ссылаются на членство.
   await db.query(
     `INSERT INTO memberships (house_id, resident_id, role) VALUES ($1, $2, $3)
-     ON CONFLICT (resident_id, house_id) WHERE ended_at IS NULL DO UPDATE SET role = EXCLUDED.role`,
+     ON CONFLICT (resident_id, house_id) WHERE ended_at IS NULL DO UPDATE
+       SET role = EXCLUDED.role,
+           apartment_id = CASE WHEN EXCLUDED.role = 'management-company' THEN NULL ELSE memberships.apartment_id END,
+           apartment_household_id = CASE WHEN EXCLUDED.role = 'management-company' THEN NULL ELSE memberships.apartment_household_id END`,
     [houseId, residentId, role],
   );
+  if (role === 'management-company') await closeHouseholdIfVacant(db, previousHouseholdId);
 }
 
 /**
@@ -97,7 +110,7 @@ export async function syncResidentHouses(
       return;
     }
     const role = member ? houseRoleFor(chat, member) : null;
-    await setMembership(deps.pool, resident.id, chat.house_id, role);
+    await inTransaction(deps.pool, (client) => setMembership(client, resident.id, chat.house_id, role));
     if (role === 'management-company') {
       await enqueueWaitingQuestionsForManagement(deps.pool, chat.house_id, resident.maxUserId, resident.id);
     }
@@ -195,8 +208,16 @@ export async function activateHouseChat(deps: HouseChatDeps, chatId: number, add
 
 /** Бот лишился прав или удалён: Доступа к Дому нет, пока права не вернут. */
 async function disconnectHouseChat(db: Pool, chat: HouseChatRow): Promise<void> {
-  await db.query('UPDATE house_chats SET disconnected_at = now() WHERE chat_id = $1 AND disconnected_at IS NULL', [chat.chat_id]);
-  await db.query('UPDATE memberships SET ended_at = now() WHERE house_id = $1 AND ended_at IS NULL', [chat.house_id]);
+  await inTransaction(db, async (client) => {
+    const households = await client.query<{ apartment_household_id: string | null }>(
+      `SELECT apartment_household_id FROM memberships
+        WHERE house_id = $1 AND ended_at IS NULL FOR UPDATE`,
+      [chat.house_id],
+    );
+    await client.query('UPDATE house_chats SET disconnected_at = now() WHERE chat_id = $1 AND disconnected_at IS NULL', [chat.chat_id]);
+    await client.query('UPDATE memberships SET ended_at = now() WHERE house_id = $1 AND ended_at IS NULL', [chat.house_id]);
+    for (const household of households.rows) await closeHouseholdIfVacant(client, household.apartment_household_id);
+  });
 }
 
 async function rememberCreator(db: Pool, chatId: number, userId: number | null): Promise<void> {

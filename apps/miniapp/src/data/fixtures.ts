@@ -340,10 +340,10 @@ export function sampleReadingsWindow(): ReadingsWindow {
     to: isoDay(daysFromNow(3, 0)),
     apartment: 'Квартира 34',
     meters: [
-      { id: 'm1', kind: 'cold-water', title: 'Холодная вода, кухня', unit: 'м³', serial: '04521873', decimals: 3, previous: { value: 123.456, at: isoDay(daysFromNow(-35, 0)) } },
-      { id: 'm2', kind: 'hot-water', title: 'Горячая вода, кухня', unit: 'м³', serial: '04521911', decimals: 3, previous: { value: 81.203, at: isoDay(daysFromNow(-35, 0)) } },
-      { id: 'm3', kind: 'electricity-day', title: 'Электричество, день', unit: 'кВт·ч', serial: '1187 5530', decimals: 1, previous: { value: 4521.3, at: isoDay(daysFromNow(-35, 0)) } },
-      { id: 'm4', kind: 'electricity-night', title: 'Электричество, ночь', unit: 'кВт·ч', serial: '1187 5530', decimals: 1, previous: { value: 1874.6, at: isoDay(daysFromNow(-35, 0)) } },
+      { id: 'm1', kind: 'cold-water', title: 'Холодная вода, кухня', unit: 'м³', serial: '04521873', decimals: 3, version: 1, previous: { value: 123.456, at: isoDay(daysFromNow(-35, 0)) } },
+      { id: 'm2', kind: 'hot-water', title: 'Горячая вода, кухня', unit: 'м³', serial: '04521911', decimals: 3, version: 1, previous: { value: 81.203, at: isoDay(daysFromNow(-35, 0)) } },
+      { id: 'm3', kind: 'electricity-day', title: 'Электричество, день', unit: 'кВт·ч', serial: '1187 5530', decimals: 1, version: 1, previous: { value: 4521.3, at: isoDay(daysFromNow(-35, 0)) } },
+      { id: 'm4', kind: 'electricity-night', title: 'Электричество, ночь', unit: 'кВт·ч', serial: '1187 5530', decimals: 1, version: 1, previous: { value: 1874.6, at: isoDay(daysFromNow(-35, 0)) } },
     ],
   };
 }

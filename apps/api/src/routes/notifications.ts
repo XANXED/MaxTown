@@ -15,6 +15,7 @@ type NotificationRow = {
   apartment_repair_id: string | null;
   management_question_id: string | null;
   utility_payment_period_id: string | null;
+  apartment_access_request_id: string | null;
   title: string | null;
   body: string | null;
   created_at: Date;
@@ -39,6 +40,7 @@ function toNotification(row: NotificationRow): UserNotification {
     ...(row.apartment_repair_id ? { repairId: row.apartment_repair_id } : {}),
     ...(row.management_question_id ? { managementQuestionId: row.management_question_id } : {}),
     ...(row.utility_payment_period_id ? { utilityPaymentPeriodId: row.utility_payment_period_id } : {}),
+    ...(row.apartment_access_request_id ? { apartmentAccessRequestId: row.apartment_access_request_id } : {}),
   };
 }
 
@@ -52,6 +54,7 @@ export function registerNotificationRoutes(app: FastifyInstance, pool: Pool): vo
               notification.apartment_repair_id,
               notification.management_question_id,
               notification.utility_payment_period_id,
+              notification.apartment_access_request_id,
               notification.title, notification.body, notification.created_at, notification.read_at
          FROM in_app_notifications notification
          JOIN houses house ON house.id = notification.house_id
@@ -61,7 +64,8 @@ export function registerNotificationRoutes(app: FastifyInstance, pool: Pool): vo
         WHERE notification.resident_id = $1
           AND EXISTS (SELECT 1 FROM memberships membership WHERE membership.resident_id = $1
                        AND membership.house_id = notification.house_id AND membership.ended_at IS NULL
-                       AND (notification.kind <> 'utility-payment' OR membership.apartment_id = utility_period.apartment_id))
+                       AND (notification.kind <> 'utility-payment'
+                         OR membership.apartment_household_id = utility_period.apartment_household_id))
         ORDER BY notification.created_at DESC, notification.id DESC LIMIT 100`,
       [residentId],
     );

@@ -17,6 +17,8 @@ const errorMessages: Record<string, string> = {
   invalid_phone_contact: 'MAX не подтвердил номер. Попробуйте поделиться им снова',
   phone_verification_unavailable: 'Проверка телефона временно недоступна',
   house_membership_not_found: 'Доступ к этому Дому не найден',
+  apartment_access_required: 'Сначала привяжите Квартиру',
+  apartment_change_forbidden: 'Самостоятельно сменить Квартиру нельзя. Обратитесь в поддержку',
 };
 
 export async function saveResidentHouseProfile(

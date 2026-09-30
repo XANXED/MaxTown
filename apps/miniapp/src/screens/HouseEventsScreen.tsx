@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { HouseEventKind } from '@maxtown/shared';
+import { Button } from '../components/platform-ui.tsx';
 import { serviceVisuals } from '../components/serviceVisuals.ts';
 import {
   EmptyState,
@@ -12,7 +13,7 @@ import {
 } from '../components/ui.tsx';
 import { useHomeData } from '../data/home.ts';
 import { plural } from '../data/text.ts';
-import { eventRoute } from '../routes.ts';
+import { eventRoute, ROUTES } from '../routes.ts';
 import type { Navigate } from './types.ts';
 
 type EventFilter = 'all' | HouseEventKind;
@@ -25,7 +26,7 @@ const filters: Array<{ value: EventFilter; label: string }> = [
 ];
 
 export function HouseEventsScreen({ navigate }: { navigate: Navigate }) {
-  const { status, events, retry } = useHomeData();
+  const { status, events, processor, retry } = useHomeData();
   const [filter, setFilter] = useState<EventFilter>('all');
   const visible = filter === 'all' ? events : events.filter((event) => event.kind === filter);
   const accidents = events.filter((event) => event.kind === 'accident').length;
@@ -41,6 +42,8 @@ export function HouseEventsScreen({ navigate }: { navigate: Navigate }) {
       >
         События дома
       </ScreenHeading>
+
+      {processor ? <Button size="medium" variant="secondary" stretched onClick={() => navigate(ROUTES.newAccident)}>Добавить Событие</Button> : null}
 
       {status === 'loading' ? (
         <SkeletonRows count={4} />

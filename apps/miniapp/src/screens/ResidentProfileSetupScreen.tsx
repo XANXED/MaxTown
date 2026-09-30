@@ -10,6 +10,8 @@ type Props = {
   membership: HouseMembershipSummary;
   phoneVerified: boolean;
   onComplete: (profile: MeResponse) => void;
+  mode?: 'setup' | 'edit';
+  onCancel?: () => void;
 };
 
 type NeighborField = keyof NeighborApartments;
@@ -33,7 +35,7 @@ function contactError(error: unknown): string {
   return 'MAX не передал номер. Попробуйте ещё раз';
 }
 
-export function ResidentProfileSetupScreen({ membership, phoneVerified, onComplete }: Props) {
+export function ResidentProfileSetupScreen({ membership, phoneVerified, onComplete, mode = 'setup', onCancel }: Props) {
   const [apartmentNumber, setApartmentNumber] = useState(membership.apartmentNumber ?? '');
   const [neighbors, setNeighbors] = useState<Record<NeighborField, string>>({
     left: membership.neighborApartments.left ?? '',
@@ -90,7 +92,11 @@ export function ResidentProfileSetupScreen({ membership, phoneVerified, onComple
     <main className="screen screen--inner screen--with-panel" id="main-content">
       <form className="resident-profile-form" onSubmit={(event) => void submit(event)} noValidate>
         <div className="inner-content stagger">
-          <ScreenHeading description="Заполните один раз, чтобы соседи понимали, кто живёт рядом">Расскажите о себе</ScreenHeading>
+          <ScreenHeading description={mode === 'edit'
+            ? 'Эти сведения видят только участники вашего Дома'
+            : 'Заполните один раз, чтобы соседи понимали, кто живёт рядом'}>
+            {mode === 'edit' ? 'Профиль Квартиры' : 'Расскажите о себе'}
+          </ScreenHeading>
 
           <section className="resident-profile-house" aria-label="Ваш Дом">
             <Typography.Text asChild variant="body-strong"><p>{membership.address}</p></Typography.Text>
@@ -101,14 +107,16 @@ export function ResidentProfileSetupScreen({ membership, phoneVerified, onComple
             <span>Номер вашей квартиры</span>
             <Input
               value={apartmentNumber}
+              readOnly
+              aria-readonly
               maxLength={5}
               autoComplete="off"
-              placeholder="Например, 42"
+              placeholder="Сначала привяжите Квартиру"
               aria-describedby="apartment-hint"
               onChange={(event) => setApartmentNumber(event.target.value)}
             />
             <Typography.Text asChild variant="description" color="tertiary">
-              <small id="apartment-hint">Обязательное поле</small>
+              <small id="apartment-hint">Номер нельзя изменить самостоятельно</small>
             </Typography.Text>
           </label>
 
@@ -152,7 +160,10 @@ export function ResidentProfileSetupScreen({ membership, phoneVerified, onComple
           {error ? <p className="field-error" role="alert">{error}</p> : null}
         </div>
         <footer className="bottom-panel">
-          <Button type="submit" size="large" stretched loading={saving}>Сохранить и продолжить</Button>
+          <Button type="submit" size="large" stretched loading={saving}>
+            {mode === 'edit' ? 'Сохранить изменения' : 'Сохранить и продолжить'}
+          </Button>
+          {mode === 'edit' && onCancel ? <Button type="button" size="medium" variant="secondary" stretched onClick={onCancel}>Отмена</Button> : null}
         </footer>
       </form>
     </main>

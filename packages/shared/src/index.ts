@@ -191,6 +191,21 @@ export type HouseEventDetails = HouseEventSummary & {
   emergency?: AccidentEmergency;
 };
 
+/** Плановое отключение или Объявление, которое публикуют УК и Администратор Дома. */
+export type HousePublicationInput = {
+  kind: 'planned-outage' | 'announcement';
+  title: string;
+  description: string;
+  scope?: string;
+  /** Для Планового отключения — затронутые Системы; у Объявления пусто. */
+  systems: string[];
+  /** ISO 8601: начало отключения или время Объявления. */
+  startsAt: string;
+  /** ISO 8601: окончание; обязательно для Планового отключения. */
+  endsAt?: string;
+  advice?: string[];
+};
+
 /** Что сейчас с Аварией: выясняют причину или идут аварийные работы. */
 export type AccidentWorkStatus = 'checking' | 'repairing';
 
@@ -292,6 +307,43 @@ export type InviteCheck =
   | { status: 'revoked' }
   | { status: 'not-found' };
 
+/** Расположение Квартиры, которое Жилец подтверждает при первой привязке. */
+export type ApartmentLocationInput = {
+  apartmentNumber: string;
+  /** Этаж обязателен даже для Дома без настроенной Схемы Квартир. */
+  floor: number;
+  /** Подъезд можно не указывать. */
+  entrance?: number | null;
+};
+
+/** Запрос активного участника Домового чата на вход в занятую Квартиру. */
+export type ApartmentAccessRequest = {
+  id: string;
+  apartmentNumber: string;
+  apartmentFloor: number;
+  apartmentEntrance: number | null;
+  requesterName: string;
+  /** ISO 8601. */
+  requestedAt: string;
+};
+
+/** Привязка к Квартире без раскрытия внутреннего id Домохозяйства. */
+export type ApartmentAccessState =
+  | { status: 'unbound'; pendingRequest: null; incomingRequests: [] }
+  | { status: 'pending'; pendingRequest: ApartmentAccessRequest; incomingRequests: [] }
+  | {
+      status: 'joined';
+      apartment: {
+        id: string;
+        number: string;
+        /** У старых Квартир может быть пусто до первого исправления профиля. */
+        floor: number | null;
+        entrance: number | null;
+      };
+      pendingRequest: null;
+      incomingRequests: ApartmentAccessRequest[];
+    };
+
 /**
  * Уведомление: что изменилось в Заявке человека. Не путать с Событием дома —
  * то видят все Жильцы.
@@ -311,7 +363,9 @@ export type UserNotification = {
     | 'apartment-repair'
     | 'management-question'
     | 'management-answer'
-    | 'utility-payment';
+    | 'utility-payment'
+    | 'apartment-access-request'
+    | 'apartment-access-decision';
   /** Готовая строка: «Заявка № 2431 выполнена». */
   title: string;
   /** Подробность: текст Комментария, время Визита. */
@@ -332,6 +386,8 @@ export type UserNotification = {
   managementQuestionId?: string;
   /** Платёжный период, который открывает Уведомление. */
   utilityPaymentPeriodId?: string;
+  /** Запрос на привязку к занятой Квартире. */
+  apartmentAccessRequestId?: string;
 };
 
 export type HouseContactKind =
@@ -595,10 +651,13 @@ export type NearestPlacesResponse = {
 /** Где Дом на карте: для карты Закреплённых мест и выбора точки. */
 export type HouseLocationResponse = { house: GeoPoint };
 
-/** Прибор учёта Квартиры, с которого Жилец передаёт Показания. */
+export const METER_KINDS = ['cold-water', 'hot-water', 'electricity-day', 'electricity-night', 'heat'] as const;
+export type MeterKind = (typeof METER_KINDS)[number];
+
+/** Прибор учёта Квартиры, для которого участники сохраняют Показания. */
 export type Meter = {
   id: string;
-  kind: 'cold-water' | 'hot-water' | 'electricity-day' | 'electricity-night' | 'heat';
+  kind: MeterKind;
   /** «Холодная вода, кухня». */
   title: string;
   /** «м³», «кВт·ч», «Гкал». */
@@ -607,8 +666,28 @@ export type Meter = {
   serial?: string;
   /** Сколько цифр после запятой на приборе. */
   decimals: number;
+  version: number;
   /** Прошлые Показания — от них считается расход. */
   previous?: { value: number; at: string };
+  /** Показания, уже сохранённые за текущий месяц. */
+  current?: { value: number; at: string };
+};
+
+export type MeterInput = {
+  kind: MeterKind;
+  title: string;
+  serial?: string;
+  decimals: number;
+  version?: number;
+};
+
+export type MeterReadingInput = {
+  meterId: string;
+  value: number;
+};
+
+export type ReadingsInput = {
+  readings: MeterReadingInput[];
 };
 
 /** Приём Показаний в этом месяце. */
@@ -754,6 +833,8 @@ export type HouseMembershipSummary = {
   houseId: string;
   apartmentId: string | null;
   apartmentNumber: string | null;
+  apartmentFloor: number | null;
+  apartmentEntrance: number | null;
   address: string;
   locality: string;
   role: HouseRole;
@@ -781,7 +862,8 @@ export type MaxPhoneContact = {
 
 /** Обязательные сведения первого входа Жильца в конкретный Дом. */
 export type ResidentHouseProfileInput = {
-  apartmentNumber: string;
+  /** Старые клиенты могут прислать номер, но сервер принимает только текущий. */
+  apartmentNumber?: string;
   phoneVisibleToNeighbors: boolean;
   neighborApartments: NeighborApartments;
   phoneContact?: MaxPhoneContact;

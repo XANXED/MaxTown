@@ -211,8 +211,8 @@ test.describe('Заявки', () => {
     const admin = await open(browser, baseURL, 'admin');
     await admin.goto('/#/events/new');
     await admin.getByRole('button', { name: 'Вода' }).click();
-    await admin.getByRole('textbox', { name: 'Коротко' }).fill('Нет холодной воды');
-    await admin.getByRole('textbox', { name: 'Что случилось' }).fill('Прорыв на вводе, аварийная служба на месте');
+    await admin.getByRole('textbox', { name: 'Заголовок' }).fill('Нет холодной воды');
+    await admin.getByRole('textbox', { name: 'Описание' }).fill('Прорыв на вводе, аварийная служба на месте');
     await admin.getByRole('button', { name: 'Открыть Аварию' }).click();
 
     // Карточка Аварии у Администратора: панель ЧС и Ход работ. Причину ещё выясняют, первый срок — «Срок».

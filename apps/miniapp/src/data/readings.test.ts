@@ -8,6 +8,7 @@ const cold: Meter = {
   title: 'Холодная вода',
   unit: 'м³',
   decimals: 3,
+  version: 1,
   previous: { value: 123.456, at: '2026-08-20' },
 };
 

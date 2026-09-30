@@ -241,8 +241,43 @@ export function EventScreen({ id, navigate, notify }: { id: string; navigate: Na
             }}
           />
         ) : null}
+
+        {event.kind !== 'accident' && manager ? (
+          <RemovePublication
+            onRemove={async () => {
+              await eventsClient.removePublication(manager.houseId, event.id);
+              notify?.('Событие убрано из Дома');
+              navigate(ROUTES.events);
+            }}
+          />
+        ) : null}
       </div>
     </main>
+  );
+}
+
+function RemovePublication({ onRemove }: { onRemove: () => Promise<void> }) {
+  const [asking, setAsking] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!asking) return <button className="danger-action pressable" type="button" onClick={() => setAsking(true)}>Убрать Событие</button>;
+  return (
+    <section className="decision-card reveal" aria-labelledby="remove-event-title">
+      <Typography.Text asChild variant="title"><h2 id="remove-event-title">Убрать Событие?</h2></Typography.Text>
+      <Typography.Text asChild variant="description" color="secondary"><p>Жильцы больше не увидят его в списке и Состоянии дома.</p></Typography.Text>
+      {error ? <p className="field-error" role="alert">{error}</p> : null}
+      <div className="decision-card__actions">
+        <Button variant="destructive" loading={saving} onClick={() => {
+          setSaving(true);
+          setError(null);
+          onRemove().catch((reason: unknown) => {
+            setError(reason instanceof Error ? reason.message : 'Не удалось убрать Событие');
+            setSaving(false);
+          });
+        }}>Убрать</Button>
+        <Button variant="secondary" onClick={() => setAsking(false)}>Отмена</Button>
+      </div>
+    </section>
   );
 }
 

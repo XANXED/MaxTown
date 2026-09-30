@@ -15,6 +15,8 @@ type ResidentRow = {
 type ProfileParams = { houseId: string };
 type ProfileMembershipRow = {
   membership_id: string;
+  apartment_id: string | null;
+  apartment_number: string | null;
   max_user_id: string | null;
   phone: string | null;
   phone_verified: boolean;
@@ -122,7 +124,7 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool, config: Aut
         },
         body: {
           type: 'object',
-          required: ['apartmentNumber', 'phoneVisibleToNeighbors', 'neighborApartments'],
+          required: ['phoneVisibleToNeighbors', 'neighborApartments'],
           additionalProperties: false,
           properties: {
             apartmentNumber: { type: 'string', minLength: 1, maxLength: 5 },
@@ -153,20 +155,22 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool, config: Aut
       },
     },
     async (request, reply) => {
-      const apartmentNumber = normalizeApartmentNumber(request.body.apartmentNumber);
+      const apartmentNumber = request.body.apartmentNumber === undefined
+        ? null
+        : normalizeApartmentNumber(request.body.apartmentNumber);
       const neighbors = normalizeNeighborApartments(request.body.neighborApartments);
-      if (!apartmentNumber || !neighbors) return reply.code(400).send({ error: 'invalid_apartment_number' } as never);
-      if (Object.values(neighbors).some((number) => number === apartmentNumber)) {
-        return reply.code(400).send({ error: 'neighbor_matches_apartment' } as never);
+      if ((request.body.apartmentNumber !== undefined && !apartmentNumber) || !neighbors) {
+        return reply.code(400).send({ error: 'invalid_apartment_number' } as never);
       }
-
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
         const membership = await client.query<ProfileMembershipRow>(
-          `SELECT m.id AS membership_id, r.max_user_id, r.phone, r.phone_verified
+          `SELECT m.id AS membership_id, m.apartment_id, apartment.number AS apartment_number,
+                  r.max_user_id, r.phone, r.phone_verified
              FROM memberships m
              JOIN residents r ON r.id = m.resident_id
+             LEFT JOIN apartments apartment ON apartment.id = m.apartment_id AND apartment.house_id = m.house_id
             WHERE m.house_id = $1 AND m.resident_id = $2 AND m.ended_at IS NULL
             FOR UPDATE OF m, r`,
           [request.params.houseId, request.authSession!.resident.id],
@@ -175,6 +179,18 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool, config: Aut
         if (!current) {
           await client.query('ROLLBACK');
           return reply.code(404).send({ error: 'house_membership_not_found' } as never);
+        }
+        if (!current.apartment_id || !current.apartment_number) {
+          await client.query('ROLLBACK');
+          return reply.code(409).send({ error: 'apartment_access_required' } as never);
+        }
+        if (apartmentNumber !== null && apartmentNumber !== current.apartment_number) {
+          await client.query('ROLLBACK');
+          return reply.code(409).send({ error: 'apartment_change_forbidden' } as never);
+        }
+        if (Object.values(neighbors).some((number) => number === current.apartment_number)) {
+          await client.query('ROLLBACK');
+          return reply.code(400).send({ error: 'neighbor_matches_apartment' } as never);
         }
 
         let verifiedPhone: string | null = null;
@@ -203,23 +219,16 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool, config: Aut
             [request.authSession!.resident.id, verifiedPhone],
           );
         }
-        const apartment = await client.query<{ id: string }>(
-          `INSERT INTO apartments (house_id, number) VALUES ($1, $2)
-           ON CONFLICT (house_id, number) DO UPDATE SET number = EXCLUDED.number
-           RETURNING id`,
-          [request.params.houseId, apartmentNumber],
-        );
         await client.query(
           `UPDATE memberships
-              SET apartment_id = $2,
-                  phone_visible_to_neighbors = $3,
-                  neighbor_apartment_left = $4,
-                  neighbor_apartment_right = $5,
-                  neighbor_apartment_below = $6,
-                  neighbor_apartment_above = $7,
+              SET phone_visible_to_neighbors = $2,
+                  neighbor_apartment_left = $3,
+                  neighbor_apartment_right = $4,
+                  neighbor_apartment_below = $5,
+                  neighbor_apartment_above = $6,
                   profile_completed_at = now()
             WHERE id = $1`,
-          [current.membership_id, apartment.rows[0]!.id, request.body.phoneVisibleToNeighbors,
+          [current.membership_id, request.body.phoneVisibleToNeighbors,
             neighbors.left, neighbors.right, neighbors.below, neighbors.above],
         );
         await client.query('COMMIT');

@@ -229,13 +229,26 @@ test.describe('подключение Дома', () => {
       expect(house.rows).toEqual([{ address: street }]);
 
       await page.getByRole('button', { name: 'Открыть Дом' }).click();
+      // Дом открыт сразу, Квартира привязывается отдельно (docs/adr/0018):
+      // пустая Квартира занимается по номеру и этажу, потом — анкета.
+      await expect(page.getByText(street, { exact: true })).toBeVisible();
+      await page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('button', { name: 'Профиль' }).click();
+      await page.getByRole('button', { name: /Профиль Квартиры/ }).click();
+      await expect(page.getByRole('heading', { name: 'Привязать Квартиру' }).first()).toBeVisible();
+      await page.getByRole('textbox', { name: 'Номер Квартиры' }).fill('42а');
+      await page.getByRole('textbox', { name: 'Этаж' }).fill('4');
+      await page.getByRole('button', { name: 'Продолжить' }).click();
       await expect(page.getByRole('heading', { name: 'Расскажите о себе' })).toBeVisible();
-      await page.getByRole('textbox', { name: /Номер вашей квартиры/ }).fill('42а');
+      await expect(page.getByRole('textbox', { name: /Номер вашей квартиры/ })).toHaveValue('42А');
       await page.getByRole('textbox', { name: 'Слева' }).fill('41');
       await page.getByRole('textbox', { name: 'Справа' }).fill('43');
       await page.getByRole('textbox', { name: 'Этажом ниже' }).fill('32');
       await page.getByRole('textbox', { name: 'Этажом выше' }).fill('52');
       await page.getByRole('button', { name: 'Сохранить и продолжить' }).click();
+      // Анкета возвращает в Профиль Квартиры, откуда её открыли; Дом — на главной.
+      await expect(page.getByRole('heading', { name: 'Профиль Квартиры', level: 1 })).toBeVisible();
+      await page.goBack();
+      await page.getByRole('navigation', { name: 'Основная навигация' }).getByRole('button', { name: 'Главная' }).click();
       await expect(page.getByText(street, { exact: true })).toBeVisible();
       await expect(page.getByText(/Администратор Дома/)).toBeVisible();
       await expect(page.getByRole('button', { name: 'Стать Жильцом', exact: true })).toHaveCount(0);
