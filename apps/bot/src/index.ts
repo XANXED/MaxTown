@@ -16,7 +16,6 @@ import {
 } from './address.ts';
 
 const MAX_API_ORIGIN = 'https://platform-api2.max.ru';
-const MAX_API_CLOUDFLARE_FALLBACK_ORIGIN = 'https://platform-api.max.ru';
 const WEBHOOK_PATH = '/api/max/webhook';
 const REGISTER_PATH = '/api/max/register';
 const AUTH_PATH = '/api/auth/max';
@@ -229,15 +228,7 @@ async function fetchMaxApi(
       ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
     },
   };
-  const response = await fetcher(url.href, requestInit);
-
-  if (response.status !== 526) return response;
-
-  // platform-api2.max.ru использует Russian Trusted Root CA, которого нет
-  // в бесплатном trust store Cloudflare. Старый домен пока обслуживает тот же
-  // API с публично доверенной цепочкой; используем его только при TLS 526.
-  const fallbackUrl = new URL(`${url.pathname}${url.search}`, MAX_API_CLOUDFLARE_FALLBACK_ORIGIN);
-  return fetcher(fallbackUrl.href, requestInit);
+  return fetcher(url.href, requestInit);
 }
 
 async function callMaxApi<T>(

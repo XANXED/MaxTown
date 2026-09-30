@@ -20,7 +20,9 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run --passWithNoTests",
     "test:e2e": "playwright test",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:render": "npm run build -w @maxtown/miniapp",
+    "start:render": "sh apps/bot/start-render.sh"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

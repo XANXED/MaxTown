@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: maxtown-demo
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: feature/max-house-auth
+    buildCommand: npm ci && npm run build:render
+    startCommand: npm run start:render
+    healthCheckPath: /api/health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_VERSION
+        value: 24.11.1
+      - key: DATABASE_URL
+        fromDatabase:
+          name: maxtown-demo-db
+          property: connectionString
+      - key: BOT_TOKEN
+        sync: false
+      - key: MAX_WEBHOOK_SECRET
+        sync: false
+      - key: MAX_RU_CA_CERT_PEM
+        sync: false
+      - key: DADATA_API_KEY
+        sync: false
+      - key: MAX_INIT_DATA_TTL_SECONDS
+        value: 900
+      - key: MAX_BOT_USERNAME
+        value: t25_hakaton_max_bot
+
+databases:
+  - name: maxtown-demo-db
+    plan: free
+    region: frankfurt
+    databaseName: maxtown
+    user: maxtown
+    ipAllowList: []

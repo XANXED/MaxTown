@@ -10,59 +10,50 @@
 
 ```bash
 npm install
-cp .env.example .env     # впишите BOT_TOKEN и DADATA_API_KEY, если нужен бот
+cp .env.example .env
 
-npm run dev:miniapp      # мини-апп жильцов, http://localhost:5173
-npm run dev:admin        # панель Модератора, http://localhost:5174
-npm run dev:api          # API, http://localhost:3000/health
-npm run dev:bot          # Worker (бот и API), http://localhost:8787
+npm run dev:miniapp      # http://localhost:5173
+npm run dev:admin        # http://localhost:5174
+npm run dev:api          # ранний API-сервер, http://localhost:3000/health
+npm run dev:bot          # локальный Worker, бот и API: http://localhost:8787
 ```
+
+Для подключения Дома запустите `dev:miniapp` вместе с `dev:bot`: Vite
+направляет `/api` в Worker. Локальный KV изолирован от опубликованного.
+Браузерный сценарий запускается через `npx playwright install chromium --only-shell`
+и `npm run test:e2e`; он проверяет onboarding с тестовыми MAX,
+DaData и KV.
 
 Проверки: `npm run typecheck` и `npm test`.
 
-Для подключения Дома запустите `dev:miniapp` вместе с `dev:bot`:
-Vite направляет `/api` в тот же Worker, который работает на Cloudflare.
-`dev:api` — отдельный ранний сервер, в нём нет сценария выбора адреса.
-Локальный KV изолирован от опубликованного; данные запуска MAX проверяются
-на сервере и в локальном режиме.
+## Демо-развёртывание
 
-Браузерный регрессионный тест: `npx playwright install chromium --only-shell`,
-затем `npm run test:e2e`. Он использует production-сборку интерфейса, настоящий
-обработчик Worker и тестовые MAX/DaData/KV: проверяет зависание запроса,
-выбор адреса, создание Дома, отображение адреса и повторную загрузку.
-
-## Публичная версия
-
-Мини-приложение, API авторизации и webhook бота работают в одном Cloudflare
-Worker: <https://maxtown.maxtown-bot.workers.dev>.
-
-В настройках мини-приложения MAX указывайте этот корневой URL без `#/welcome`
-и параметров запуска. MAX сам добавляет `WebAppData` и `WebAppStartParam`.
-Для ранее настроенных ссылок с маршрутом приложение также поддерживает
-формат `#/welcome?WebAppStartParam=…#WebAppData=…` и сохраняет параметры при
-навигации; данные входа всегда проверяются сервером.
+Blueprint для Render Free находится в [`render.yaml`](render.yaml), инструкция
+по первому запуску и секретам — в [`docs/deploy/render.md`](docs/deploy/render.md).
+Демо объединяет Mini App, API и webhook бота в одном Node-сервисе с бесплатной
+PostgreSQL. Сервис засыпает при простое, а база автоматически удаляется через
+30 дней; это окружение не предназначено для хранения важных данных.
 
 ```bash
-npm run build:cloudflare   # локальная проверка сборки Worker
-npm run deploy:cloudflare  # сборка мини-аппы и публикация Worker
+npm run build:render
+npm run start:render
 ```
 
-Домовые чаты Worker хранит в Cloudflare KV. После добавления бота в групповой
-чат нужно выдать ему права администратора. Бот попробует определить точный
-адрес по названию чата. При одном совпадении Дом создастся автоматически, при
-неоднозначном названии администратор получит кнопку «Указать адрес».
+В Render задайте `BOT_TOKEN`, `MAX_WEBHOOK_SECRET`, `DATABASE_URL`,
+`MAX_RU_CA_CERT_PEM` и `DADATA_API_KEY`. Последний нужен для подсказок адреса.
+Значение `MAX_RU_CA_CERT_PEM` — PEM-сертификат доверенного центра Минцифры,
+который требует [официальная документация MAX](https://dev.max.ru/docs-api).
+Секреты не хранятся в репозитории. API-вызовы бота идут на
+`platform-api2.max.ru`.
 
-Локально серверный ключ DaData задаётся в корневом `.env`:
+При первом старте Render PostgreSQL пустая; инструкции по повторному
+подключению тестового Дома до смены webhook приведены в
+[`docs/deploy/render.md`](docs/deploy/render.md).
 
-```dotenv
-DADATA_API_KEY=ваш_ключ
-```
-
-Для публичного Worker ключ загружается как секрет и не хранится в репозитории:
-
-```bash
-npx wrangler secret put DADATA_API_KEY --config apps/bot/wrangler.jsonc
-```
+Настройки мини-приложения MAX должны содержать корневой URL без `#/welcome` и
+параметров запуска. MAX сам добавляет `WebAppData` и `WebAppStartParam`.
+Приложение также поддерживает старую ссылку с маршрутом и сохраняет параметры
+при навигации; подлинность данных входа всегда проверяется сервером.
 
 Если бот получил права до настройки webhook, снимите и снова выдайте их один
 раз, чтобы MAX прислал новое событие. Если MAX не прислал событие смены прав,
@@ -81,12 +72,12 @@ npx wrangler secret put DADATA_API_KEY --config apps/bot/wrangler.jsonc
 Роли вычисляются заново по актуальному составу и правам участников при входе в
 мини-приложение. Назначение УК хранится отдельно для каждого Дома.
 
-## Где что лежит
+## Структура
 
-- `apps/` — приложения: `miniapp`, `admin`, `api`, `bot`.
+- `apps/` — приложения `miniapp`, `admin`, `api` и `bot`.
 - `packages/shared/` — общие типы.
-- `design/` — токены оформления MAX, темы и материалы для Stitch.
-- `docs/` — архитектурные решения, исследования и настройка агентов.
-  Официальные источники по теме — в [docs/research/sources.md](docs/research/sources.md).
+- `design/` — токены MAX, темы и материалы для Stitch.
+- `docs/` — архитектурные решения, исследования и инструкции.
 
-Как работать с ИИ-агентами в этом репозитории — в [AGENTS.md](AGENTS.md).
+Официальные источники по теме — в [docs/research/sources.md](docs/research/sources.md).
+Инструкции для агентов — в [AGENTS.md](AGENTS.md).

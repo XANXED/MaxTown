@@ -296,7 +296,7 @@ describe('Cloudflare Worker бота MAX', () => {
     );
   });
 
-  it('повторяет запрос через совместимый домен при TLS 526', async () => {
+  it('не отправляет токен через устаревший домен при TLS 526', async () => {
     const env = createEnv();
     const fetcher = vi
       .fn<typeof fetch>()
@@ -307,11 +307,16 @@ describe('Cloudflare Worker бота MAX', () => {
       headers: { 'x-max-bot-api-secret': env.MAX_WEBHOOK_SECRET },
     });
 
-    const response = await handleRequest(request, env, fetcher);
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const response = await handleRequest(request, env, fetcher);
 
-    expect(response.status).toBe(200);
-    expect(fetcher).toHaveBeenNthCalledWith(1, 'https://platform-api2.max.ru/subscriptions', expect.any(Object));
-    expect(fetcher).toHaveBeenNthCalledWith(2, 'https://platform-api.max.ru/subscriptions', expect.any(Object));
+      expect(response.status).toBe(502);
+      expect(fetcher).toHaveBeenNthCalledWith(1, 'https://platform-api2.max.ru/subscriptions', expect.any(Object));
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 
   it('определяет точный адрес из названия, создаёт Дом по chat_id и публикует приглашение', async () => {
