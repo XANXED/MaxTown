@@ -81,7 +81,7 @@ describe.skipIf(!databaseUrl)('house onboarding routes', () => {
     expect(valid.filter((reply) => reply.json<{ invitation: { status: string } }>().invitation.status === 'valid')).toHaveLength(1);
   });
 
-  it('attaches an active House member to the invited Apartment', async () => {
+  it('grants a separate one-time apartment access without changing House membership or role', async () => {
     await pool.query("INSERT INTO memberships (house_id, resident_id, role) VALUES ($1, $2, 'resident')", [houseId, otherResidentId]);
     const issued = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/invitations`, headers: { authorization: `Bearer ${headmanToken}` }, payload: { apartmentId } });
     const code = issued.json<{ code: string }>().code;
@@ -89,17 +89,50 @@ describe.skipIf(!databaseUrl)('house onboarding routes', () => {
     const redeem = await app.inject({ method: 'POST', url: `/api/invitations/${code}/redeem`, headers: { authorization: `Bearer ${otherToken}` } });
 
     expect(redeem.statusCode).toBe(200);
-    expect((await pool.query<{ apartment_id: string | null }>('SELECT apartment_id FROM memberships WHERE resident_id = $1 AND house_id = $2 AND ended_at IS NULL', [otherResidentId, houseId])).rows[0]?.apartment_id).toBe(apartmentId);
+    expect((await pool.query<{ apartment_id: string | null; role: string }>('SELECT apartment_id, role FROM memberships WHERE resident_id = $1 AND house_id = $2 AND ended_at IS NULL', [otherResidentId, houseId])).rows[0]).toEqual({ apartment_id: null, role: 'resident' });
+    expect((await pool.query('SELECT id FROM apartment_access_grants WHERE resident_id = $1 AND apartment_id = $2 AND revoked_at IS NULL', [otherResidentId, apartmentId])).rowCount).toBe(1);
+    const replay = await app.inject({ method: 'POST', url: `/api/invitations/${code}/redeem`, headers: { authorization: `Bearer ${otherToken}` } });
+    expect(replay.statusCode).toBe(200);
   });
 
-  it('handles concurrent redemption of one invitation without duplicate membership', async () => {
+  it('handles concurrent redemption idempotently and refuses access to a second recipient', async () => {
     await pool.query("INSERT INTO memberships (house_id, resident_id, role) VALUES ($1, $2, 'resident')", [houseId, otherResidentId]);
     const issued = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/invitations`, headers: { authorization: `Bearer ${headmanToken}` }, payload: { apartmentId } });
     const code = issued.json<{ code: string }>().code;
     const headers = { authorization: `Bearer ${otherToken}` };
     const replies = await Promise.all([1, 2].map(() => app.inject({ method: 'POST', url: `/api/invitations/${code}/redeem`, headers })));
     expect(replies.map(({ statusCode }) => statusCode)).toEqual([200, 200]);
-    expect((await pool.query('SELECT id FROM memberships WHERE resident_id = $1 AND house_id = $2 AND ended_at IS NULL', [otherResidentId, houseId])).rowCount).toBe(1);
+    expect((await pool.query('SELECT id FROM apartment_access_grants WHERE resident_id = $1 AND apartment_id = $2 AND revoked_at IS NULL', [otherResidentId, apartmentId])).rowCount).toBe(1);
+    const third = await createResident('house-route-third');
+    await pool.query("INSERT INTO memberships (house_id, resident_id, role) VALUES ($1, $2, 'resident')", [houseId, third.id]);
+    const replayFromAnotherPerson = await app.inject({ method: 'POST', url: `/api/invitations/${code}/redeem`, headers: { authorization: `Bearer ${third.token}` } });
+    expect(replayFromAnotherPerson.statusCode).toBe(404);
+  });
+
+  it('requires current House membership to inspect an invitation and supports separate access revocation', async () => {
+    const issued = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/invitations`, headers: { authorization: `Bearer ${headmanToken}` }, payload: { apartmentId } });
+    const code = issued.json<{ code: string }>().code;
+    expect((await app.inject({ method: 'GET', url: `/api/invitations/${code}`, headers: { authorization: `Bearer ${otherToken}` } })).json()).toEqual({ invitation: { status: 'not-house-member' } });
+    await pool.query("INSERT INTO memberships (house_id, resident_id, role) VALUES ($1, $2, 'resident')", [houseId, otherResidentId]);
+    const accepted = await app.inject({ method: 'POST', url: `/api/invitations/${code}/redeem`, headers: { authorization: `Bearer ${otherToken}` } });
+    const grantId = accepted.json<{ grant: { id: string } }>().grant.id;
+    const revoked = await app.inject({ method: 'DELETE', url: `/api/houses/${houseId}/apartment-access/${grantId}`, headers: { authorization: `Bearer ${headmanToken}` } });
+    expect(revoked.statusCode).toBe(204);
+    expect((await pool.query('SELECT id FROM apartment_access_grants WHERE id = $1 AND revoked_at IS NOT NULL', [grantId])).rowCount).toBe(1);
+  });
+
+  it('expires invitations and lets their creator revoke them before acceptance', async () => {
+    const headers = { authorization: `Bearer ${headmanToken}` };
+    const created = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/invitations`, headers, payload: { apartmentId } });
+    const code = created.json<{ code: string }>().code;
+    expect(created.json<{ expiresAt: string }>().expiresAt).toBeTruthy();
+    expect((await app.inject({ method: 'DELETE', url: `/api/houses/${houseId}/invitations/${code}`, headers })).statusCode).toBe(204);
+    expect((await app.inject({ method: 'GET', url: `/api/invitations/${code}`, headers })).json()).toEqual({ invitation: { status: 'revoked' } });
+
+    const expiring = await app.inject({ method: 'POST', url: `/api/houses/${houseId}/invitations`, headers, payload: { apartmentId } });
+    const expiringCode = expiring.json<{ code: string }>().code;
+    await pool.query('UPDATE invitations SET expires_at = now() - interval \'1 second\' WHERE code_hash = $1', [createHash('sha256').update(expiringCode).digest()]);
+    expect((await app.inject({ method: 'GET', url: `/api/invitations/${expiringCode}`, headers })).json()).toEqual({ invitation: { status: 'expired' } });
   });
 
   it('lets apartment residents decide requests and only the headman decide for an empty apartment', async () => {

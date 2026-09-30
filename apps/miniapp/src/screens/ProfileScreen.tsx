@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Avatar } from '@vkontakte/vkui';
-import { BellRinging, BookOpen, ChatCircleText, CloudSlash, House, ShieldCheck, User } from '@phosphor-icons/react';
-import { Typography } from '../components/platform-ui.tsx';
+import { BellRinging, BookOpen, ChatCircleText, CloudSlash, House, LinkSimple, ShieldCheck, User } from '@phosphor-icons/react';
+import { Button, Typography } from '../components/platform-ui.tsx';
 import {
   BottomNavigation,
   IconTile,
@@ -15,6 +15,9 @@ import { useHouseState } from '../data/houseState.ts';
 import { currentProfileUser } from '../maxUser.ts';
 import { ROUTES } from '../routes.ts';
 import { membershipLine, useMembership } from '../auth/membership.tsx';
+import type { ApartmentAccessGrant } from '@maxtown/shared';
+import { createApartmentInvite, listApartmentAccess, revokeApartmentAccess, revokeApartmentInvite } from '../data/apartment-access.ts';
+import { demoMode } from '../data/loadable.ts';
 import type { Navigate, Notify } from './types.ts';
 
 type ProfileScreenProps = {
@@ -28,6 +31,51 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
   const soon = (title: string) => () => notify(`«${title}» появится позже`);
   const { status: houseStatus, data: house, retry: retryHouse } = useHouseState();
   const membership = useMembership();
+  const [grants, setGrants] = useState<ApartmentAccessGrant[]>([]);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [inviteExpiresAt, setInviteExpiresAt] = useState<string | null>(null);
+  const [accessBusy, setAccessBusy] = useState(false);
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const refreshAccess = useCallback(async () => {
+    if (!membership || demoMode()) return;
+    try { setGrants(await listApartmentAccess(membership.houseId)); setAccessError(null); }
+    catch { setAccessError('Не удалось загрузить доступ. Проверьте интернет и повторите попытку.'); }
+  }, [membership]);
+  useEffect(() => { void refreshAccess(); }, [refreshAccess]);
+
+  const issueInvite = async () => {
+    if (!membership?.apartmentId) return;
+    setAccessBusy(true); setAccessError(null);
+    try {
+      const invitation = await createApartmentInvite(membership.houseId, membership.apartmentId);
+      setInviteUrl(`https://max.ru/t25_hakaton_max_bot?startapp=inv_${invitation.code}`);
+      setInviteCode(invitation.code);
+      setInviteExpiresAt(invitation.expiresAt);
+      await refreshAccess();
+    } catch { setAccessError('Не удалось создать ссылку. Проверьте права и подключение.'); }
+    finally { setAccessBusy(false); }
+  };
+
+  const cancelInvite = async () => {
+    if (!membership || !inviteCode) return;
+    setAccessBusy(true); setAccessError(null);
+    try {
+      await revokeApartmentInvite(membership.houseId, inviteCode);
+      setInviteCode(null); setInviteUrl(null);
+      setInviteExpiresAt(null);
+      notify('Приглашение отозвано');
+    } catch { setAccessError('Не удалось отозвать приглашение. Возможно, его уже приняли.'); }
+    finally { setAccessBusy(false); }
+  };
+
+  const revokeGrant = async (grantId: string) => {
+    if (!membership) return;
+    setAccessBusy(true); setAccessError(null);
+    try { await revokeApartmentAccess(membership.houseId, grantId); await refreshAccess(); }
+    catch { setAccessError('Не удалось отозвать доступ. Попробуйте ещё раз.'); }
+    finally { setAccessBusy(false); }
+  };
 
   return (
     <div className="screen screen--home">
@@ -100,6 +148,40 @@ export function ProfileScreen({ navigate, notify }: ProfileScreenProps) {
             />
           )}
         </ProfileGroup>
+
+        {membership?.apartmentId && !demoMode() ? (
+          <ProfileGroup id="apartment-access" title="Доступ к Квартире">
+            <div className="list-row list-row--compact">
+              <IconTile icon={LinkSimple} tone="blue" size="small" />
+              <span className="list-row__copy">
+                <Typography.Text asChild variant="body-strong"><span>Предоставить доступ</span></Typography.Text>
+                <Typography.Text asChild variant="description" color="secondary"><span>Участник Домового чата увидит адрес Дома и номер Квартиры. Роль не меняется.</span></Typography.Text>
+              </span>
+            </div>
+            <div className="list-row__actions">
+              <Button size="small" loading={accessBusy} onClick={() => void issueInvite()}>Создать ссылку на 7 дней</Button>
+            </div>
+            {inviteUrl ? (
+              <div className="list-row__copy" aria-live="polite">
+                {inviteExpiresAt ? <Typography.Text asChild variant="description" color="secondary"><span>Ссылка действует до {new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(inviteExpiresAt))}</span></Typography.Text> : null}
+                <Typography.Text asChild variant="description"><a href={inviteUrl}>{inviteUrl}</a></Typography.Text>
+                <Button size="small" variant="secondary" onClick={() => void navigator.clipboard.writeText(inviteUrl).then(() => notify('Ссылка скопирована')).catch(() => notify('Не удалось скопировать ссылку'))}>Скопировать ссылку</Button>
+                {inviteCode ? <Button size="small" variant="destructive" loading={accessBusy} onClick={() => void cancelInvite()}>Отозвать приглашение</Button> : null}
+              </div>
+            ) : null}
+            {accessError ? <p className="field-error" role="alert">{accessError}</p> : null}
+            {grants.length ? grants.map((grant) => (
+              <div className="list-row list-row--compact" key={grant.id}>
+                <IconTile icon={User} tone="teal" size="small" />
+                <span className="list-row__copy">
+                  <Typography.Text asChild variant="body-strong"><span>{grant.residentName}</span></Typography.Text>
+                  <Typography.Text asChild variant="description" color="secondary"><span>Доступ к Квартире {grant.apartment}</span></Typography.Text>
+                </span>
+                <Button size="small" variant="destructive" loading={accessBusy} onClick={() => void revokeGrant(grant.id)}>Отозвать</Button>
+              </div>
+            )) : <Typography.Text asChild variant="description" color="secondary"><p>Пока никому не предоставлен.</p></Typography.Text>}
+          </ProfileGroup>
+        ) : null}
 
         <ProfileGroup id="settings" title="Настройки">
           <ProfileRow

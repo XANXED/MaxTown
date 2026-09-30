@@ -288,9 +288,21 @@ export type HouseState = HouseStateResponse & {
 /** Что показала проверка Приглашения. */
 export type InviteCheck =
   | { status: 'valid'; houseAddress: string; apartment: string }
-  /** Приглашение перевыпустили — действует только новое. */
+  | { status: 'not-house-member' }
+  | { status: 'used' }
+  | { status: 'expired' }
   | { status: 'revoked' }
   | { status: 'not-found' };
+
+/** Доступ к базовым сведениям о Квартире (Адрес Дома и номер), без смены Роли. */
+export type ApartmentAccessGrant = {
+  id: string;
+  houseId: string;
+  apartmentId: string;
+  apartment: string;
+  residentName: string;
+  createdAt: string;
+};
 
 /**
  * Уведомление: что изменилось в Заявке человека. Не путать с Событием дома —

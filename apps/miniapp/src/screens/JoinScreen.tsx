@@ -19,8 +19,8 @@ function codeReader(): ((fileSelect?: boolean) => Promise<string>) | null {
 }
 
 /**
- * Путь «Стать Жильцом» (docs/adr/0006): в Дом пускает участие в Домовом чате
- * MAX, а Приглашение привязывает человека к конкретной Квартире.
+ * Приглашение даёт участнику чата отдельный доступ к базовым сведениям
+ * Квартиры и не меняет его Роль или членство в Доме.
  */
 export function JoinScreen({ navigate }: JoinScreenProps) {
   const [launchCode] = useState(launchInviteCode);
@@ -33,10 +33,10 @@ export function JoinScreen({ navigate }: JoinScreenProps) {
         <section className="join-result stagger" aria-live="polite">
           <IconTile icon={House} tone="green" size="large" />
           <Typography.Text asChild variant="header">
-            <h1>Вы Жилец Квартиры {joined.apartment}</h1>
+            <h1>Доступ к Квартире {joined.apartment} предоставлен</h1>
           </Typography.Text>
           <Typography.Text asChild variant="body" color="secondary">
-            <p>{joined.address}. На главной теперь видно Состояние дома, а Заявки уходят Ответственным.</p>
+            <p>{joined.address}. Вы видите адрес Дома и номер Квартиры. Ваша Роль определяется Домовым чатом и не изменилась.</p>
           </Typography.Text>
           <Button size="medium" variant="primary" stretched onClick={() => navigate(ROUTES.home)}>
             На главную
@@ -49,8 +49,8 @@ export function JoinScreen({ navigate }: JoinScreenProps) {
   return (
     <main className="screen screen--inner" id="main-content">
       <div className="inner-content stagger">
-        <ScreenHeading description="В Дом пускает Домовой чат MAX: попросите его администратора добавить бота MaxTown. Приглашение от соседа привяжет вас к Квартире">
-          Стать Жильцом
+        <ScreenHeading description="Доступ к Дому определяется участием в Домовом чате MAX. Приглашение от Жильца предоставит доступ к базовым сведениям одной Квартиры">
+          Доступ к Квартире
         </ScreenHeading>
         <InviteFlow
           initialCode={launchCode}
@@ -125,7 +125,7 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
           </h2>
         </Typography.Text>
         <Typography.Text asChild variant="description" color="secondary">
-          <p>Приглашение действует. Вступите, и Дом появится на главной.</p>
+          <p>После подтверждения вам откроются адрес Дома и номер Квартиры. Роль в чате не изменится.</p>
         </Typography.Text>
         <div className="decision-card__actions">
           <Button size="medium" variant="primary" stretched loading={joining} onClick={() => {
@@ -135,7 +135,7 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
               setJoinError('Не удалось вступить. Проверьте подключение и попробуйте ещё раз.');
             }).finally(() => setJoining(false));
           }}>
-            Вступить
+            Предоставить доступ
           </Button>
           {joinError ? <p className="field-error" role="alert">{joinError}</p> : null}
           <Button size="medium" variant="ghost" stretched onClick={() => setCheck({ state: 'idle' })}>
@@ -155,7 +155,7 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
             <h2 id="invite-title">Приглашение в Квартиру</h2>
           </Typography.Text>
           <Typography.Text asChild variant="description" color="secondary">
-            <p>QR-код или ссылка от Администратора Дома или Жильца вашей Квартиры. По нему вы станете Жильцом этой Квартиры.</p>
+            <p>Ссылка от Администратора Дома или Жильца Квартиры. Она даст доступ только к адресу Дома и номеру Квартиры участнику Домового чата.</p>
           </Typography.Text>
         </span>
         {scanner ? (
@@ -226,9 +226,12 @@ function InviteFlow({ initialCode, onJoined }: { initialCode: string | null; onJ
 
 const inviteProblems: Record<Exclude<InviteResult['status'], 'valid'>, { title: string; text: string }> = {
   revoked: {
-    title: 'Это Приглашение уже не действует',
-    text: 'Его перевыпустили: у Квартиры действует только последнее. Попросите новое у того, кто его отправил.',
+    title: 'Приглашение отозвано',
+    text: 'Попросите у Жильца Квартиры новую ссылку.',
   },
+  expired: { title: 'Срок приглашения истёк', text: 'Попросите у Жильца Квартиры новую ссылку.' },
+  used: { title: 'Приглашение уже использовано', text: 'Попросите у Жильца Квартиры новую ссылку.' },
+  'not-house-member': { title: 'Сначала откройте Домовой чат', text: 'Доступ к Квартире можно получить только участнику соответствующего Домового чата.' },
   'not-found': {
     title: 'Приглашение не найдено',
     text: 'Проверьте, что ссылка скопирована целиком, или отсканируйте QR-код.',
